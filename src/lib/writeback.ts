@@ -45,3 +45,8 @@ export function writebackSequenceStatus(id: string, status: string) {
 export function writebackLeadStatus(id: string, status: string) {
   updateJsonFile('leads.json', id, { status });
 }
+
+/** Update arbitrary lead fields in leads.json */
+export function writebackLeadUpdate(id: string, updates: Record<string, unknown>) {
+  updateJsonFile('leads.json', id, updates);
+}

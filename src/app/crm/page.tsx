@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-  Contact, Search, ChevronRight, Mail, Linkedin, Star,
-  Clock, Building2, User, ArrowUpDown, X,
+  Contact, Search, ChevronRight, ChevronLeft, Mail, Linkedin, Star,
+  Clock, Building2, User, ArrowUpDown, X, Pause, Play,
   Send, Eye, CircleDot, MessageSquare, CalendarCheck, CheckCircle, Ban,
+  ChevronDown, ChevronUp, Check, XCircle, Edit3, Save, Loader2,
 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useDashboard } from '@/store';
@@ -18,10 +19,12 @@ interface CrmData {
 }
 
 interface LeadDetail {
-  lead: Lead;
+  lead: Lead & { pause_outreach?: number };
   sequences: Sequence[];
   timeline: { id: number; type: string; description: string; timestamp: string }[];
 }
+
+const STAGES = ['new', 'validated', 'contacted', 'replied', 'interested', 'booked', 'qualified'] as const;
 
 const STAGE_ICONS: Record<string, typeof Send> = {
   new: CircleDot,
@@ -57,6 +60,7 @@ export default function CrmPage() {
   const [tierFilter, setTierFilter] = useState('');
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'score' | 'created_at'>('score');
+  const [refreshKey, setRefreshKey] = useState(0);
   const { realOnly } = useDashboard();
 
   const params = new URLSearchParams();
@@ -67,7 +71,7 @@ export default function CrmPage() {
 
   const { data } = useSmartPoll<CrmData>(
     () => fetch(`/api/crm?${params}`).then(r => r.json()),
-    { interval: 30_000, key: realOnly },
+    { interval: 30_000, key: `${realOnly}-${refreshKey}` },
   );
 
   const leads = data?.leads || [];
@@ -75,6 +79,10 @@ export default function CrmPage() {
     if (sortField === 'score') return (b.score ?? 0) - (a.score ?? 0);
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  const handleMutate = useCallback(() => {
+    setRefreshKey(k => k + 1);
+  }, []);
 
   return (
     <div className="space-y-6 animate-in">
@@ -167,7 +175,6 @@ export default function CrmPage() {
 
       {/* Lead List + Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Lead List */}
         <div className="lg:col-span-2 space-y-2">
           {sorted.length === 0 ? (
             <div className="card p-8 text-center text-sm text-muted-foreground">No leads found</div>
@@ -183,10 +190,14 @@ export default function CrmPage() {
           )}
         </div>
 
-        {/* Detail Panel */}
         <div className="lg:col-span-1">
           {selectedLead ? (
-            <LeadDetailPanel id={selectedLead} onClose={() => setSelectedLead(null)} />
+            <LeadDetailPanel
+              key={selectedLead}
+              id={selectedLead}
+              onClose={() => setSelectedLead(null)}
+              onMutate={handleMutate}
+            />
           ) : (
             <div className="card p-8 text-center text-sm text-muted-foreground sticky top-24">
               <Contact size={32} className="mx-auto mb-3 opacity-30" />
@@ -199,17 +210,24 @@ export default function CrmPage() {
   );
 }
 
-function LeadRow({ lead, selected, onClick }: { lead: Lead; selected: boolean; onClick: () => void }) {
+/* ─── Lead Row ─────────────────────────────────────────── */
+
+function LeadRow({ lead, selected, onClick }: { lead: Lead & { pause_outreach?: number }; selected: boolean; onClick: () => void }) {
   const Icon = STAGE_ICONS[lead.status] || CircleDot;
+  const isPaused = (lead as { pause_outreach?: number }).pause_outreach === 1;
   return (
     <button
       onClick={onClick}
       className={`card card-hover w-full text-left p-4 flex items-center gap-4 transition-all ${
         selected ? 'border-primary/50 bg-primary/5' : ''
-      }`}
+      } ${isPaused ? 'opacity-60' : ''}`}
     >
       <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-        <User size={16} className="text-muted-foreground" />
+        {isPaused ? (
+          <Pause size={14} className="text-warning" />
+        ) : (
+          <User size={16} className="text-muted-foreground" />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -219,6 +237,11 @@ function LeadRow({ lead, selected, onClick }: { lead: Lead; selected: boolean; o
           {lead.tier && (
             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${TIER_COLORS[lead.tier] || ''}`}>
               {lead.tier}
+            </span>
+          )}
+          {isPaused && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/30">
+              paused
             </span>
           )}
         </div>
@@ -247,20 +270,112 @@ function LeadRow({ lead, selected, onClick }: { lead: Lead; selected: boolean; o
   );
 }
 
-function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
+/* ─── Lead Detail Panel ────────────────────────────────── */
+
+function LeadDetailPanel({ id, onClose, onMutate }: { id: string; onClose: () => void; onMutate: () => void }) {
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState('');
+  const [expandedSeq, setExpandedSeq] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [detailRefresh, setDetailRefresh] = useState(0);
+
   const { data, loading } = useSmartPoll<LeadDetail>(
-    () => fetch(`/api/crm?id=${id}`).then(r => r.json()),
-    { interval: 30_000 },
+    () => fetch(`/api/crm?id=${id}`).then(r => {
+      if (!r.ok) throw new Error('Failed to load');
+      return r.json();
+    }),
+    { interval: 30_000, key: detailRefresh },
   );
 
-  if (loading || !data) {
-    return <div className="card p-6 animate-pulse bg-muted/20 h-96 sticky top-24" />;
+  // Sync notesValue when data loads
+  useEffect(() => {
+    if (data?.lead?.notes !== undefined) {
+      setNotesValue(data.lead.notes || '');
+    }
+  }, [data?.lead?.notes]);
+
+  function showFeedback(type: 'success' | 'error', msg: string) {
+    setFeedback({ type, msg });
+    setTimeout(() => setFeedback(null), 2500);
+  }
+
+  async function patchLead(updates: Record<string, unknown>) {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/crm', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      showFeedback('success', 'Updated');
+      setDetailRefresh(k => k + 1);
+      onMutate();
+    } catch {
+      showFeedback('error', 'Failed to update');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function patchSequence(seqId: string, status: string) {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/crm', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: seqId, type: 'sequence', status }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      showFeedback('success', status === 'approved' ? 'Email approved' : 'Email rejected');
+      setDetailRefresh(k => k + 1);
+      onMutate();
+    } catch {
+      showFeedback('error', 'Failed to update');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading && !data) {
+    return (
+      <div className="card p-6 sticky top-24 flex items-center justify-center h-64">
+        <Loader2 size={20} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="card p-6 sticky top-24 text-center space-y-2">
+        <XCircle size={24} className="mx-auto text-destructive/60" />
+        <p className="text-sm text-muted-foreground">Failed to load lead</p>
+        <button onClick={() => setDetailRefresh(k => k + 1)} className="btn btn-ghost btn-sm">
+          Retry
+        </button>
+      </div>
+    );
   }
 
   const { lead, sequences, timeline } = data;
+  const isPaused = (lead as { pause_outreach?: number }).pause_outreach === 1;
+  const currentStageIdx = STAGES.indexOf(lead.status as typeof STAGES[number]);
+  const canAdvance = currentStageIdx >= 0 && currentStageIdx < STAGES.length - 1;
+  const canRevert = currentStageIdx > 0;
 
   return (
-    <div className="card p-5 space-y-4 sticky top-24 animate-slide-in">
+    <div className="card p-5 space-y-4 sticky top-24 animate-slide-in max-h-[calc(100vh-8rem)] overflow-y-auto">
+      {/* Feedback */}
+      {feedback && (
+        <div className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 animate-in ${
+          feedback.type === 'success' ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'
+        }`}>
+          {feedback.type === 'success' ? <Check size={12} /> : <XCircle size={12} />}
+          {feedback.msg}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -275,16 +390,16 @@ function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
       {/* Contact Info */}
       <div className="space-y-1.5">
         {lead.email && (
-          <div className="flex items-center gap-2 text-xs">
-            <Mail size={12} className="text-muted-foreground" />
-            <span className="font-mono">{lead.email}</span>
-          </div>
+          <a href={`mailto:${lead.email}`} className="flex items-center gap-2 text-xs hover:text-primary transition-colors">
+            <Mail size={12} className="text-muted-foreground shrink-0" />
+            <span className="font-mono truncate">{lead.email}</span>
+          </a>
         )}
         {lead.linkedin_url && (
-          <div className="flex items-center gap-2 text-xs">
-            <Linkedin size={12} className="text-muted-foreground" />
+          <a href={lead.linkedin_url.startsWith('http') ? lead.linkedin_url : `https://${lead.linkedin_url}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs hover:text-primary transition-colors">
+            <Linkedin size={12} className="text-muted-foreground shrink-0" />
             <span className="truncate">{lead.linkedin_url}</span>
-          </div>
+          </a>
         )}
       </div>
 
@@ -295,7 +410,17 @@ function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
           <div className="text-[9px] text-muted-foreground uppercase">Score</div>
         </div>
         <div className="bg-muted/30 rounded-lg p-2 text-center">
-          <div className="text-sm font-semibold">{lead.tier ?? '\u2014'}</div>
+          <select
+            value={lead.tier || ''}
+            onChange={e => patchLead({ tier: e.target.value || null })}
+            disabled={saving}
+            className="bg-transparent text-sm font-semibold text-center w-full cursor-pointer focus:outline-none disabled:opacity-50"
+          >
+            <option value="">--</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+          </select>
           <div className="text-[9px] text-muted-foreground uppercase">Tier</div>
         </div>
         <div className="bg-muted/30 rounded-lg p-2 text-center">
@@ -303,6 +428,55 @@ function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
           <div className="text-[9px] text-muted-foreground uppercase">Stage</div>
         </div>
       </div>
+
+      {/* Stage Controls */}
+      <div className="flex items-center gap-2">
+        <button
+          disabled={!canRevert || saving}
+          onClick={() => patchLead({ status: STAGES[currentStageIdx - 1] })}
+          className="btn btn-ghost btn-sm flex-1 disabled:opacity-30"
+          title="Previous stage"
+        >
+          <ChevronLeft size={14} />
+          {canRevert ? STAGES[currentStageIdx - 1] : 'Back'}
+        </button>
+        <button
+          disabled={!canAdvance || saving}
+          onClick={() => patchLead({ status: STAGES[currentStageIdx + 1] })}
+          className="btn btn-sm flex-1 bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-30"
+          title="Advance stage"
+        >
+          {canAdvance ? STAGES[currentStageIdx + 1] : 'Done'}
+          <ChevronRight size={14} />
+        </button>
+        {lead.status !== 'disqualified' && (
+          <button
+            disabled={saving}
+            onClick={() => patchLead({ status: 'disqualified' })}
+            className="btn btn-ghost btn-sm text-destructive hover:bg-destructive/10"
+            title="Disqualify"
+          >
+            <Ban size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Pause Toggle */}
+      <button
+        onClick={() => patchLead({ pause_outreach: isPaused ? 0 : 1 })}
+        disabled={saving}
+        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+          isPaused
+            ? 'bg-warning/15 text-warning border border-warning/30'
+            : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          {isPaused ? <Pause size={12} /> : <Play size={12} />}
+          {isPaused ? 'Outreach Paused' : 'Outreach Active'}
+        </span>
+        <span className="text-[10px] opacity-70">{isPaused ? 'Click to resume' : 'Click to pause'}</span>
+      </button>
 
       {/* Details */}
       <div className="space-y-1 text-xs">
@@ -321,15 +495,60 @@ function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
         {lead.last_touch_at && (
           <div className="flex justify-between"><span className="text-muted-foreground">Last Touch</span><span>{timeAgo(lead.last_touch_at)}</span></div>
         )}
+        {lead.reply_type && (
+          <div className="flex justify-between"><span className="text-muted-foreground">Reply Type</span><span className="capitalize">{lead.reply_type.replace('_', ' ')}</span></div>
+        )}
       </div>
 
       {/* Notes */}
-      {lead.notes && (
-        <div className="bg-muted/20 rounded-lg p-3 text-xs">
-          <span className="text-muted-foreground font-medium">Notes: </span>
-          {lead.notes}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <Edit3 size={12} /> Notes
+          </h4>
+          {!editingNotes && (
+            <button
+              onClick={() => { setEditingNotes(true); setNotesValue(lead.notes || ''); }}
+              className="text-[10px] text-primary hover:underline"
+            >
+              Edit
+            </button>
+          )}
         </div>
-      )}
+        {editingNotes ? (
+          <div className="space-y-2">
+            <textarea
+              value={notesValue}
+              onChange={e => setNotesValue(e.target.value)}
+              placeholder="Add notes about this lead..."
+              rows={3}
+              className="w-full text-xs bg-muted/30 border border-border/30 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            />
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setEditingNotes(false)}
+                className="btn btn-ghost btn-sm text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  patchLead({ notes: notesValue });
+                  setEditingNotes(false);
+                }}
+                disabled={saving}
+                className="btn btn-sm text-xs bg-primary/15 text-primary hover:bg-primary/25"
+              >
+                <Save size={12} /> Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-muted/20 rounded-lg p-3 text-xs min-h-[2rem]">
+            {lead.notes || <span className="text-muted-foreground italic">No notes yet</span>}
+          </div>
+        )}
+      </div>
 
       {/* Timeline */}
       {timeline.length > 0 && (
@@ -340,7 +559,11 @@ function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
           <div className="space-y-3 relative before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-border">
             {timeline.map(event => (
               <div key={event.id} className="flex items-start gap-3 pl-0 relative">
-                <div className="w-[15px] h-[15px] rounded-full bg-muted border-2 border-background shrink-0 z-10" />
+                <div className={`w-[15px] h-[15px] rounded-full border-2 border-background shrink-0 z-10 ${
+                  event.type === 'pending_approval' ? 'bg-warning' :
+                  event.type === 'approved' ? 'bg-success' :
+                  'bg-muted'
+                }`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs leading-relaxed">{event.description}</p>
                   <p className="text-[10px] text-muted-foreground">{timeAgo(event.timestamp)}</p>
@@ -351,7 +574,7 @@ function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       )}
 
-      {/* Sequences */}
+      {/* Email Sequences */}
       {sequences.length > 0 && (
         <div>
           <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -359,18 +582,70 @@ function LeadDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
           </h4>
           <div className="space-y-1.5">
             {sequences.map(seq => (
-              <div key={seq.id} className="flex items-center justify-between text-xs bg-muted/20 rounded-lg px-3 py-2">
-                <div className="truncate">
-                  <span className="text-muted-foreground">Step {seq.step}: </span>
-                  {seq.subject || 'No subject'}
-                </div>
-                <span className={`shrink-0 ml-2 ${
-                  seq.status === 'sent' ? 'text-success' :
-                  seq.status === 'pending_approval' ? 'text-warning' :
-                  'text-muted-foreground'
-                }`}>
-                  {seq.status}
-                </span>
+              <div key={seq.id} className="bg-muted/20 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setExpandedSeq(expandedSeq === seq.id ? null : seq.id)}
+                  className="w-full flex items-center justify-between text-xs px-3 py-2 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="truncate text-left">
+                    <span className="text-muted-foreground">Step {seq.step}: </span>
+                    {seq.subject || 'No subject'}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className={`${
+                      seq.status === 'sent' ? 'text-success' :
+                      seq.status === 'pending_approval' ? 'text-warning' :
+                      seq.status === 'approved' ? 'text-info' :
+                      seq.status === 'cancelled' ? 'text-destructive' :
+                      'text-muted-foreground'
+                    }`}>
+                      {seq.status === 'pending_approval' ? 'pending' : seq.status}
+                    </span>
+                    {expandedSeq === seq.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </div>
+                </button>
+
+                {expandedSeq === seq.id && (
+                  <div className="border-t border-border/20 px-3 py-2 space-y-2">
+                    {seq.body ? (
+                      <div className="text-xs bg-background/50 rounded p-2 whitespace-pre-wrap max-h-40 overflow-y-auto font-mono leading-relaxed">
+                        {seq.body}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No email body available</p>
+                    )}
+                    {seq.scheduled_for && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Scheduled: {new Date(seq.scheduled_for).toLocaleString()}
+                      </p>
+                    )}
+                    {seq.sent_at && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Sent: {new Date(seq.sent_at).toLocaleString()}
+                      </p>
+                    )}
+
+                    {/* Approval actions for pending emails */}
+                    {seq.status === 'pending_approval' && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={() => patchSequence(seq.id, 'approved')}
+                          disabled={saving}
+                          className="btn btn-sm text-xs bg-success/15 text-success hover:bg-success/25 flex-1"
+                        >
+                          <Check size={12} /> Approve
+                        </button>
+                        <button
+                          onClick={() => patchSequence(seq.id, 'cancelled')}
+                          disabled={saving}
+                          className="btn btn-sm text-xs bg-destructive/15 text-destructive hover:bg-destructive/25 flex-1"
+                        >
+                          <XCircle size={12} /> Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -46,6 +46,7 @@ export interface Lead {
   sequence_name: string | null;
   reply_type: string | null;
   notes: string | null;
+  pause_outreach: number;
   created_at: string;
 }
 

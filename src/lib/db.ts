@@ -189,5 +189,8 @@ function migrate(db: Database.Database) {
       record_id TEXT NOT NULL,
       PRIMARY KEY (table_name, record_id)
     );
+
+    // Column migrations (safe to re-run)
+    try { db.exec("ALTER TABLE leads ADD COLUMN pause_outreach INTEGER DEFAULT 0"); } catch (e) { /* column exists */ }
   `);
 }
