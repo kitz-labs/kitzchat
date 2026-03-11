@@ -1,0 +1,33 @@
+<svg width="1600" height="960" viewBox="0 0 1600 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="960" fill="#FBF6EE"/>
+  <text x="110" y="120" fill="#132235" font-family="Georgia, serif" font-size="72" font-weight="700">KitzChat Architektur</text>
+  <text x="110" y="170" fill="#4D6270" font-family="Arial, sans-serif" font-size="28">Getrennte Schichten fuer UI, Runtime, App-State und Billing.</text>
+  <rect x="110" y="240" width="1380" height="130" rx="28" fill="#17304A"/>
+  <text x="150" y="305" fill="#FFF8F1" font-family="Arial, sans-serif" font-size="28" font-weight="700">Surface Layer</text>
+  <text x="150" y="345" fill="#CFE1DF" font-family="Arial, sans-serif" font-size="24">Admin Dashboard, Customer Webchat, Settings, Billing UI, Reporting, Content, CRM</text>
+  <rect x="110" y="408" width="430" height="250" rx="28" fill="#FFF8F1" stroke="#D6C3AD"/>
+  <text x="146" y="468" fill="#17304A" font-family="Arial, sans-serif" font-size="28" font-weight="700">Runtime + APIs</text>
+  <text x="146" y="516" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Next.js App Router</text>
+  <text x="146" y="552" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Route Handler fuer Auth, Chat, Billing, Wallet</text>
+  <text x="146" y="588" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Cron, Agenten, Reporting, Integrationen</text>
+  <rect x="146" y="614" width="232" height="16" rx="8" fill="#2C7A74" fill-opacity="0.18"/>
+  <rect x="585" y="408" width="430" height="250" rx="28" fill="#FFF8F1" stroke="#D6C3AD"/>
+  <text x="621" y="468" fill="#17304A" font-family="Arial, sans-serif" font-size="28" font-weight="700">Operational State</text>
+  <text x="621" y="516" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">SQLite fuer lokale Daten</text>
+  <text x="621" y="552" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Dateibasierter Zustand unter ./state</text>
+  <text x="621" y="588" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Workspace- und Runtime-Ordner pro Instanz</text>
+  <rect x="621" y="614" width="256" height="16" rx="8" fill="#C75B33" fill-opacity="0.18"/>
+  <rect x="1060" y="408" width="430" height="250" rx="28" fill="#FFF8F1" stroke="#D6C3AD"/>
+  <text x="1096" y="468" fill="#17304A" font-family="Arial, sans-serif" font-size="28" font-weight="700">Billing State</text>
+  <text x="1096" y="516" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">PostgreSQL Wallet und Ledger</text>
+  <text x="1096" y="552" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Entitlements, Top-ups, Invoices</text>
+  <text x="1096" y="588" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Stripe Webhooks und Zahlungsbestaetigung</text>
+  <rect x="1096" y="614" width="220" height="16" rx="8" fill="#E1B65B" fill-opacity="0.28"/>
+  <path d="M800 370V408" stroke="#C75B33" stroke-width="6" stroke-linecap="round"/>
+  <path d="M325 658V738" stroke="#17304A" stroke-width="5" stroke-linecap="round"/>
+  <path d="M800 658V738" stroke="#17304A" stroke-width="5" stroke-linecap="round"/>
+  <path d="M1275 658V738" stroke="#17304A" stroke-width="5" stroke-linecap="round"/>
+  <rect x="110" y="738" width="1380" height="132" rx="28" fill="#17304A"/>
+  <text x="150" y="798" fill="#FFF8F1" font-family="Arial, sans-serif" font-size="28" font-weight="700">Optionale externe Dienste</text>
+  <text x="150" y="840" fill="#CFE1DF" font-family="Arial, sans-serif" font-size="24">OpenAI, Stripe, Google OAuth, Plausible, GA4, E-Mail, Telegram, LinkedIn, X</text>
+</svg>

@@ -73,127 +73,244 @@ Initial admin access is seeded from `AUTH_USER` / `AUTH_PASS` on first run when 
 
 ### Known Limitations
 
-- Alpha surface area is still evolving; expect occasional schema/UI shifts
-- Certain integrations require external provider setup and credentials
+# KitzChat
 
-### Security Considerations
+![KitzChat Hero](./public/kitzchat-readme-hero.svg)
 
-- Change seeded credentials (`AUTH_USER`, `AUTH_PASS`, `API_KEY`) before network deployment
-- Keep host lock enabled unless you explicitly need broader access (`KITZCHAT_HOST_LOCK=local` by default)
-- Keep writeback flags disabled unless required:
-  - `KITZCHAT_ALLOW_POLICY_WRITE=false`
-  - `KITZCHAT_ALLOW_CRON_WRITE=false`
-  - `KITZCHAT_ALLOW_WORKSPACE_WRITE=false`
-- Never commit real credentials or personal data
+KitzChat ist eine modulare KI-Webapp fuer Betrieb, Kundenkommunikation, Agentensteuerung und Credit-Billing in einer einzigen Next.js-Anwendung. Das Projekt kombiniert ein lokales App-State- und Workspace-Modell mit PostgreSQL fuer Wallet, Ledger und Zahlungsfluesse.
 
-## Architecture
+Die App ist fuer zwei Perspektiven gebaut:
 
-| Layer | Technology |
-|-------|------------|
-| Framework | Next.js 16 (App Router) |
-| UI | React 19 + TypeScript |
-| Data | SQLite (local state in `./state`) |
-| Billing / Wallet | PostgreSQL ledger + Stripe checkout |
-| Agent Runtime | Local workspace runtime + optional CLI |
-| Auth | Session cookie + API key + optional Google OAuth |
+- Admin-Oberflaeche fuer Betrieb, Reporting, Content, CRM, Automationen und Compliance
+- Customer-Oberflaeche fuer Chat, Verbrauch, Einstellungen, Billing und Self-Service
 
-## Configuration
+## Funktionsumfang
 
-See [`.env.example`](.env.example) for the full list.
+- Agenten, Kataloge und Workspace-basierte Laufzeitkonfiguration
+- CRM, Kundenlisten, Customer Detail Views und Support-Zusammenfassungen
+- Chat, Uploads, Session-Sync und agentenbezogene Konversationen
+- Automationen, Cron-Jobs, Templates und Laufprotokolle
+- Analytics, KPIs, Lead-Quellen, Benchmarks und OpenAI-Nutzungsanzeige
+- Stripe Checkout, Wallet, Ledger, Entitlements und Top-up-Angebote
+- Rollen, Session-Auth, API-Key-Zugaenge und optionales Google OAuth
+- Lokale State-Dateien, Runtime-Ordner und optionale Multi-Instance-Konfiguration
 
-Use a single local env file at `.env`.
+## Architektur
 
-### Required
+![KitzChat Architektur](./public/kitzchat-readme-architecture.svg)
 
-- `AUTH_USER`
-- `AUTH_PASS` (minimum 10 chars)
-- `API_KEY`
-- `AUTH_COOKIE_SECURE` (`false` for HTTP local dev, `true` for HTTPS)
+KitzChat trennt bewusst zwischen operativem App-State und finanziellem Billing-State:
 
-### Workspace / Multi-instance
+- SQLite beziehungsweise lokale State-Dateien halten Dashboard-, Runtime- und Template-Zustand
+- PostgreSQL haelt Wallet, Ledger, Entitlements, Checkout-Ergebnisse und Reporting-Daten
+- Stripe bleibt Payment-Provider, waehrend Credits und Verrechnung intern in der App gefuehrt werden
+- OpenAI, Plausible, GA4, E-Mail, Telegram oder weitere Integrationen koennen optional zugeschaltet werden
 
-- `KITZCHAT_WORKSPACE_ROOT`
-- `KITZCHAT_DEFAULT_INSTANCE`
-- `KITZCHAT_WORKSPACE_INSTANCES` (optional JSON array for multi-instance)
+## Tech Stack
 
-### Optional 1Password Runtime Overlay
+| Bereich | Stack |
+|---|---|
+| Frontend | Next.js 16, React 19, TypeScript |
+| UI | App Router, Tailwind CSS 4, Recharts, Lucide |
+| Lokaler Zustand | SQLite und Dateien unter `./state` |
+| Billing | PostgreSQL, Stripe |
+| Server | Next.js Runtime plus optionale Express-basierte Billing-Helfer |
+| Tests | Node Test Runner, Playwright |
 
-- `KITZCHAT_1PASSWORD_MODE=off|auto|required` (`auto` is default behavior)
-- `KITZCHAT_OP_ENV_FILE=/etc/kitzchat/kitzchat.op.env`
-- Example mapping: `ops/1password/kitzchat.op.env.example`
+## Schnellstart lokal
 
-### Host Access Lock
+Voraussetzungen:
 
-- `KITZCHAT_HOST_LOCK=local` (default)
-- `KITZCHAT_HOST_LOCK=off`
-- `KITZCHAT_HOST_LOCK=host1,host2`
+- Node.js 20 oder neuer
+- pnpm
+- laufendes PostgreSQL, falls Billing, Wallet und Entitlements aktiv sein sollen
 
-### Optional OpenAI Go-Live Switch
-
-- `OPENAI_API_KEY` activates the optional OpenAI-backed status path for the admin overview
-- Without an OpenAI key, the dashboard continues to show locally tracked usage from `chat_usage_events`
-- Recommended for production only, once the live OpenAI project and billing context are available
-
-### Credit Billing Setup
-
-- `DATABASE_URL` enables the PostgreSQL credit ledger, payment records, entitlement flags, routing rules, and reporting endpoints
-- Stripe remains the payment processor only; the actual in-app wallet runs in PostgreSQL with `1 EUR = 1000 Credits`
-- Internal allocations are split with `API_BUDGET_RATIO=0.7` and `RESERVE_RATIO=0.3`
-- If `OPENAI_API_KEY` is unset, agent chat falls back to a local mock response path while the UI and ledger infrastructure remain available
-
-Use this flow locally after Postgres is available:
+Installation:
 
 ```bash
+git clone https://github.com/kitz-labs/kitzchat.git
+cd kitzchat
 pnpm install
+pnpm env:bootstrap
+```
+
+Danach `.env` anpassen. Die minimal sinnvollen Werte sind:
+
+```env
+AUTH_USER=admin
+AUTH_PASS=change-me-to-a-long-password
+API_KEY=change-me-to-a-random-secret
+AUTH_COOKIE_SECURE=false
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/kitzchat
+```
+
+Migrationen und Seeds fuer Billing:
+
+```bash
 pnpm billing:migrate
 pnpm billing:seed
+```
+
+Entwicklungsserver starten:
+
+```bash
 pnpm dev
 ```
 
-Important routes now exposed in the Next app:
+Die App laeuft danach unter `http://localhost:3000`.
 
-- `/api/billing/create-checkout-session`
-- `/api/billing/session-status`
-- `/api/stripe/webhook`
-- `/api/wallet`
-- `/api/wallet/ledger`
-- `/api/account/entitlements`
-- `/api/agent/chat`
-- `/api/topup-offers`
-- `/api/ui/messages`
-- `/api/admin/reporting/customer/:userId`
-- `/api/admin/topup-offers`
+## Docker-Deployment mit PostgreSQL
 
-## Development
+![KitzChat Deployment](./public/kitzchat-readme-deployment.svg)
+
+Die mitgelieferte [docker-compose.yml](./docker-compose.yml) ist auf ein hostbasiertes Deployment ausgelegt und erwartet den Projektstand auf dem Server unter `/opt/KitzChat`.
+
+Die aktuell hinterlegte PostgreSQL-Konfiguration ist:
+
+- Datenbanktyp: PostgreSQL
+- Host im Docker-Netz: `db`
+- Port: `5432`
+- Datenbankname: `kitzchat`
+- Benutzer: `kitzchat`
+- Passwort: `widauer`
+- Connection String: `postgres://kitzchat:widauer@db:5432/kitzchat`
+
+Start mit Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+Wichtig:
+
+- Der App-Container verwendet `corepack` und `pnpm`, nicht `npm ci`
+- Der Compose-Stack mappt den Quellcode von `/opt/KitzChat` nach `/app`
+- Die App laeuft im Container auf Port `3001`; Routing erfolgt ueber Traefik
+- Der Postgres-Dienst nutzt ein benanntes Volume `kitzchat_db`
+
+## Wichtige Umgebungsvariablen
+
+Die komplette Vorlage steht in [.env.example](./.env.example).
+
+Pflichtfelder fuer einen sinnvollen Start:
+
+- `AUTH_USER`
+- `AUTH_PASS`
+- `API_KEY`
+- `AUTH_COOKIE_SECURE`
+
+Billing und Wallet:
+
+- `DATABASE_URL`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_SUCCESS_URL`
+- `STRIPE_CANCEL_URL`
+- `MIN_TOPUP_EUR`
+- `MAX_TOPUP_EUR`
+- `CREDIT_MULTIPLIER`
+
+Workspace und Laufzeit:
+
+- `KITZCHAT_STATE_DIR`
+- `KITZCHAT_WORKSPACE_ROOT`
+- `KITZCHAT_DEFAULT_INSTANCE`
+- `KITZCHAT_WORKSPACE_INSTANCES`
+- `KITZCHAT_HOST_LOCK`
+
+Optionale Integrationen:
+
+- `OPENAI_API_KEY`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `PLAUSIBLE_API_KEY`
+- `GA4_PROPERTY_ID`
+- `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASSWORD`
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+
+## Billing-Modell
+
+KitzChat verwendet ein internes Credit-System:
+
+- `1 EUR = 1000 Credits`
+- Top-ups werden ueber Stripe ausgelost
+- Wallet, Ledger und Entitlements liegen in PostgreSQL
+- Kosten, Token-Nutzung und Kundenverbrauch werden im Admin-Bereich zusammengefuehrt
+
+Wenn `OPENAI_API_KEY` fehlt, bleibt die App benutzbar; bestimmte agentenbezogene Antworten koennen dann auf lokale oder Mock-Pfade zurueckfallen.
+
+## Verfuegbare Skripte
 
 ```bash
 pnpm dev
+pnpm dev:fresh
 pnpm build
-pnpm typecheck
+pnpm start
 pnpm lint
+pnpm typecheck
 pnpm test
+pnpm test:e2e
+pnpm billing:migrate
+pnpm billing:seed
+pnpm billing:server
+pnpm prepare:standalone
+pnpm build:standalone
+```
+
+## Projektstruktur
+
+```text
+src/app/                 Next.js App Router, Pages und API Routes
+src/components/          UI-Komponenten fuer Admin- und Customer-Surface
+src/lib/                 Auth, Billing, Analytics, Runtime- und DB-Helfer
+src/modules/             Domainennahe Services und Controller
+src/config/              Umgebungs- und Anbieter-Konfiguration
+src/db/                  SQL-Migrationen und Seed-Dateien
+state/                   Lokale Runtime-, Upload- und Memory-Daten
+ops/                     Deployment-Helfer, systemd und 1Password-Vorlagen
+scripts/                 Bootstrap-, Seed- und Standalone-Skripte
+tests/e2e/               End-to-End-Tests
+```
+
+## Qualitaet und Tests
+
+Empfohlener Check vor Deployment:
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Fuer End-to-End-Tests:
+
+```bash
 pnpm test:e2e
 ```
 
-## Template Export and Hygiene
+## Sicherheit
 
-Before publishing as a template or sharing broadly:
+- Standard-Credentials aus `.env` vor jedem externen Deployment ersetzen
+- `KITZCHAT_HOST_LOCK` aktiv lassen, solange kein expliziter externer Zugriff benoetigt wird
+- Schreibzugriffe auf Runtime- oder Policy-Dateien nur aktivieren, wenn sie wirklich gewollt sind
+- Keine echten Secrets, Kundeninhalte oder Produktivdaten ins Repository committen
 
-```bash
-./scripts/template-audit.sh
-./scripts/template-export.sh [output_dir]
-```
+## Deployment-Hinweise
 
-Export excludes sensitive/runtime artifacts like `.env*`, database files, `.next`, and `node_modules`.
+- Die App ist als einzelner Next.js-Prozess ausgelegt
+- Admin- und Customer-Flows laufen in derselben Anwendung
+- Billing und Wallet benoetigen PostgreSQL
+- Fuer einen Standalone-Betrieb stehen [scripts/start-standalone.sh](./scripts/start-standalone.sh) sowie die Vorlagen unter [ops/](./ops/) bereit
 
-## Open Source
+## Weiterfuehrende Dateien
 
-- License: [MIT](./LICENSE)
-- Security: [SECURITY.md](./SECURITY.md)
-- Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md)
-- Code of Conduct: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
-- Third-Party Notices: [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [SECURITY.md](./SECURITY.md)
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- [CHANGELOG.md](./CHANGELOG.md)
+- [ops/systemd/README.md](./ops/systemd/README.md)
 
-## License
+## Lizenz
 
-[MIT](LICENSE) © 2026 [Builderz Labs](https://github.com/builderz-labs)
+[MIT](./LICENSE)

@@ -1,0 +1,32 @@
+<svg width="1600" height="920" viewBox="0 0 1600 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="920" fill="#F4EEE5"/>
+  <text x="110" y="120" fill="#132235" font-family="Georgia, serif" font-size="70" font-weight="700">Deployment mit Docker und Traefik</text>
+  <text x="110" y="170" fill="#546A76" font-family="Arial, sans-serif" font-size="28">Der produktionsnahe Stack aus der Compose-Datei im Repository.</text>
+  <rect x="110" y="250" width="280" height="170" rx="28" fill="#FFF8F1" stroke="#D8C8B3"/>
+  <text x="146" y="315" fill="#17304A" font-family="Arial, sans-serif" font-size="28" font-weight="700">Internet</text>
+  <text x="146" y="356" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">www.aiworks.at</text>
+  <rect x="500" y="220" width="310" height="230" rx="28" fill="#17304A"/>
+  <text x="538" y="286" fill="#FFF8F1" font-family="Arial, sans-serif" font-size="28" font-weight="700">Traefik</text>
+  <text x="538" y="330" fill="#D4E4E1" font-family="Arial, sans-serif" font-size="22">TLS via letsencrypt</text>
+  <text x="538" y="364" fill="#D4E4E1" font-family="Arial, sans-serif" font-size="22">Router auf Host-Regel</text>
+  <text x="538" y="398" fill="#D4E4E1" font-family="Arial, sans-serif" font-size="22">Weiterleitung an Port 3001</text>
+  <rect x="920" y="220" width="390" height="250" rx="28" fill="#FFF8F1" stroke="#D8C8B3"/>
+  <text x="956" y="286" fill="#17304A" font-family="Arial, sans-serif" font-size="28" font-weight="700">App Container: kitzchat</text>
+  <text x="956" y="330" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Node 20 Alpine</text>
+  <text x="956" y="364" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">corepack + pnpm install</text>
+  <text x="956" y="398" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">build + next start</text>
+  <text x="956" y="432" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">PORT=3001</text>
+  <rect x="920" y="560" width="390" height="230" rx="28" fill="#FFF8F1" stroke="#D8C8B3"/>
+  <text x="956" y="626" fill="#17304A" font-family="Arial, sans-serif" font-size="28" font-weight="700">PostgreSQL: db</text>
+  <text x="956" y="670" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Host: db</text>
+  <text x="956" y="704" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Port: 5432</text>
+  <text x="956" y="738" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">DB: kitzchat | User: kitzchat</text>
+  <rect x="110" y="560" width="700" height="230" rx="28" fill="#FFF8F1" stroke="#D8C8B3"/>
+  <text x="146" y="626" fill="#17304A" font-family="Arial, sans-serif" font-size="28" font-weight="700">Persistenz und Host-Mounts</text>
+  <text x="146" y="670" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Projektcode wird von /opt/KitzChat nach /app gemountet</text>
+  <text x="146" y="704" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Postgres speichert Daten im Volume kitzchat_db</text>
+  <text x="146" y="738" fill="#4D6270" font-family="Arial, sans-serif" font-size="22">Interne Verbindung: postgres://kitzchat:widauer@db:5432/kitzchat</text>
+  <path d="M390 335H500" stroke="#C75B33" stroke-width="6" stroke-linecap="round"/>
+  <path d="M810 335H920" stroke="#C75B33" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1115 470V560" stroke="#2C7A74" stroke-width="6" stroke-linecap="round"/>
+</svg>

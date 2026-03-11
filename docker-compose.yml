@@ -1,44 +1,44 @@
 services:
- kitzchat:
- image: node:20-alpine
- working_dir: /app
- volumes:
- - /opt/KitzChat:/app
- environment:
- NODE_ENV: production
- PORT: "3001"
- DATABASE_URL: postgres://kitzchat:widauer@db:5432/kitzchat
- command: sh -lc "npm ci && npm run build && npm run start -- -p 3001"
- labels:
- - traefik.enable=true
- - traefik.http.routers.kitzchat.rule=Host(`www.aiworks.at`)
- - traefik.http.routers.kitzchat.entrypoints=websecure
- - traefik.http.routers.kitzchat.tls=true
- - traefik.http.routers.kitzchat.tls.certresolver=letsencrypt
- - traefik.http.services.kitzchat.loadbalancer.server.port=3001
- networks:
- - traefik
- - internal
- depends_on:
- - db
- restart: unless-stopped
+	kitzchat:
+		image: node:20-alpine
+		working_dir: /app
+		volumes:
+			- /opt/KitzChat:/app
+		environment:
+			NODE_ENV: production
+			PORT: "3001"
+			DATABASE_URL: postgres://kitzchat:widauer@db:5432/kitzchat
+		command: sh -lc "corepack enable && pnpm install --frozen-lockfile && pnpm build && pnpm start"
+		labels:
+			- traefik.enable=true
+			- traefik.http.routers.kitzchat.rule=Host(`www.aiworks.at`)
+			- traefik.http.routers.kitzchat.entrypoints=websecure
+			- traefik.http.routers.kitzchat.tls=true
+			- traefik.http.routers.kitzchat.tls.certresolver=letsencrypt
+			- traefik.http.services.kitzchat.loadbalancer.server.port=3001
+		networks:
+			- traefik
+			- internal
+		depends_on:
+			- db
+		restart: unless-stopped
 
- db:
- image: postgres:16-alpine
- environment:
- POSTGRES_DB: kitzchat
- POSTGRES_USER: kitzchat
- POSTGRES_PASSWORD: widauer
- volumes:
- - kitzchat_db:/var/lib/postgresql/data
- networks:
- - internal
- restart: unless-stopped
+	db:
+		image: postgres:16-alpine
+		environment:
+			POSTGRES_DB: kitzchat
+			POSTGRES_USER: kitzchat
+			POSTGRES_PASSWORD: widauer
+		volumes:
+			- kitzchat_db:/var/lib/postgresql/data
+		networks:
+			- internal
+		restart: unless-stopped
 
 volumes:
- kitzchat_db:
+	kitzchat_db:
 
 networks:
- internal:
- traefik:
- external: true
+	internal:
+	traefik:
+		external: true
