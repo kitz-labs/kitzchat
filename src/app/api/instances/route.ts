@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   if (auth) return auth;
   return NextResponse.json({
     default_instance: getDefaultInstanceId(),
-    // Do not leak server filesystem paths (openclawHome) to the client.
+    // Do not leak server filesystem paths to the client.
     instances: getInstances().map((it) => ({ id: it.id, label: it.label })),
   });
 }

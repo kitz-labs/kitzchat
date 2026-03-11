@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,12 +15,19 @@ function safeExec(cmd: string[], fallback = ''): string {
   }
 }
 
-function validateOpenClawConfig(bin: string): {
+function validateAutomationCli(bin: string): {
   available: boolean;
   ok: boolean;
   details?: unknown;
   error?: string;
 } {
+  if (!bin) {
+    return {
+      available: false,
+      ok: true,
+      details: 'No external automation CLI configured; running in local-only mode.',
+    };
+  }
   try {
     const stdout = execFileSync(bin, ['config', 'validate', '--json'], { encoding: 'utf-8' }).trim();
     if (!stdout) {
@@ -81,15 +88,13 @@ export async function GET(request: Request) {
   if (auth) return auth;
 
   const instance = getInstance(getInstanceId(request));
-  const { logsDir } = resolveOpenClawPaths(instance);
+  const { logsDir } = resolveWorkspacePaths(instance);
 
-  const lockFile =
-    process.env.HERMES_DEPLOY_LOCK_FILE?.trim() || '/tmp/hermes-dashboard-deploy.lock';
-  const logDir =
-    process.env.HERMES_DEPLOY_LOG_DIR?.trim() || path.join(logsDir, 'deploy');
-  const scriptPath = process.env.HERMES_DEPLOY_SCRIPT_PATH?.trim() || '';
-  const serviceName = process.env.HERMES_SERVICE_NAME?.trim() || 'hermes-dashboard.service';
-  const openclawBin = process.env.HERMES_ADMIN_CLI || process.env.OPENCLAW_BIN || 'openclaw';
+  const lockFile = process.env.KITZCHAT_DEPLOY_LOCK_FILE?.trim() || '/tmp/kitzchat-deploy.lock';
+  const logDir = process.env.KITZCHAT_DEPLOY_LOG_DIR?.trim() || path.join(logsDir, 'deploy');
+  const scriptPath = process.env.KITZCHAT_DEPLOY_SCRIPT_PATH?.trim() || '';
+  const serviceName = process.env.KITZCHAT_SERVICE_NAME?.trim() || 'kitzchat.service';
+  const automationBin = process.env.KITZCHAT_ADMIN_CLI?.trim() || '';
 
   try {
     const running = scriptPath
@@ -98,7 +103,7 @@ export async function GET(request: Request) {
     const isActive = safeExec(['systemctl', 'is-active', serviceName], 'unknown');
     const log = latestLog(logDir);
     const lockExists = fs.existsSync(lockFile);
-    const configValidation = validateOpenClawConfig(openclawBin);
+    const configValidation = validateAutomationCli(automationBin);
 
     return NextResponse.json({
       instance: instance.id,
@@ -112,8 +117,8 @@ export async function GET(request: Request) {
         lock_exists: lockExists,
         running_pids: running ? running.split('\n').filter(Boolean) : [],
       },
-      openclaw: {
-        bin: openclawBin,
+      automation_cli: {
+        bin: automationBin || null,
         config_validate: configValidation,
       },
       latest_log: log,

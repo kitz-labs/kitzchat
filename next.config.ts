@@ -2,6 +2,7 @@ import path from 'path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  distDir: '.next',
   output: 'standalone',
   serverExternalPackages: ['better-sqlite3'],
   // Prevent Next.js from inferring a parent workspace root from monorepo traversal, which

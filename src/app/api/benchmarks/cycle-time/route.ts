@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const days = clampDays(req.nextUrl.searchParams.get('days'), 30);
   const now = new Date();
   const launchAt = parseLaunchDate(
-    req.nextUrl.searchParams.get('launch_at') || process.env.HERMES_BENCHMARK_HERMES_LAUNCH_AT,
+    req.nextUrl.searchParams.get('launch_at') || process.env.KITZCHAT_BENCHMARK_LAUNCH_AT,
   );
 
   let beforeStart: Date;

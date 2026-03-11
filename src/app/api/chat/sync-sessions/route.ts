@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { requireApiUser } from '@/lib/api-auth';
 import { getAgentIds } from '@/lib/agent-config';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 function getInstanceId(request: Request): string | null {
   try {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   if (auth) return auth;
 
   const instance = getInstance(getInstanceId(request));
-  const { agentsDir } = resolveOpenClawPaths(instance);
+  const { agentsDir } = resolveWorkspacePaths(instance);
 
   const db = getDb();
   let imported = 0;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const instance = getInstance(getInstanceId(req));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
     const runsDir = path.join(cronDir, 'runs');
 
     const id = req.nextUrl.searchParams.get('id');

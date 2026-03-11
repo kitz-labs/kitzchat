@@ -3,7 +3,7 @@
 import type { ChatMessage } from '@/types';
 
 const AGENT_THEMES: Record<string, { bg: string; text: string; border: string }> = {
-  hermes: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+  marketing: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
   apollo: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
   system: { bg: 'bg-muted/50', text: 'text-muted-foreground', border: 'border-border' },
   nyk: { bg: 'bg-primary/10', text: 'text-primary', border: 'border-primary/20' },

@@ -1,0 +1,5 @@
+message_code,title,body,context_area,active
+wallet_active,Dein AI-Guthaben ist aktiv,Du kannst jetzt alle freigeschalteten Agenten nutzen.,dashboard,true
+low_balance,Dein Guthaben wird knapp,Lade jetzt auf, um deine Premium-Nutzung ohne Unterbrechung fortzusetzen.,wallet,true
+premium_mode,Intelligente Modellsteuerung aktiv,Deine Antworten werden automatisch auf Qualitaet und Effizienz optimiert.,chat,true
+topup_success,Guthaben erfolgreich aufgeladen,Deine Credits wurden freigeschrieben und Premium-Funktionen sind aktiv.,billing,true

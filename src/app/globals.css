@@ -323,6 +323,34 @@ textarea:focus {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
+.header-height {
+  height: var(--header-height);
+}
+
+.header-offset-top {
+  top: var(--header-height);
+}
+
+.header-offset-margin-top {
+  margin-top: var(--header-height);
+}
+
+.header-offset-min-height {
+  min-height: calc(100vh - var(--header-height));
+}
+
+.nav-width {
+  width: var(--nav-width);
+}
+
+.nav-offset-margin-left {
+  margin-left: var(--nav-width);
+}
+
+.palette-top {
+  top: 20%;
+}
+
 /* ─── Nav Rail ─────────────────────────────────────────── */
 .nav-item {
   display: flex;

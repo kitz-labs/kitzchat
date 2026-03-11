@@ -98,8 +98,8 @@ export async function GET(req: NextRequest) {
   const dailyAsc = [...rawDaily].reverse();
   const social = computeSocialAnalytics(dailyAsc);
 
-  const websiteIframeUrlRaw = process.env.HERMES_ANALYTICS_WEBSITE_IFRAME_URL;
-  const socialIframeUrlRaw = process.env.HERMES_ANALYTICS_SOCIAL_IFRAME_URL;
+  const websiteIframeUrlRaw = process.env.KITZCHAT_ANALYTICS_WEBSITE_IFRAME_URL;
+  const socialIframeUrlRaw = process.env.KITZCHAT_ANALYTICS_SOCIAL_IFRAME_URL;
   const websiteIframeUrl = isSafeExternalUrl(websiteIframeUrlRaw) ? websiteIframeUrlRaw : null;
   const socialIframeUrl = isSafeExternalUrl(socialIframeUrlRaw) ? socialIframeUrlRaw : null;
 
@@ -204,7 +204,7 @@ export async function GET(req: NextRequest) {
       provider: "none",
       configured: false,
       error:
-        "Not configured. Set GA4_PROPERTY_ID + GA4_SERVICE_ACCOUNT_JSON (recommended) or PLAUSIBLE_SITE_ID + PLAUSIBLE_API_KEY, or HERMES_ANALYTICS_WEBSITE_IFRAME_URL.",
+        "Not configured. Set GA4_PROPERTY_ID + GA4_SERVICE_ACCOUNT_JSON (recommended) or PLAUSIBLE_SITE_ID + PLAUSIBLE_API_KEY, or KITZCHAT_ANALYTICS_WEBSITE_IFRAME_URL.",
     };
   }
 

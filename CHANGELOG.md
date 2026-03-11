@@ -12,7 +12,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 - Added route-level API auth checks for defense-in-depth on protected routes.
-- Added configurable host lock (`HERMES_HOST_LOCK`) with secure local-first default for OpenClaw workflows.
+- Added configurable host lock (`KITZCHAT_HOST_LOCK`) with secure local-first default for local agent workspace workflows.
 - Hardened template safety by removing org-specific residue and sanitizing seeded/demo data.
 
 ### Security

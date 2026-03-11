@@ -11,7 +11,7 @@ type Entry = {
   mtimeMs?: number;
 };
 
-type RootKind = 'agent-workspace' | 'openclaw' | 'workspace' | 'agent';
+type RootKind = 'agent-workspace' | 'workspace' | 'agent';
 
 type Root = {
   agents?: string[];
@@ -55,12 +55,7 @@ export default function AgentWorkspacePage() {
     () => roots.filter((r) => r.kind === 'agent'),
     [roots],
   );
-  const openclawRoot = useMemo(
-    () => roots.find((r) => r.kind === 'openclaw') || null,
-    [roots],
-  );
-
-  const [mode, setMode] = useState<'workspaces' | 'agents' | 'openclaw'>('workspaces');
+  const [mode, setMode] = useState<'workspaces' | 'agents'>('workspaces');
   const [rootId, setRootId] = useState('agent-workspace');
   const [rootWritable, setRootWritable] = useState(true);
   const [rootLabel, setRootLabel] = useState('Agent Workspace');
@@ -106,10 +101,7 @@ export default function AgentWorkspacePage() {
         setRoots(rs);
 
         // Default root per mode.
-        if (mode === 'openclaw') {
-          const oc = rs.find((x) => x.kind === 'openclaw');
-          if (oc) setRootId(oc.id);
-        } else if (mode === 'agents') {
+        if (mode === 'agents') {
           const first = rs.find((x) => x.kind === 'agent');
           if (first) setRootId(first.id);
         } else {
@@ -292,10 +284,6 @@ export default function AgentWorkspacePage() {
 
   const switchMode = (m: typeof mode) => {
     setMode(m);
-    if (m === 'openclaw') {
-      if (openclawRoot) setRootId(openclawRoot.id);
-      return;
-    }
     if (m === 'agents') {
       if (agentRoots.length > 0) setRootId(agentRoots[0].id);
       return;
@@ -349,38 +337,12 @@ export default function AgentWorkspacePage() {
             >
               Agents
             </button>
-            <button
-              type="button"
-              className={`btn btn-sm text-xs ${mode === 'openclaw' ? '' : 'btn-ghost'}`}
-              onClick={() => switchMode('openclaw')}
-              disabled={loadingRoots}
-            >
-              .openclaw
-            </button>
           </div>
         </div>
 
         <div className="panel-body">
           {loadingRoots ? (
             <div className="text-xs text-muted-foreground">Loading roots…</div>
-          ) : mode === 'openclaw' ? (
-            <div className="flex flex-wrap gap-1.5">
-              {openclawRoot ? (
-                <button
-                  type="button"
-                  className={`px-2 py-1 rounded-md text-xs border transition-colors ${
-                    rootId === openclawRoot.id
-                      ? 'bg-primary/14 text-primary border-primary/30'
-                      : 'border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                  }`}
-                  onClick={() => setRootId(openclawRoot.id)}
-                >
-                  {openclawRoot.label}
-                </button>
-              ) : (
-                <div className="text-xs text-muted-foreground">No .openclaw root available</div>
-              )}
-            </div>
           ) : mode === 'agents' ? (
             <div className="flex flex-wrap gap-1.5">
               {agentRoots.length === 0 ? (

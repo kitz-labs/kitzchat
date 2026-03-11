@@ -1,38 +1,38 @@
 [Unit]
-Description=Hermes Dashboard (Next.js)
+Description=KitzChat (Next.js)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 
-# Template default. Prefer deploying the repo to /opt/hermes-dashboard (or similar)
+# Template default. Prefer deploying the repo to /opt/kitzchat (or similar)
 # instead of user home directories.
-WorkingDirectory=/opt/hermes-dashboard
+WorkingDirectory=/opt/kitzchat
 
 # Secrets belong in an EnvironmentFile, not in the unit file.
 # Point this at your deployment-specific env file.
-EnvironmentFile=-/etc/hermes-dashboard/hermes-dashboard.env
+EnvironmentFile=-/etc/kitzchat/kitzchat.env
 
 # Optional: path to a 1Password op:// env template file (non-secret).
-Environment=HERMES_OP_ENV_FILE=/etc/hermes-dashboard/hermes-dashboard.op.env
+Environment=KITZCHAT_OP_ENV_FILE=/etc/kitzchat/kitzchat.op.env
 # Optional: 1Password runtime mode (off|auto|required). Default is auto.
-Environment=HERMES_1PASSWORD_MODE=auto
+Environment=KITZCHAT_1PASSWORD_MODE=auto
 
-ExecStart=/opt/hermes-dashboard/scripts/start-standalone.sh
+ExecStart=/opt/kitzchat/scripts/start-standalone.sh
 Restart=on-failure
 RestartSec=3
 
 # Run as a dedicated user in template deployments.
-User=hermes
-Group=hermes
+User=kitzchat
+Group=kitzchat
 
-# Hardening baseline. Adjust ReadWritePaths to match your HERMES_DB_PATH/HERMES_STATE_DIR.
+# Hardening baseline. Adjust ReadWritePaths to match your KITZCHAT_DB_PATH/KITZCHAT_STATE_DIR.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/hermes-dashboard /var/lib/hermes-dashboard
+ReadWritePaths=/opt/kitzchat /var/lib/kitzchat
 
 [Install]
 WantedBy=multi-user.target

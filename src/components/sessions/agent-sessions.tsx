@@ -28,7 +28,7 @@ export function AgentSessions() {
   if (sessions.length === 0) return null;
 
   const AGENT_THEME: Record<string, { emoji: string; color: string; bg: string }> = {
-    hermes: { emoji: '\u{1F3DB}\u{FE0F}', color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    marketing: { emoji: '\u{1F3DB}\u{FE0F}', color: 'text-amber-400', bg: 'bg-amber-500/10' },
     apollo: { emoji: '\u{1F3AF}', color: 'text-blue-400', bg: 'bg-blue-500/10' },
     athena: { emoji: '\u{1F9E0}', color: 'text-purple-400', bg: 'bg-purple-500/10' },
     metis: { emoji: '\u{1F4CA}', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },

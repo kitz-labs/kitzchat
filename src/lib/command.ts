@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 
-const ADMIN_CLI = process.env.HERMES_ADMIN_CLI || process.env.OPENCLAW_BIN || 'openclaw';
+const ADMIN_CLI = process.env.KITZCHAT_ADMIN_CLI?.trim() || '';
 
 interface CommandResult {
   stdout: string;
@@ -8,15 +8,46 @@ interface CommandResult {
   code: number | null;
 }
 
-/**
- * Run a leads-admin CLI command (wraps openclaw with leads env).
- * Resolves on exit; rejects on spawn error or non-zero exit.
- */
+function localFallbackResponse(message: string, agentId?: string): CommandResult {
+  const preview = message.slice(0, 220);
+  const specialized: Record<string, string> = {
+    main: 'KitzChat arbeitet im lokalen Modus. Ich koordiniere deine Anfrage, teile sie in sinnvolle Arbeitspakete und zeige dir den naechsten besten Ablauf.',
+    marketing: 'Der Marketing-Agent laeuft lokal. Ich kann Kampagnen, Hooks, Inhalte und Positionierungen sofort strukturieren und in umsetzbare Schritte zerlegen.',
+    apollo: 'Der Sales-Agent laeuft lokal. Ich kann Leads priorisieren, Antworten vorbereiten und Outreach-Sequenzen aufbauen.',
+    athena: 'Der Recherche-Agent laeuft lokal. Ich kann dir aus der Anfrage ein klares Briefing, Suchrichtungen und Ergebnisstruktur bauen.',
+    metis: 'Der Analyse-Agent laeuft lokal. Ich fasse vorhandene Nutzungs- und Betriebsdaten in klare Kennzahlen, Risiken und Trends zusammen.',
+    'kb-manager': 'Der Wissens-Agent laeuft lokal. Ich bereite Inhalte fuer dauerhafte Ablage, Zusammenfassungen und wiederverwendbare Wissenseintraege vor.',
+    'browser-operator': 'Der Browser-Agent laeuft lokal. Ich beschreibe dir den Web-Workflow, pruefe Schritte und markiere manuelle Aktionen.',
+    codepilot: 'Der Technik-Agent laeuft lokal. Ich formuliere Umsetzungsplaene, technische Checks und saubere naechste Schritte.',
+    'support-concierge': 'Der Support-Agent laeuft lokal. Ich schreibe dir belastbare, kundenfreundliche Antworten und Eskalationsvorschlaege.',
+    'campaign-studio': 'Der Kampagnen-Agent laeuft lokal. Ich baue aus deinem Ziel einen Launch-Plan mit Sequenzen, Assets und Tests.',
+    'insta-agent': 'Der Insta Agent laeuft lokal mit deinen gespeicherten Zugangsdaten. Ich kann Setup, Checklisten und Inhaltsablaeufe vorbereiten.',
+    'docu-agent': 'Der DocuAgent laeuft lokal. Ich kann Dokumente klassifizieren, Ablagestrukturen vorschlagen und die hinterlegte Cloud- oder lokale Zielablage beruecksichtigen.',
+    'mail-agent': 'Der MailAgent laeuft lokal. Ich kann Postfach-Regeln, Antwortentwuerfe, Priorisierung und Bearbeitungsablaufe anhand deiner Verbindung vorbereiten.',
+  };
+  return {
+    stdout: JSON.stringify({
+      response: `${specialized[agentId || ''] || 'KitzChat arbeitet im lokalen Modus. Die Nachricht bleibt in der App und wird ohne externes Agent-CLI verarbeitet.'}\n\nVorschau der aktuellen Anfrage:\n${preview}`,
+    }),
+    stderr: '',
+    code: 0,
+  };
+}
+
 export function runLeadsAdmin(
   args: string[],
   opts: { timeoutMs?: number } = {},
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
+    if (!ADMIN_CLI) {
+      const agentIdx = args.indexOf('--agent');
+      const messageIdx = args.indexOf('--message');
+      const agentId = agentIdx >= 0 ? args[agentIdx + 1] : undefined;
+      const message = messageIdx >= 0 ? args[messageIdx + 1] : '';
+      resolve(localFallbackResponse(message, agentId));
+      return;
+    }
+
     const child = spawn(ADMIN_CLI, args, { shell: false });
 
     let stdout = '';
@@ -78,8 +109,7 @@ export async function sendAgentMessage(
 }
 
 /**
- * Send a message to the default orchestrator routing via leads-admin.
- * Uses `leads-admin agent --message <text> --json` (no explicit --agent).
+ * Send a message to the default orchestrator routing via the optional admin CLI.
  */
 export async function sendOrchestratorMessage(
   message: string,

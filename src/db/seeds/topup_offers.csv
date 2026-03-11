@@ -1,0 +1,4 @@
+offer_code,name,amount_eur,credits,bonus_credits,active,sort_order,marketing_label
+topup_20,Starter,20,20000,0,true,1,Perfekt zum Starten
+topup_50,Pro,50,50000,2500,true,2,Beliebteste Wahl
+topup_100,Ultra,100,100000,10000,true,3,Maximales Preis-Leistungs-Verhaeltnis

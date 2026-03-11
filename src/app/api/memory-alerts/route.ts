@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   if (auth) return auth;
   try {
     const instance = getInstance(getInstanceId(request));
-    const { healthDir } = resolveOpenClawPaths(instance);
+    const { healthDir } = resolveWorkspacePaths(instance);
     const alertsJson = path.join(healthDir, 'memory-alerts.json');
 
     if (!fs.existsSync(alertsJson)) {

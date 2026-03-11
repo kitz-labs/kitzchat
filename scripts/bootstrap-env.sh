@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-TARGET_FILE="${1:-.env.local}"
+TARGET_FILE=".env"
 AUTH_USER_VALUE="${AUTH_USER_VALUE:-admin}"
 
 if [[ ! -f ".env.example" ]]; then

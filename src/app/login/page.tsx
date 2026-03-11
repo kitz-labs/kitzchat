@@ -1,7 +1,19 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { BrandLogo } from '@/components/layout/brand-logo';
+
+const CUSTOMER_ALLOWED_PATHS = new Set(['/', '/agents', '/usage-token', '/settings', '/hilfe', '/nutzungshinweise', '/datenschutz']);
+
+type LoginResponse = {
+  user?: {
+    account_type?: 'staff' | 'customer';
+    payment_status?: 'not_required' | 'pending' | 'paid';
+    accepted_terms_at?: string | null;
+  };
+};
 
 function LoginForm() {
   const [username, setUsername] = useState('');
@@ -9,7 +21,6 @@ function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleEnabled, setGoogleEnabled] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -24,6 +35,26 @@ function LoginForm() {
       .catch(() => setGoogleEnabled(false));
   }, []);
 
+  function resolveRedirect(data: LoginResponse): string {
+    const requestedPath = searchParams.get('from');
+    const accountType = data.user?.account_type;
+    const paymentStatus = data.user?.payment_status;
+    const defaultPath = accountType === 'customer'
+      ? (paymentStatus !== 'paid' ? '/usage-token?onboarding=1' : '/')
+      : '/';
+
+    if (!requestedPath || !requestedPath.startsWith('/')) {
+      return defaultPath;
+    }
+
+    if (accountType === 'customer') {
+      const [pathname] = requestedPath.split('?');
+      return CUSTOMER_ALLOWED_PATHS.has(pathname) ? requestedPath : defaultPath;
+    }
+
+    return requestedPath;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -36,17 +67,15 @@ function LoginForm() {
         body: JSON.stringify({ username, password }),
       });
 
+      const data = (await res.json()) as LoginResponse & { error?: string };
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || 'Login failed');
+        setError(data.error || 'Login fehlgeschlagen');
         return;
       }
 
-      const redirect = searchParams.get('from') || '/';
-      router.push(redirect);
-      router.refresh();
+      window.location.href = resolveRedirect(data);
     } catch {
-      setError('Connection error');
+      setError('Verbindungsfehler');
     } finally {
       setLoading(false);
     }
@@ -56,7 +85,7 @@ function LoginForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label htmlFor="username" className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-          Username
+          Benutzername
         </label>
         <input
           id="username"
@@ -71,7 +100,7 @@ function LoginForm() {
 
       <div>
         <label htmlFor="password" className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-          Password
+          Passwort
         </label>
         <input
           id="password"
@@ -94,7 +123,7 @@ function LoginForm() {
         disabled={loading}
         className="w-full py-2.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
-        {loading ? 'Signing in...' : 'Sign in'}
+        {loading ? 'Anmeldung läuft...' : 'Anmelden'}
       </button>
 
       {googleEnabled && (
@@ -102,9 +131,17 @@ function LoginForm() {
           href={`/api/auth/google/start?from=${encodeURIComponent(searchParams.get('from') || '/')}`}
           className="block w-full py-2.5 rounded-lg border border-[var(--border)] text-center text-sm font-medium hover:bg-[var(--muted)] transition-colors"
         >
-          Sign in with Google
+          Mit Google anmelden
         </a>
       )}
+
+      <div className="text-center text-xs text-muted-foreground">
+        Noch kein Konto? <Link className="text-primary hover:underline" href="/register">Registrieren</Link>
+      </div>
+
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        Testkunde lokal: <span className="font-mono text-foreground">test / test</span>
+      </div>
     </form>
   );
 }
@@ -114,9 +151,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
       <div className="w-full max-w-sm p-8 rounded-xl border border-[var(--border)] bg-[var(--card)]">
         <div className="text-center mb-8">
-          <div className="text-3xl mb-2">&#127963;&#65039;</div>
-          <h1 className="text-xl font-semibold text-[var(--foreground)]">Hermes Dashboard</h1>
-          <p className="text-sm text-[var(--muted-foreground)] mt-1">Marketing Engine Control Center</p>
+          <div className="flex justify-center mb-3">
+            <BrandLogo compact />
+          </div>
+          <h1 className="text-xl font-semibold text-[var(--foreground)]">KitzChat</h1>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">Lokaler KI-Arbeitsbereich</p>
         </div>
 
         <Suspense fallback={<div className="h-48" />}>

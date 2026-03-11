@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getUserFromRequest, seedAdmin } from '@/lib/auth';
+import { getUserFromRequest, seedAdmin, userHasAgentAccess } from '@/lib/auth';
+import { getAudienceFromAccountType } from '@/lib/app-audience';
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +15,24 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
-  const response = NextResponse.json({ user: { id: user.id, username: user.username, role: user.role } });
+  const response = NextResponse.json({
+    app_audience: getAudienceFromAccountType(user.account_type),
+    user: {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      account_type: user.account_type,
+      payment_status: user.payment_status,
+      has_agent_access: userHasAgentAccess(user),
+      email: user.email ?? null,
+      plan_amount_cents: user.plan_amount_cents ?? 0,
+      wallet_balance_cents: user.wallet_balance_cents ?? 0,
+      onboarding_completed_at: user.onboarding_completed_at ?? null,
+      next_topup_discount_percent: user.next_topup_discount_percent ?? 0,
+      completed_payments_count: user.completed_payments_count ?? 0,
+      accepted_terms_at: user.accepted_terms_at ?? null,
+    },
+  });
   response.headers.set('Cache-Control', 'no-store');
   return response;
 }

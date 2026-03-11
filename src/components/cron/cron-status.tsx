@@ -20,7 +20,7 @@ interface CronJob {
 }
 
 const AGENT_THEME: Record<string, { color: string; bg: string; emoji: string }> = {
-  hermes: { color: 'text-amber-400', bg: 'bg-amber-500/10', emoji: '\u{1F3DB}\u{FE0F}' },
+  marketing: { color: 'text-amber-400', bg: 'bg-amber-500/10', emoji: '\u{1F3DB}\u{FE0F}' },
   apollo: { color: 'text-blue-400', bg: 'bg-blue-500/10', emoji: '\u{1F3AF}' },
 };
 

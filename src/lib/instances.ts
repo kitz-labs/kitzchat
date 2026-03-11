@@ -1,10 +1,12 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { getAppStateDir } from './app-state';
 
-export type HermesInstance = {
+export type WorkspaceInstance = {
   id: string;
   label: string;
-  openclawHome: string;
+  workspaceRoot: string;
   cronUser?: string;
 };
 
@@ -33,24 +35,36 @@ function normalizeHome(raw: unknown): string {
   return path.resolve(expandHome(v));
 }
 
-function parseInstancesFromEnv(): HermesInstance[] | null {
-  const raw = process.env.HERMES_OPENCLAW_INSTANCES?.trim();
+function ensureWorkspaceScaffold(workspaceRoot: string): string {
+  const resolved = path.resolve(workspaceRoot);
+  for (const dir of ['agents', 'cron', 'health', 'logs', 'shared']) {
+    fs.mkdirSync(path.join(resolved, dir), { recursive: true });
+  }
+  const configPath = path.join(resolved, 'workspace.json');
+  if (!fs.existsSync(configPath)) {
+    fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [] } }, null, 2));
+  }
+  return resolved;
+}
+
+function parseInstancesFromEnv(): WorkspaceInstance[] | null {
+  const raw = process.env.KITZCHAT_WORKSPACE_INSTANCES?.trim();
   if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return null;
 
-    const out: HermesInstance[] = [];
+    const out: WorkspaceInstance[] = [];
     for (const item of parsed) {
       if (!isRecord(item)) continue;
       const id = normalizeId(item.id);
-      const openclawHome = normalizeHome(item.openclawHome);
-      if (!id || !openclawHome) continue;
+      const workspaceRoot = normalizeHome(item.workspaceRoot);
+      if (!id || !workspaceRoot) continue;
       out.push({
         id,
         label: normalizeLabel(item.label, id),
-        openclawHome,
+        workspaceRoot: ensureWorkspaceScaffold(workspaceRoot),
         cronUser:
           typeof item.cronUser === 'string' && item.cronUser.trim()
             ? item.cronUser.trim()
@@ -65,93 +79,72 @@ function parseInstancesFromEnv(): HermesInstance[] | null {
 }
 
 export function getDefaultInstanceId(): string {
-  const v = process.env.HERMES_DEFAULT_INSTANCE?.trim();
+  const v = process.env.KITZCHAT_DEFAULT_INSTANCE?.trim();
   return v ? v : 'default';
 }
 
-export function getInstances(): HermesInstance[] {
+export function getInstances(): WorkspaceInstance[] {
   const fromEnv = parseInstancesFromEnv();
   if (fromEnv) return fromEnv;
 
   const defaultId = getDefaultInstanceId();
-  const home =
-    process.env.HERMES_OPENCLAW_HOME?.trim() ||
-    process.env.OPENCLAW_HOME?.trim() ||
-    path.join(os.homedir(), '.openclaw');
+  const workspaceRoot = process.env.KITZCHAT_WORKSPACE_ROOT?.trim() || path.join(getAppStateDir(), 'runtime', defaultId);
 
   return [
     {
       id: defaultId,
-      label: 'Default',
-      openclawHome: path.resolve(expandHome(home)),
-      cronUser: process.env.HERMES_CRON_USER?.trim() || undefined,
+      label: 'Default Workspace',
+      workspaceRoot: ensureWorkspaceScaffold(path.resolve(expandHome(workspaceRoot))),
+      cronUser: process.env.KITZCHAT_CRON_USER?.trim() || undefined,
     },
   ];
 }
 
-export function getInstance(id?: string | null): HermesInstance {
+export function getInstance(id?: string | null): WorkspaceInstance {
   const instances = getInstances();
   const wanted = (id ?? '').trim();
 
   if (wanted) {
     const match = instances.find((it) => it.id === wanted);
     if (match) return match;
-
-    // Back-compat: older UI used namespace=leads|openclaw.
-    // If not configured, fall back to default instance.
-    if (wanted === 'leads' || wanted === 'openclaw') {
-      return getInstance(getDefaultInstanceId());
-    }
   }
 
   return (
     instances[0] ?? {
       id: getDefaultInstanceId(),
-      label: 'Default',
-      openclawHome: path.join(os.homedir(), '.openclaw'),
+      label: 'Default Workspace',
+      workspaceRoot: ensureWorkspaceScaffold(path.join(getAppStateDir(), 'runtime', getDefaultInstanceId())),
     }
   );
 }
 
-export function resolveOpenClawPaths(instance: HermesInstance): {
-  openclawHome: string;
-  openclawConfigPath: string;
+export function resolveWorkspacePaths(instance: WorkspaceInstance): {
+  workspaceHome: string;
+  workspaceConfigPath: string;
   agentsDir: string;
   cronDir: string;
   healthDir: string;
   logsDir: string;
 } {
-  const openclawHome = instance.openclawHome;
+  const workspaceHome = ensureWorkspaceScaffold(instance.workspaceRoot);
   return {
-    openclawHome,
-    openclawConfigPath: path.join(openclawHome, 'openclaw.json'),
-    agentsDir: path.join(openclawHome, 'agents'),
-    cronDir: path.join(openclawHome, 'cron'),
-    healthDir: path.join(openclawHome, 'health'),
-    logsDir: path.join(openclawHome, 'logs'),
+    workspaceHome,
+    workspaceConfigPath: path.join(workspaceHome, 'workspace.json'),
+    agentsDir: path.join(workspaceHome, 'agents'),
+    cronDir: path.join(workspaceHome, 'cron'),
+    healthDir: path.join(workspaceHome, 'health'),
+    logsDir: path.join(workspaceHome, 'logs'),
   };
 }
 
 export function allowPolicyWrite(): boolean {
-  return (
-    String(process.env.HERMES_ALLOW_POLICY_WRITE ?? '')
-      .trim()
-      .toLowerCase() === 'true'
-  );
+  return String(process.env.KITZCHAT_ALLOW_POLICY_WRITE ?? '').trim().toLowerCase() === 'true';
 }
 
 export function allowCronWrite(): boolean {
-  return (
-    String(process.env.HERMES_ALLOW_CRON_WRITE ?? '')
-      .trim()
-      .toLowerCase() === 'true'
-  );
+  return String(process.env.KITZCHAT_ALLOW_CRON_WRITE ?? '').trim().toLowerCase() === 'true';
 }
 
 export function allowWorkspaceWrite(): boolean {
-  return (
-    String(process.env.HERMES_ALLOW_WORKSPACE_WRITE ?? '')
-      .trim()
-      .toLowerCase() === 'true'
-  );
+  return String(process.env.KITZCHAT_ALLOW_WORKSPACE_WRITE ?? '').trim().toLowerCase() === 'true';
 }

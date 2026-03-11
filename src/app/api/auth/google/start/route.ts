@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const STATE_COOKIE = 'hermes-google-state';
+const STATE_COOKIE = 'kitzchat-google-state';
 
 function shouldUseSecureCookies(request: Request): boolean {
   const forced = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();

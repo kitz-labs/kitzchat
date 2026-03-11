@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 export function getAgentWorkspaceRoot(): string {
-  const configured = process.env.HERMES_AGENT_WORKSPACE_DIR?.trim();
+  const configured = process.env.KITZCHAT_AGENT_WORKSPACE_DIR?.trim();
   const fallback = path.join(os.homedir(), 'workspace');
   return path.resolve(configured || fallback);
 }

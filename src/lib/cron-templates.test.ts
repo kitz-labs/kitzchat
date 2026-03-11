@@ -4,9 +4,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const tempDir = mkdtempSync(path.join(tmpdir(), 'hermes-cron-templates-test-'));
-const dbPath = path.join(tempDir, 'hermes-test.db');
-process.env.HERMES_DB_PATH = dbPath;
+const tempDir = mkdtempSync(path.join(tmpdir(), 'kitzchat-cron-templates-test-'));
+const dbPath = path.join(tempDir, 'kitzchat-test.db');
+process.env.KITZCHAT_DB_PATH = dbPath;
 
 import { resetDbForTests } from './db';
 import { createCronTemplate, deleteCronTemplate, listCronTemplates, updateCronTemplate } from './cron-templates';
@@ -24,7 +24,7 @@ test('cron templates create/list/update/delete', () => {
   const created = createCronTemplate({
     name: 'Morning research',
     description: 'Template for research crons',
-    job: { id: 'x', agentId: 'hermes', schedule: { expr: '0 9 * * 1-5' }, payload: { kind: 'agentTurn', message: 'hi' } },
+    job: { id: 'x', agentId: 'marketing', schedule: { expr: '0 9 * * 1-5' }, payload: { kind: 'agentTurn', message: 'hi' } },
   });
   assert.ok(created.id);
   assert.equal(created.name, 'Morning research');
@@ -36,7 +36,7 @@ test('cron templates create/list/update/delete', () => {
   const updated = updateCronTemplate({
     id: created.id,
     name: 'Morning research v2',
-    job: { id: 'y', agentId: 'hermes', payload: { kind: 'agentTurn', message: 'hello' } },
+    job: { id: 'y', agentId: 'marketing', payload: { kind: 'agentTurn', message: 'hello' } },
   });
   assert.equal(updated.name, 'Morning research v2');
   assert.match(updated.job_json, /"message": "hello"/);

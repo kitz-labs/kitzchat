@@ -7,8 +7,8 @@ import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { timeAgo } from '@/lib/utils';
 import type { MemoryAlertsPayload, MemoryDriftPayload, MemoryHealthPayload } from '@/types';
 
-type HermesInstance = { id: string; label: string };
-type InstancesResponse = { default_instance: string; instances: HermesInstance[] };
+type WorkspaceInstance = { id: string; label: string };
+type InstancesResponse = { default_instance: string; instances: WorkspaceInstance[] };
 
 type MemoryEffectPayload = {
   instance: string;
@@ -62,7 +62,7 @@ function severityClass(sev: string | undefined): string {
 }
 
 export default function MemoryPage() {
-  const [instances, setInstances] = useState<HermesInstance[]>([]);
+  const [instances, setInstances] = useState<WorkspaceInstance[]>([]);
   const [instanceId, setInstanceId] = useState('');
   const [instancesError, setInstancesError] = useState<string | null>(null);
 

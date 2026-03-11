@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { requireApiUser } from '@/lib/api-auth';
 import { requireUser } from '@/lib/auth';
-import { allowPolicyWrite, getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { allowPolicyWrite, getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +68,7 @@ function getInstanceId(request: Request): string | null {
 
 function policyPaths(instanceId: string | null) {
   const instance = getInstance(instanceId);
-  const { healthDir, logsDir } = resolveOpenClawPaths(instance);
+  const { healthDir, logsDir } = resolveWorkspacePaths(instance);
   return {
     instance,
     policyFile: path.join(healthDir, 'memory-policy.json'),
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
   if (auth) return auth;
   if (!allowPolicyWrite()) {
     return NextResponse.json(
-      { error: 'Policy write disabled (set HERMES_ALLOW_POLICY_WRITE=true to enable)' },
+      { error: 'Policy write disabled (set KITZCHAT_ALLOW_POLICY_WRITE=true to enable)' },
       { status: 403 },
     );
   }

@@ -8,6 +8,7 @@ import {
 import { toast } from '@/components/ui/toast';
 import { timeAgo } from '@/lib/utils';
 import { getRoleMatrix } from '@/lib/rbac';
+import { CustomerSettings } from '@/components/customer/customer-settings';
 import pkg from '../../../package.json';
 
 interface SyncInfo {
@@ -63,10 +64,11 @@ interface LoginRequestRecord {
 }
 
 interface MeResponse {
-  user?: { id: number; username: string; role: Role };
+  app_audience?: 'admin' | 'customer';
+  user?: { id: number; username: string; role: Role; account_type?: 'staff' | 'customer'; payment_status?: 'not_required' | 'pending' | 'paid'; has_agent_access?: boolean; };
 }
 
-interface HermesInstance {
+interface WorkspaceInstance {
   id: string;
   label: string;
 }
@@ -110,11 +112,12 @@ interface MemoryEffectPayload {
 export default function SettingsPage() {
   const dashboardVersion = pkg.version || 'dev';
   const roleMatrix = getRoleMatrix();
-  const [instances, setInstances] = useState<HermesInstance[]>([]);
+  const [instances, setInstances] = useState<WorkspaceInstance[]>([]);
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [currentUser, setCurrentUser] = useState<MeResponse['user'] | null>(null);
+  const [appAudience, setAppAudience] = useState<'admin' | 'customer'>('admin');
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loginRequests, setLoginRequests] = useState<LoginRequestRecord[]>([]);
   const [userLoading, setUserLoading] = useState(false);
@@ -131,6 +134,7 @@ export default function SettingsPage() {
   const [alertPolicies, setAlertPolicies] = useState<Record<InstanceId, AlertPolicy | null>>({});
   const [savingAlertPolicy, setSavingAlertPolicy] = useState<Record<InstanceId, boolean>>({});
   const [memoryEffects, setMemoryEffects] = useState<Record<InstanceId, MemoryEffectPayload | null>>({});
+  const [meResolved, setMeResolved] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -138,18 +142,16 @@ export default function SettingsPage() {
     (async () => {
       fetch('/api/settings').then(r => r.json()).then(setSyncInfo).catch(() => {});
 
-      // Discover configured OpenClaw instances from the server so the dashboard
-      // can be used as a template across different deployments.
-      let discovered: HermesInstance[] = [];
+      // Discover configured workspace instances from the server.
+      let discovered: WorkspaceInstance[] = [];
       try {
         const res = await fetch('/api/instances', { cache: 'no-store' });
         const data = await res.json();
         discovered = Array.isArray(data.instances) ? data.instances : [];
       } catch {
-        // Back-compat fallback for older deployments.
+        // Fallback for local-only mode.
         discovered = [
-          { id: 'leads', label: 'Leads' },
-          { id: 'openclaw', label: 'OpenClaw' },
+          { id: 'default', label: 'Default Workspace' },
         ];
       }
 
@@ -198,8 +200,16 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => r.json())
-      .then((data: MeResponse) => setCurrentUser(data.user || null))
-      .catch(() => setCurrentUser(null));
+      .then((data: MeResponse) => {
+        setCurrentUser(data.user || null);
+        setAppAudience(data.app_audience === 'customer' ? 'customer' : 'admin');
+        setMeResolved(true);
+      })
+      .catch(() => {
+        setCurrentUser(null);
+        setAppAudience('admin');
+        setMeResolved(true);
+      });
   }, []);
 
   async function loadUsers() {
@@ -243,6 +253,10 @@ export default function SettingsPage() {
     loadLoginRequests().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.role]);
+
+  if (meResolved && appAudience === 'customer') {
+    return <CustomerSettings />;
+  }
 
   async function triggerSync() {
     setSyncing(true);
@@ -508,7 +522,7 @@ export default function SettingsPage() {
           <BrainCircuit size={14} className="text-info" /> Memory Decay Policy
         </h2>
         <p className="text-xs text-muted-foreground">
-          Controls recency decay and prune thresholds for KB-manager per OpenClaw instance.
+          Controls recency decay and prune thresholds for each local workspace instance.
         </p>
         {instances.length === 0 ? (
           <div className="text-sm text-muted-foreground">Loading instances...</div>
@@ -731,12 +745,12 @@ export default function SettingsPage() {
           </div>
           <div className="flex items-center justify-between py-2 border-b border-border/30">
             <span className="text-muted-foreground">Agent Discovery</span>
-            <span>Dynamic (from each instance OpenClaw config)</span>
+            <span>Dynamic (from each instance workspace config)</span>
           </div>
           <div className="flex items-center justify-between py-2">
             <span className="text-muted-foreground">Notes</span>
             <span className="text-muted-foreground">
-              Models, gateway, and cron wiring are defined by your OpenClaw deployment.
+              Models, local workspaces, and cron wiring are defined by your KitzChat runtime config.
             </span>
           </div>
         </div>
@@ -1105,7 +1119,7 @@ export default function SettingsPage() {
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between py-1">
               <span className="text-muted-foreground">Dashboard</span>
-            <span>Hermes Dashboard v{dashboardVersion}</span>
+            <span>KitzChat v{dashboardVersion}</span>
             </div>
             <div className="flex items-center justify-between py-1">
               <span className="text-muted-foreground">Runtime</span>
@@ -1113,7 +1127,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex items-center justify-between py-1">
               <span className="text-muted-foreground">Agent Platform</span>
-            <span>OpenClaw (v2026.3.x compatible)</span>
+            <span>Local-first runtime</span>
             </div>
             <div className="flex items-center justify-between py-1">
               <span className="text-muted-foreground">License</span>
@@ -1122,7 +1136,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between py-1">
               <span className="text-muted-foreground">Source</span>
             <a
-              href="https://github.com/builderz-labs/hermes-dashboard"
+              href="https://github.com/kitz-labs/dashboard_template"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline flex items-center gap-1"

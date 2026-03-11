@@ -13,6 +13,16 @@ export interface User {
   created_at: string;
   email?: string | null;
   auth_provider?: string | null;
+  account_type?: AccountType;
+  payment_status?: PaymentStatus;
+  stripe_customer_id?: string | null;
+  stripe_checkout_session_id?: string | null;
+  plan_amount_cents?: number | null;
+  wallet_balance_cents?: number | null;
+  onboarding_completed_at?: string | null;
+  next_topup_discount_percent?: number | null;
+  completed_payments_count?: number | null;
+  accepted_terms_at?: string | null;
 }
 
 export interface UserRecord extends User {
@@ -22,6 +32,10 @@ export interface UserRecord extends User {
 export type UserRole = 'admin' | 'editor' | 'viewer';
 export type AuthProvider = 'local' | 'google';
 export type LoginRequestStatus = 'pending' | 'approved' | 'denied';
+export type AccountType = 'staff' | 'customer';
+export type PaymentStatus = 'not_required' | 'pending' | 'paid';
+
+const USER_SELECT_COLUMNS = 'id, username, role, created_at, email, auth_provider, account_type, payment_status, stripe_customer_id, stripe_checkout_session_id, plan_amount_cents, wallet_balance_cents, onboarding_completed_at, next_topup_discount_percent, completed_payments_count, accepted_terms_at';
 
 export interface GoogleLoginRequest {
   id: number;
@@ -52,6 +66,62 @@ function normalizeRoleInput(value: UserRoleInput): UserRole {
 function normalizeRoleValue(value: unknown, fallback: UserRole = 'viewer'): UserRole {
   if (typeof value !== 'string') return fallback;
   return normalizeRole(value);
+}
+
+function normalizeAccountType(value: unknown, fallback: AccountType = 'staff'): AccountType {
+  return value === 'customer' ? 'customer' : fallback;
+}
+
+function normalizePaymentStatus(value: unknown, fallback: PaymentStatus = 'pending'): PaymentStatus {
+  if (value === 'paid' || value === 'pending' || value === 'not_required') return value;
+  return fallback;
+}
+
+function minimumPasswordLength(): number {
+  return process.env.NODE_ENV === 'production' ? 10 : 4;
+}
+
+function assertPasswordLength(password: string): void {
+  const min = minimumPasswordLength();
+  if (!password || password.length < min) {
+    throw new Error(`Password must be at least ${min} characters`);
+  }
+}
+
+function mapUser(row: UserRecord | User | undefined | null): User | null {
+  if (!row) return null;
+  const enriched = row as UserRecord & {
+    email?: string | null;
+    auth_provider?: string | null;
+    account_type?: AccountType | null;
+    payment_status?: PaymentStatus | null;
+    stripe_customer_id?: string | null;
+    stripe_checkout_session_id?: string | null;
+    plan_amount_cents?: number | null;
+    wallet_balance_cents?: number | null;
+    onboarding_completed_at?: string | null;
+    next_topup_discount_percent?: number | null;
+    completed_payments_count?: number | null;
+    accepted_terms_at?: string | null;
+  };
+  return {
+    id: row.id,
+    username: row.username,
+    role: normalizeRole(row.role),
+    created_at: row.created_at,
+    email: enriched.email ?? null,
+    auth_provider: enriched.auth_provider ?? 'local',
+    account_type: normalizeAccountType(enriched.account_type, row.role === 'admin' || row.role === 'editor' ? 'staff' : 'customer'),
+    payment_status: normalizePaymentStatus(enriched.payment_status, row.role === 'admin' || row.role === 'editor' ? 'not_required' : 'pending'),
+    stripe_customer_id: enriched.stripe_customer_id ?? null,
+    stripe_checkout_session_id: enriched.stripe_checkout_session_id ?? null,
+    plan_amount_cents: enriched.plan_amount_cents ?? 0,
+    wallet_balance_cents: enriched.wallet_balance_cents ?? 0,
+    onboarding_completed_at: enriched.onboarding_completed_at ?? null,
+    next_topup_discount_percent: enriched.next_topup_discount_percent ?? 0,
+    completed_payments_count: enriched.completed_payments_count ?? 0,
+    accepted_terms_at: enriched.accepted_terms_at ?? null,
+  };
 }
 
 function requireEnv(name: 'AUTH_USER' | 'AUTH_PASS'): string {
@@ -126,45 +196,90 @@ export function ensureAuthTables(): void {
   try {
     db.exec("ALTER TABLE users ADD COLUMN google_sub TEXT");
   } catch { /* column exists */ }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'staff'");
+  } catch { /* column exists */ }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'not_required'");
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN stripe_checkout_session_id TEXT');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN plan_amount_cents INTEGER NOT NULL DEFAULT 0');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN wallet_balance_cents INTEGER NOT NULL DEFAULT 0');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN onboarding_completed_at DATETIME');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN next_topup_discount_percent INTEGER NOT NULL DEFAULT 0');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN completed_payments_count INTEGER NOT NULL DEFAULT 0');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN accepted_terms_at DATETIME');
+  } catch { /* column exists */ }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)');
   db.exec("UPDATE users SET role = 'editor' WHERE role = 'operator'");
   db.exec("UPDATE google_login_requests SET requested_role = 'editor' WHERE requested_role = 'operator'");
+  db.exec("UPDATE users SET account_type = 'staff' WHERE account_type IS NULL OR TRIM(account_type) = ''");
+  db.exec("UPDATE users SET payment_status = CASE WHEN role IN ('admin', 'editor') THEN 'not_required' ELSE COALESCE(payment_status, 'pending') END");
+  db.exec("UPDATE users SET wallet_balance_cents = CASE WHEN payment_status = 'paid' AND COALESCE(wallet_balance_cents, 0) <= 0 THEN COALESCE(NULLIF(plan_amount_cents, 0), 2000) ELSE COALESCE(wallet_balance_cents, 0) END WHERE account_type = 'customer'");
+  db.exec("UPDATE users SET completed_payments_count = CASE WHEN account_type = 'customer' AND payment_status = 'paid' AND COALESCE(completed_payments_count, 0) <= 0 THEN 1 ELSE COALESCE(completed_payments_count, 0) END");
 }
 
-export function seedAdmin(): void {
+function seedStaffUser(username: string, password: string, role: UserRole = 'admin'): void {
   const db = getDb();
   ensureAuthTables();
-  const count = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
-  if (count > 0) return;
-
-  const username = requireEnv('AUTH_USER').toLowerCase();
-  const password = requireEnv('AUTH_PASS');
   if (username.length < 3) {
     throw new Error('AUTH_USER must be at least 3 characters');
   }
-  if (password.length < 10) {
-    throw new Error('AUTH_PASS must be at least 10 characters');
-  }
-  db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(
+  assertPasswordLength(password);
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as { id?: number } | undefined;
+  if (existing?.id) return;
+  db.prepare('INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents) VALUES (?, ?, ?, ?, ?, ?)').run(
     username,
     hashPassword(password),
-    'admin',
+    role,
+    'staff',
+    'not_required',
+    0,
   );
+}
+
+function seedLocalTestCustomer(): void {
+  if (process.env.NODE_ENV === 'production') return;
+  const db = getDb();
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get('test') as { id?: number } | undefined;
+  if (existing?.id) {
+    db.prepare("UPDATE users SET account_type = 'customer', payment_status = 'paid', plan_amount_cents = 2000, wallet_balance_cents = CASE WHEN COALESCE(wallet_balance_cents, 0) <= 0 THEN 2000 ELSE wallet_balance_cents END, completed_payments_count = CASE WHEN COALESCE(completed_payments_count, 0) <= 0 THEN 1 ELSE completed_payments_count END, next_topup_discount_percent = CASE WHEN COALESCE(completed_payments_count, 0) <= 0 AND COALESCE(next_topup_discount_percent, 0) <= 0 THEN 30 ELSE next_topup_discount_percent END, accepted_terms_at = COALESCE(accepted_terms_at, CURRENT_TIMESTAMP) WHERE id = ?").run(existing.id);
+    return;
+  }
+  db.prepare(
+    "INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, wallet_balance_cents, onboarding_completed_at, next_topup_discount_percent, completed_payments_count, accepted_terms_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)",
+  ).run('test', hashPassword('test'), 'viewer', 'customer', 'paid', 2000, 2000, 30, 1);
+}
+
+export function seedAdmin(): void {
+  const username = requireEnv('AUTH_USER').toLowerCase();
+  const password = requireEnv('AUTH_PASS');
+  seedStaffUser(username, password, 'admin');
+  seedLocalTestCustomer();
 }
 
 export function authenticate(username: string, password: string): User | null {
   const db = getDb();
   const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim().toLowerCase()) as UserRecord | undefined;
   if (!row || !verifyPassword(password, row.password_hash)) return null;
-  return {
-    id: row.id,
-    username: row.username,
-    role: normalizeRole(row.role),
-    created_at: row.created_at,
-    email: (row as UserRecord & { email?: string | null }).email ?? null,
-    auth_provider: (row as UserRecord & { auth_provider?: string | null }).auth_provider ?? 'local',
-  };
+  return mapUser(row);
 }
 
 export function createSession(userId: number): string {
@@ -182,13 +297,15 @@ export function validateSession(token: string): User | null {
   const now = Math.floor(Date.now() / 1000);
   const row = db
     .prepare(
-      `SELECT u.id, u.username, u.role, u.created_at, u.email, u.auth_provider
+      `SELECT u.id, u.username, u.role, u.created_at, u.email, u.auth_provider,
+              u.account_type, u.payment_status, u.stripe_customer_id, u.stripe_checkout_session_id,
+              u.plan_amount_cents, u.wallet_balance_cents, u.onboarding_completed_at,
+              u.next_topup_discount_percent, u.completed_payments_count
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token = ? AND s.expires_at > ?`,
     )
     .get(token, now) as User | undefined;
-  if (!row) return null;
-  return { ...row, role: normalizeRole(row.role) };
+  return mapUser(row);
 }
 
 export function destroySession(token: string): void {
@@ -199,9 +316,9 @@ export function listUsers(): User[] {
   ensureAuthTables();
   const db = getDb();
   const rows = db
-    .prepare('SELECT id, username, role, created_at, email, auth_provider FROM users ORDER BY id ASC')
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users ORDER BY id ASC`)
     .all() as User[];
-  return rows.map((row) => ({ ...row, role: normalizeRole(row.role) }));
+  return rows.map((row) => mapUser(row)!).filter(Boolean);
 }
 
 export function createUser(username: string, password: string, role: UserRoleInput = 'editor'): User {
@@ -211,22 +328,42 @@ export function createUser(username: string, password: string, role: UserRoleInp
   if (!normalized || normalized.length < 3) {
     throw new Error('Username must be at least 3 characters');
   }
-  if (!password || password.length < 10) {
-    throw new Error('Password must be at least 10 characters');
-  }
+  assertPasswordLength(password);
   if (!['admin', 'editor', 'viewer', 'operator'].includes(role)) {
     throw new Error('Invalid role');
   }
   const normalizedRole = normalizeRoleInput(role);
-  db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(
+  db.prepare('INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents) VALUES (?, ?, ?, ?, ?, ?)').run(
     normalized,
     hashPassword(password),
     normalizedRole,
+    'staff',
+    normalizedRole === 'viewer' ? 'pending' : 'not_required',
+    0,
   );
   const row = db
-    .prepare('SELECT id, username, role, created_at, email, auth_provider FROM users WHERE username = ?')
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE username = ?`)
     .get(normalized) as User;
-  return { ...row, role: normalizeRole(row.role) };
+  return mapUser(row)!;
+}
+
+export function createCustomerUser(username: string, password: string, acceptedTerms = false): User {
+  ensureAuthTables();
+  const db = getDb();
+  const normalized = username.trim().toLowerCase();
+  if (!normalized || normalized.length < 3) {
+    throw new Error('Username must be at least 3 characters');
+  }
+  assertPasswordLength(password);
+  db.prepare(
+    acceptedTerms
+      ? 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, accepted_terms_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
+      : 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(normalized, hashPassword(password), 'viewer', 'customer', 'pending', 2000);
+  const row = db
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE username = ?`)
+    .get(normalized) as User;
+  return mapUser(row)!;
 }
 
 function parseAllowedList(value: string | undefined): string[] {
@@ -310,20 +447,20 @@ export function upsertGoogleUser(googleSub: string, email: string): User {
 
   // Prefer existing link by Google subject.
   const bySub = db
-    .prepare('SELECT id, username, role, created_at, email, auth_provider FROM users WHERE google_sub = ?')
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE google_sub = ?`)
     .get(googleSub) as User | undefined;
-  if (bySub) return { ...bySub, role: normalizeRole(bySub.role) };
+  if (bySub) return mapUser(bySub)!;
 
   // Link existing account by email if present.
   const byEmail = db
-    .prepare('SELECT id, username, role, created_at, email, auth_provider FROM users WHERE email = ?')
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE email = ?`)
     .get(normalizedEmail) as User | undefined;
   if (byEmail) {
     db.prepare("UPDATE users SET google_sub = ?, auth_provider = 'google' WHERE id = ?").run(googleSub, byEmail.id);
     const row = db
-      .prepare('SELECT id, username, role, created_at, email, auth_provider FROM users WHERE id = ?')
+      .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE id = ?`)
       .get(byEmail.id) as User;
-    return { ...row, role: normalizeRole(row.role) };
+    return mapUser(row)!;
   }
 
   const role = getApprovedRequestedRole(normalizedEmail) ?? getGoogleDefaultRole();
@@ -335,9 +472,9 @@ export function upsertGoogleUser(googleSub: string, email: string): User {
   ).run(username, hashPassword(pseudoPassword), role, normalizedEmail, googleSub);
 
   const row = db
-    .prepare('SELECT id, username, role, created_at, email, auth_provider FROM users WHERE username = ?')
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE username = ?`)
     .get(username) as User;
-  return { ...row, role: normalizeRole(row.role) };
+  return mapUser(row)!;
 }
 
 export function recordGoogleLoginAttempt(email: string, googleSub: string | null, reason: string): void {
@@ -432,11 +569,80 @@ export function updateUserRole(userId: number, role: UserRoleInput): void {
 }
 
 export function resetUserPassword(userId: number, password: string): void {
-  if (!password || password.length < 10) {
-    throw new Error('Password must be at least 10 characters');
-  }
+  assertPasswordLength(password);
   const db = getDb();
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), userId);
+}
+
+export function updateStripeCustomer(userId: number, stripeCustomerId: string | null, checkoutSessionId: string | null): void {
+  const db = getDb();
+  db.prepare('UPDATE users SET stripe_customer_id = ?, stripe_checkout_session_id = ? WHERE id = ?').run(stripeCustomerId, checkoutSessionId, userId);
+}
+
+export function markUserPaid(userId: number, checkoutSessionId?: string | null): void {
+  const db = getDb();
+  db.prepare("UPDATE users SET payment_status = 'paid', stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), plan_amount_cents = CASE WHEN plan_amount_cents <= 0 THEN 2000 ELSE plan_amount_cents END, wallet_balance_cents = wallet_balance_cents + CASE WHEN plan_amount_cents <= 0 THEN 2000 ELSE plan_amount_cents END WHERE id = ?").run(checkoutSessionId ?? null, userId);
+}
+
+export function addUserWalletBalance(userId: number, amountCents: number, checkoutSessionId?: string | null): void {
+  const db = getDb();
+  db.prepare("UPDATE users SET payment_status = CASE WHEN payment_status = 'not_required' THEN payment_status ELSE 'paid' END, stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), wallet_balance_cents = wallet_balance_cents + ? WHERE id = ?").run(checkoutSessionId ?? null, amountCents, userId);
+}
+
+export function activateCustomerPaymentAccess(userId: number, checkoutSessionId?: string | null, stripeCustomerId?: string | null): void {
+  const db = getDb();
+  db.prepare(
+    "UPDATE users SET payment_status = CASE WHEN payment_status = 'not_required' THEN payment_status ELSE 'paid' END, stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), stripe_customer_id = COALESCE(?, stripe_customer_id) WHERE id = ?",
+  ).run(checkoutSessionId ?? null, stripeCustomerId ?? null, userId);
+}
+
+export function incrementCompletedPayments(userId: number): void {
+  getDb().prepare('UPDATE users SET completed_payments_count = COALESCE(completed_payments_count, 0) + 1 WHERE id = ?').run(userId);
+}
+
+export function setNextTopupDiscountPercent(userId: number, percent: number): void {
+  const normalized = Math.max(0, Math.min(100, Math.round(percent)));
+  getDb().prepare('UPDATE users SET next_topup_discount_percent = ? WHERE id = ?').run(normalized, userId);
+}
+
+export function updateUserEmail(userId: number, email: string | null): void {
+  const normalized = email && email.trim() ? email.trim().toLowerCase() : null;
+  if (normalized && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new Error('Bitte gib eine gueltige E-Mail-Adresse ein');
+  }
+  getDb().prepare('UPDATE users SET email = ? WHERE id = ?').run(normalized, userId);
+}
+
+export function changeUserPassword(userId: number, currentPassword: string, nextPassword: string): void {
+  const db = getDb();
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as { password_hash?: string } | undefined;
+  if (!row?.password_hash || !verifyPassword(currentPassword, row.password_hash)) {
+    throw new Error('Aktuelles Passwort ist nicht korrekt');
+  }
+  assertPasswordLength(nextPassword);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(nextPassword), userId);
+}
+
+export function completeCustomerOnboarding(userId: number): void {
+  const db = getDb();
+  db.prepare('UPDATE users SET onboarding_completed_at = COALESCE(onboarding_completed_at, CURRENT_TIMESTAMP) WHERE id = ?').run(userId);
+}
+
+export function acceptUserTerms(userId: number): void {
+  getDb().prepare('UPDATE users SET accepted_terms_at = COALESCE(accepted_terms_at, CURRENT_TIMESTAMP) WHERE id = ?').run(userId);
+}
+
+export function getUserById(userId: number): User | null {
+  ensureAuthTables();
+  const row = getDb()
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE id = ?`)
+    .get(userId) as User | undefined;
+  return mapUser(row);
+}
+
+export function userHasAgentAccess(user: Pick<User, 'role' | 'account_type' | 'payment_status'>): boolean {
+  if (user.role === 'admin' || user.role === 'editor') return true;
+  return user.account_type === 'customer' && user.payment_status === 'paid';
 }
 
 export function deleteUser(userId: number): void {
@@ -449,7 +655,7 @@ export function deleteUser(userId: number): void {
 
 export function getUserFromRequest(request: Request): User | null {
   const cookie = request.headers.get('cookie') || '';
-  const match = cookie.match(/(?:^|;\s*)hermes-session=([^;]*)/);
+  const match = cookie.match(/(?:^|;\s*)kitzchat-session=([^;]*)/);
   const token = match ? decodeURIComponent(match[1]) : null;
   if (token) {
     const user = validateSession(token);
@@ -459,7 +665,7 @@ export function getUserFromRequest(request: Request): User | null {
   const apiKey = request.headers.get('x-api-key');
   const configuredApiKey = getConfiguredApiKey();
   if (apiKey && configuredApiKey && apiKey === configuredApiKey) {
-    return { id: 0, username: 'api', role: 'admin', created_at: '' };
+    return { id: 0, username: 'api', role: 'admin', created_at: '', account_type: 'staff', payment_status: 'not_required', plan_amount_cents: 0, wallet_balance_cents: 0, onboarding_completed_at: null, accepted_terms_at: null };
   }
 
   return null;

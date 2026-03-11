@@ -1,10 +1,46 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getAudienceFromRequest, getAudienceOrigin } from '@/lib/app-audience';
 
-const SESSION_COOKIE = 'hermes-session';
+const SESSION_COOKIE = 'kitzchat-session';
+
+function collectAllowedOrigins(request: NextRequest): string[] {
+  const audience = getAudienceFromRequest(request);
+  const origins = new Set<string>();
+  const requestOrigin = request.nextUrl.origin.replace(/\/$/, '');
+  origins.add(requestOrigin);
+
+  const configuredBase = process.env.PUBLIC_BASE_URL?.trim();
+  if (configuredBase) {
+    try {
+      const configuredOrigin = new URL(configuredBase).origin.replace(/\/$/, '');
+      origins.add(configuredOrigin);
+      origins.add(getAudienceOrigin(configuredOrigin, audience));
+    } catch {
+      // ignore invalid PUBLIC_BASE_URL values and rely on request origin
+    }
+  }
+
+  for (const origin of Array.from(origins)) {
+    try {
+      const url = new URL(origin);
+      if (url.hostname === 'localhost') {
+        url.hostname = '127.0.0.1';
+        origins.add(url.origin.replace(/\/$/, ''));
+      } else if (url.hostname === '127.0.0.1') {
+        url.hostname = 'localhost';
+        origins.add(url.origin.replace(/\/$/, ''));
+      }
+    } catch {
+      // ignore invalid origin variants
+    }
+  }
+
+  return Array.from(origins);
+}
 
 function isHostAllowedByLock(hostName: string): boolean {
-  const mode = (process.env.HERMES_HOST_LOCK || 'local').trim().toLowerCase();
+  const mode = (process.env.KITZCHAT_HOST_LOCK || 'local').trim().toLowerCase();
   if (mode === 'off' || mode === 'disabled' || mode === 'false' || mode === '0') {
     return true;
   }
@@ -33,7 +69,7 @@ export function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (pathname === '/login' || pathname.startsWith('/api/auth/')) {
+  if (pathname === '/login' || pathname === '/register' || pathname.startsWith('/api/auth/')) {
     return NextResponse.next();
   }
 
@@ -41,13 +77,11 @@ export function proxy(request: NextRequest) {
   const apiKey = request.headers.get('x-api-key');
 
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && sessionToken && !(apiKey && apiKey === process.env.API_KEY)) {
-    const allowedOrigin = process.env.PUBLIC_BASE_URL
-      ? new URL(process.env.PUBLIC_BASE_URL).origin
-      : request.nextUrl.origin;
+    const allowedOrigins = collectAllowedOrigins(request);
     const origin = request.headers.get('origin');
     const referer = request.headers.get('referer');
-    const originOk = origin ? origin === allowedOrigin : true;
-    const refererOk = referer ? referer.startsWith(allowedOrigin) : true;
+    const originOk = origin ? allowedOrigins.includes(origin.replace(/\/$/, '')) : true;
+    const refererOk = referer ? allowedOrigins.some((allowedOrigin) => referer.startsWith(allowedOrigin)) : true;
     if (!originOk || !refererOk || (!origin && !referer)) {
       return new NextResponse('Forbidden', { status: 403 });
     }

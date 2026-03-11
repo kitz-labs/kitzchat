@@ -33,6 +33,9 @@ export async function GET(request: Request) {
     const actor = requireUser(request as Request);
     const username = (typeof actor?.username === 'string' && actor.username.trim()) ? actor.username.trim() : 'operator';
 
+    const filter = actor.account_type === 'customer' && actor.role !== 'admin'
+      ? 'WHERE m.owner_user_id = ?'
+      : '';
     const conversations = db.prepare(`
       SELECT
         m.conversation_id,
@@ -40,9 +43,10 @@ export async function GET(request: Request) {
         COUNT(*) as message_count,
         SUM(CASE WHEN m.read_at IS NULL AND m.from_agent != ? THEN 1 ELSE 0 END) as unread_count
       FROM messages m
+      ${filter}
       GROUP BY m.conversation_id
       ORDER BY last_message_at DESC
-    `).all(username) as ConversationRow[];
+    `).all(...(filter ? [username, actor.id] : [username])) as ConversationRow[];
 
     const withLastMessage = conversations.map((conv) => {
       const lastMsg = db.prepare(`

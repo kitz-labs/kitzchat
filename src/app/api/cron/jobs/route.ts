@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireApiEditor, requireApiUser } from '@/lib/api-auth';
 import { requireUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
-import { allowCronWrite, getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { allowCronWrite, getInstance, resolveWorkspacePaths } from '@/lib/instances';
 import {
   deleteCronJob,
   normalizeJobId,
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   try {
     const actor = requireUser(req as unknown as Request);
     const instance = getInstance(getInstanceId(req));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
     const jobsFile = await readCronJobsFile(cronDir);
     const canWrite = allowCronWrite() && (actor.role === 'admin' || actor.role === 'editor');
     return NextResponse.json({ instance: instance.id, jobs: jobsFile.jobs, can_write: canWrite });
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   const auth = requireApiEditor(req as unknown as Request);
   if (auth) return auth;
   if (!allowCronWrite()) {
-    return NextResponse.json({ error: 'Cron writes are disabled (set HERMES_ALLOW_CRON_WRITE=true)' }, { status: 403 });
+    return NextResponse.json({ error: 'Cron writes are disabled (set KITZCHAT_ALLOW_CRON_WRITE=true)' }, { status: 403 });
   }
   const actor = requireUser(req as unknown as Request);
   const body = await req.json().catch(() => ({}));
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const instance = getInstance(getInstanceId(req));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
     const jobsFile = await readCronJobsFile(cronDir);
     if (jobsFile.jobs.some((j) => normalizeJobId(j.id ?? j.jobId) === id)) {
       return NextResponse.json({ error: 'Job already exists' }, { status: 409 });
@@ -85,7 +85,7 @@ export async function PATCH(req: NextRequest) {
   const auth = requireApiEditor(req as unknown as Request);
   if (auth) return auth;
   if (!allowCronWrite()) {
-    return NextResponse.json({ error: 'Cron writes are disabled (set HERMES_ALLOW_CRON_WRITE=true)' }, { status: 403 });
+    return NextResponse.json({ error: 'Cron writes are disabled (set KITZCHAT_ALLOW_CRON_WRITE=true)' }, { status: 403 });
   }
   const actor = requireUser(req as unknown as Request);
   const body = await req.json().catch(() => ({}));
@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const instance = getInstance(getInstanceId(req));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
     const jobsFile = await readCronJobsFile(cronDir);
     if (!jobsFile.jobs.some((j) => normalizeJobId(j.id ?? j.jobId) === id)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -122,7 +122,7 @@ export async function DELETE(req: NextRequest) {
   const auth = requireApiEditor(req as unknown as Request);
   if (auth) return auth;
   if (!allowCronWrite()) {
-    return NextResponse.json({ error: 'Cron writes are disabled (set HERMES_ALLOW_CRON_WRITE=true)' }, { status: 403 });
+    return NextResponse.json({ error: 'Cron writes are disabled (set KITZCHAT_ALLOW_CRON_WRITE=true)' }, { status: 403 });
   }
   const actor = requireUser(req as unknown as Request);
 
@@ -131,7 +131,7 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const instance = getInstance(getInstanceId(req));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
     const jobsFile = await readCronJobsFile(cronDir);
     if (!jobsFile.jobs.some((j) => normalizeJobId(j.id ?? j.jobId) === id)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });

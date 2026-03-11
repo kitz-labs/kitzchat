@@ -12,7 +12,7 @@ test.describe('auth and api gate', () => {
     });
     expect(login.status()).toBe(200);
     const sessionCookie = login.headers()['set-cookie'];
-    expect(sessionCookie).toContain('hermes-session=');
+    expect(sessionCookie).toContain('kitzchat-session=');
     return { cookie: sessionCookie };
   }
 

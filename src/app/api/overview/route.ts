@@ -3,6 +3,8 @@ import { getOverviewStats, getAlerts, getActivityLog, getDailyMetrics } from '@/
 import { getDb } from '@/lib/db';
 import { getAgents, ACTION_TO_AGENT } from '@/lib/agent-config';
 import { requireApiUser } from '@/lib/api-auth';
+import { listUsers } from '@/lib/auth';
+import Stripe from 'stripe';
 
 interface AgentBrief {
   id: string;
@@ -24,6 +26,223 @@ interface ActionItem {
   subtitle: string;
   tier?: string;
   created_at: string;
+}
+
+interface AdminSummaryCustomer {
+  total: number;
+  new_last_7d: number;
+  active_last_30d: number;
+  paid: number;
+  pending: number;
+  top_customers: Array<{
+    id: number;
+    username: string;
+    payment_status: string | null | undefined;
+    wallet_balance_cents: number;
+    tokens_7d: number;
+    messages_7d: number;
+    last_active_at: string | null;
+  }>;
+}
+
+interface AdminSummaryStripe {
+  configured: boolean;
+  linked_customers: number;
+  total_wallet_balance_cents: number;
+  total_stripe_customer_balance_cents: number;
+  account_available_cents: number | null;
+  account_pending_cents: number | null;
+}
+
+interface AdminSummaryUsage {
+  tokens_today: number;
+  tokens_week: number;
+  tokens_30d: number;
+  cost_today: number;
+  cost_week: number;
+  cost_30d: number;
+  active_customers_7d: number;
+  top_agents: Array<{ agent_id: string; tokens_week: number; cost_week: number }>;
+  daily: Array<{ day: string; total_tokens: number; total_cost: number }>;
+}
+
+interface AdminSummaryCompliance {
+  unread_count: number;
+  danger_count: number;
+  violation_count: number;
+  latest: Array<{ id: number; type: string; message: string; created_at: string; read: boolean }>;
+}
+
+interface AdminSummaryOpenAi {
+  configured: boolean;
+  tracked_tokens_30d: number;
+  tracked_cost_30d: number;
+  credits_remaining: number | null;
+  note: string;
+}
+
+interface AdminSummary {
+  customers: AdminSummaryCustomer;
+  stripe: AdminSummaryStripe;
+  usage: AdminSummaryUsage;
+  compliance: AdminSummaryCompliance;
+  openai: AdminSummaryOpenAi;
+}
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function getAdminSummary(): Promise<AdminSummary> {
+  const db = getDb();
+  const customers = listUsers().filter((user) => user.account_type === 'customer');
+  const customerIds = customers.map((customer) => customer.id);
+  const sevenDaysAgo = isoDaysAgo(7);
+  const thirtyDaysAgoUnix = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
+  const sevenDaysAgoUnix = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+
+  const usageRows = db.prepare(
+    `SELECT user_id,
+            MAX(created_at) AS last_active_at,
+            SUM(CASE WHEN created_at >= ? THEN total_tokens ELSE 0 END) AS tokens_7d,
+            SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS messages_7d
+     FROM chat_usage_events
+     GROUP BY user_id`,
+  ).all(sevenDaysAgoUnix, sevenDaysAgoUnix) as Array<{ user_id: number; last_active_at: number | null; tokens_7d: number; messages_7d: number }>;
+  const usageByCustomer = new Map(usageRows.map((row) => [row.user_id, row]));
+
+  const topCustomers = customers
+    .map((customer) => {
+      const usage = usageByCustomer.get(customer.id);
+      return {
+        id: customer.id,
+        username: customer.username,
+        payment_status: customer.payment_status,
+        wallet_balance_cents: customer.wallet_balance_cents ?? 0,
+        tokens_7d: usage?.tokens_7d ?? 0,
+        messages_7d: usage?.messages_7d ?? 0,
+        last_active_at: usage?.last_active_at ? new Date(usage.last_active_at * 1000).toISOString() : null,
+      };
+    })
+    .sort((left, right) => (right.tokens_7d - left.tokens_7d) || (right.wallet_balance_cents - left.wallet_balance_cents))
+    .slice(0, 5);
+
+  const usageTotals = db.prepare(
+    `SELECT
+      COALESCE(SUM(CASE WHEN date(created_at, 'unixepoch') = date('now') THEN total_tokens ELSE 0 END), 0) AS tokens_today,
+      COALESCE(SUM(CASE WHEN date(created_at, 'unixepoch') >= date('now', '-6 days') THEN total_tokens ELSE 0 END), 0) AS tokens_week,
+      COALESCE(SUM(CASE WHEN date(created_at, 'unixepoch') >= date('now', '-29 days') THEN total_tokens ELSE 0 END), 0) AS tokens_30d,
+      COALESCE(SUM(CASE WHEN date(created_at, 'unixepoch') = date('now') THEN amount_cents ELSE 0 END), 0) AS cost_today,
+      COALESCE(SUM(CASE WHEN date(created_at, 'unixepoch') >= date('now', '-6 days') THEN amount_cents ELSE 0 END), 0) AS cost_week,
+      COALESCE(SUM(CASE WHEN date(created_at, 'unixepoch') >= date('now', '-29 days') THEN amount_cents ELSE 0 END), 0) AS cost_30d,
+      COUNT(DISTINCT CASE WHEN created_at >= ? THEN user_id END) AS active_customers_7d
+     FROM chat_usage_events`,
+  ).get(sevenDaysAgoUnix) as {
+    tokens_today: number;
+    tokens_week: number;
+    tokens_30d: number;
+    cost_today: number;
+    cost_week: number;
+    cost_30d: number;
+    active_customers_7d: number;
+  };
+
+  const topAgents = db.prepare(
+    `SELECT COALESCE(agent_id, 'unknown') AS agent_id,
+            COALESCE(SUM(CASE WHEN created_at >= ? THEN total_tokens ELSE 0 END), 0) AS tokens_week,
+            COALESCE(SUM(CASE WHEN created_at >= ? THEN amount_cents ELSE 0 END), 0) AS cost_week
+     FROM chat_usage_events
+     GROUP BY agent_id
+     ORDER BY tokens_week DESC
+     LIMIT 5`,
+  ).all(sevenDaysAgoUnix, sevenDaysAgoUnix) as Array<{ agent_id: string; tokens_week: number; cost_week: number }>;
+
+  const dailyUsage = db.prepare(
+    `SELECT date(created_at, 'unixepoch') AS day,
+            COALESCE(SUM(total_tokens), 0) AS total_tokens,
+            COALESCE(SUM(amount_cents), 0) AS total_cost
+     FROM chat_usage_events
+     WHERE date(created_at, 'unixepoch') >= date('now', '-13 days')
+     GROUP BY day
+     ORDER BY day ASC`,
+  ).all() as Array<{ day: string; total_tokens: number; total_cost: number }>;
+
+  const complianceSummary = db.prepare(
+    `SELECT
+        SUM(CASE WHEN type = 'danger' THEN 1 ELSE 0 END) AS danger_count,
+        SUM(CASE WHEN type = 'policy-violation' THEN 1 ELSE 0 END) AS violation_count,
+        SUM(CASE WHEN read = 0 THEN 1 ELSE 0 END) AS unread_count
+      FROM notifications
+      WHERE type IN ('policy-violation', 'danger')`,
+  ).get() as { danger_count: number | null; violation_count: number | null; unread_count: number | null };
+
+  const latestIncidents = db.prepare(
+    `SELECT id, type, message, created_at, read
+     FROM notifications
+     WHERE type IN ('policy-violation', 'danger')
+     ORDER BY created_at DESC, id DESC
+     LIMIT 5`,
+  ).all() as Array<{ id: number; type: string; message: string; created_at: string; read: number }>;
+
+  const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
+  const stripe = stripeKey ? new Stripe(stripeKey) : null;
+  let accountAvailableCents: number | null = null;
+  let accountPendingCents: number | null = null;
+  if (stripe) {
+    try {
+      const balance = await stripe.balance.retrieve();
+      accountAvailableCents = balance.available.reduce((sum, item) => sum + item.amount, 0);
+      accountPendingCents = balance.pending.reduce((sum, item) => sum + item.amount, 0);
+    } catch {
+      accountAvailableCents = null;
+      accountPendingCents = null;
+    }
+  }
+
+  return {
+    customers: {
+      total: customers.length,
+      new_last_7d: customers.filter((customer) => customer.created_at >= sevenDaysAgo).length,
+      active_last_30d: usageRows.filter((row) => (row.last_active_at ?? 0) >= thirtyDaysAgoUnix).length,
+      paid: customers.filter((customer) => customer.payment_status === 'paid').length,
+      pending: customers.filter((customer) => customer.payment_status !== 'paid').length,
+      top_customers: topCustomers,
+    },
+    stripe: {
+      configured: Boolean(stripe),
+      linked_customers: customers.filter((customer) => customer.stripe_customer_id).length,
+      total_wallet_balance_cents: customers.reduce((sum, customer) => sum + (customer.wallet_balance_cents ?? 0), 0),
+      total_stripe_customer_balance_cents: customers.reduce((sum, customer) => sum + (customer.plan_amount_cents ?? 0), 0),
+      account_available_cents: accountAvailableCents,
+      account_pending_cents: accountPendingCents,
+    },
+    usage: {
+      tokens_today: usageTotals.tokens_today ?? 0,
+      tokens_week: usageTotals.tokens_week ?? 0,
+      tokens_30d: usageTotals.tokens_30d ?? 0,
+      cost_today: usageTotals.cost_today ?? 0,
+      cost_week: usageTotals.cost_week ?? 0,
+      cost_30d: usageTotals.cost_30d ?? 0,
+      active_customers_7d: usageTotals.active_customers_7d ?? 0,
+      top_agents: topAgents,
+      daily: dailyUsage,
+    },
+    compliance: {
+      unread_count: complianceSummary.unread_count ?? 0,
+      danger_count: complianceSummary.danger_count ?? 0,
+      violation_count: complianceSummary.violation_count ?? 0,
+      latest: latestIncidents.map((incident) => ({ ...incident, read: incident.read === 1 })),
+    },
+    openai: {
+      configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      tracked_tokens_30d: usageTotals.tokens_30d ?? 0,
+      tracked_cost_30d: usageTotals.cost_30d ?? 0,
+      credits_remaining: null,
+      note: process.env.OPENAI_API_KEY?.trim()
+        ? 'OpenAI-Key ist vorhanden, aber Credits werden in diesem lokalen Setup nicht direkt aus der Billing-API gelesen.'
+        : 'Kein OpenAI-Key gefunden. Angezeigt wird die lokal erfasste Nutzung aus chat_usage_events.',
+    },
+  };
 }
 
 function getAgentBriefs(excludeSeed: boolean): AgentBrief[] {
@@ -179,6 +398,7 @@ export async function GET(req: NextRequest) {
   const metrics = getDailyMetrics(84, { excludeSeed: real }); // 12 weeks
   const agents = getAgentBriefs(real);
   const action_items = getActionItems(real);
+  const admin_summary = await getAdminSummary();
 
-  return NextResponse.json({ stats, alerts, recentActivity, metrics, agents, action_items });
+  return NextResponse.json({ stats, alerts, recentActivity, metrics, agents, action_items, admin_summary });
 }

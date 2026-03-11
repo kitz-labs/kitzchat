@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSession, destroySession, recordGoogleLoginAttempt, upsertGoogleUser } from '@/lib/auth';
 
-const STATE_COOKIE = 'hermes-google-state';
-const SESSION_COOKIE = 'hermes-session';
+const STATE_COOKIE = 'kitzchat-google-state';
+const SESSION_COOKIE = 'kitzchat-session';
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
@@ -50,7 +50,7 @@ function shouldUseSecureCookies(request: Request): boolean {
 
 function parseStateCookie(request: Request): { state: string; from: string } | null {
   const rawCookie = request.headers.get('cookie') || '';
-  const match = rawCookie.match(/(?:^|;\s*)hermes-google-state=([^;]*)/);
+  const match = rawCookie.match(/(?:^|;\s*)kitzchat-google-state=([^;]*)/);
   const value = match ? decodeURIComponent(match[1]) : '';
   if (!value) return null;
   const [state, encodedFrom] = value.split(':');
@@ -146,7 +146,7 @@ export async function GET(request: Request) {
 
     // Invalidate existing session token if present.
     const cookie = request.headers.get('cookie') || '';
-    const existingMatch = cookie.match(/(?:^|;\s*)hermes-session=([^;]*)/);
+    const existingMatch = cookie.match(/(?:^|;\s*)kitzchat-session=([^;]*)/);
     const existingToken = existingMatch ? decodeURIComponent(existingMatch[1]) : null;
     if (existingToken) destroySession(existingToken);
 

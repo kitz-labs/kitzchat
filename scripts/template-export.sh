@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
-OUT_DEFAULT="/tmp/hermes-dashboard-template-${ts}"
+OUT_DEFAULT="/tmp/kitzchat-template-${ts}"
 OUT="${1:-$OUT_DEFAULT}"
 
 mkdir -p "$OUT"
@@ -17,9 +17,9 @@ rsync -a \
   --exclude ".env" \
   --exclude ".env.*" \
   --exclude "*.db*" \
-  --exclude "hermes-seed-fix.bundle" \
+  --exclude "kitzchat-seed-fix.bundle" \
   "$ROOT/" "$OUT/"
 
 printf "Exported template to: %s\\n" "$OUT"
 printf "Next steps:\\n"
-printf "  cd %s && pnpm install && cp .env.example .env.local\\n" "$OUT"
+printf "  cd %s && pnpm install && cp .env.example .env\n" "$OUT"

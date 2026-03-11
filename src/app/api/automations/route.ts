@@ -3,7 +3,7 @@ import { getDb } from '@/lib/db';
 import { getAgents, ACTION_TO_AGENT } from '@/lib/agent-config';
 import type { ApprovalItem, SkillExecution } from '@/types';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -120,7 +120,7 @@ export async function GET(request: Request) {
   const auth = requireApiUser(request as Request);
   if (auth) return auth;
   const instance = getInstance(getInstanceIdFromRequest(request));
-  const { cronDir } = resolveOpenClawPaths(instance);
+  const { cronDir } = resolveWorkspacePaths(instance);
   const cronJobsPath = path.join(cronDir, 'jobs.json');
   const cronRunsDir = path.join(cronDir, 'runs');
   const db = getDb();

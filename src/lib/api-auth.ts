@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin, requireUser } from '@/lib/auth';
+import { requireAdmin, requireUser, userHasAgentAccess } from '@/lib/auth';
 import { roleHasCapability, type Capability } from '@/lib/rbac';
 
 export function requireApiUser(request: Request): NextResponse | null {
@@ -56,5 +56,21 @@ export function requireApiCapability(request: Request, capability: Capability): 
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  }
+}
+
+export function requireApiChatUser(request: Request): NextResponse | null {
+  try {
+    const user = requireUser(request);
+    if (user.role === 'admin' || user.role === 'editor' || userHasAgentAccess(user)) {
+      return null;
+    }
+    return NextResponse.json({ error: 'Payment required to use chat' }, { status: 402 });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg === 'unauthorized') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 }

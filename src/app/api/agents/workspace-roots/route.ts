@@ -3,12 +3,12 @@ import { promises as fs } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 import { getAgentWorkspaceRoot } from '@/lib/agent-workspace';
 
 export const dynamic = 'force-dynamic';
 
-type RootKind = 'agent-workspace' | 'openclaw' | 'workspace' | 'agent';
+type RootKind = 'agent-workspace' | 'workspace' | 'agent';
 
 type Root = {
   id: string;
@@ -63,10 +63,10 @@ interface AgentConfig {
   workspace?: string;
 }
 
-/** Read agent list from openclaw.json for dynamic agent roots. */
-async function readAgentList(openclawHome: string): Promise<AgentConfig[]> {
+/** Read agent list from the local workspace config for dynamic agent roots. */
+async function readAgentList(workspaceHome: string): Promise<AgentConfig[]> {
   try {
-    const configPath = path.join(openclawHome, 'openclaw.json');
+    const configPath = path.join(workspaceHome, 'workspace.json');
     const raw = await fs.readFile(configPath, 'utf-8');
     const config = JSON.parse(raw);
     const agents = config?.agents;
@@ -114,7 +114,7 @@ async function readAgentList(openclawHome: string): Promise<AgentConfig[]> {
  */
 function resolveWorkspaceToRootId(
   wsPath: string,
-  openclawHome: string,
+  workspaceHome: string,
   agentWorkspaceRoot: string,
 ): string | null {
   const resolved = path.resolve(wsPath);
@@ -124,8 +124,8 @@ function resolveWorkspaceToRootId(
     return 'agent-workspace';
   }
 
-  // If it's a workspace-* under openclawHome (possibly via symlink).
-  const resolvedHome = path.resolve(openclawHome);
+  // If it's a workspace-* under the runtime root (possibly via symlink).
+  const resolvedHome = path.resolve(workspaceHome);
   const rel = path.relative(resolvedHome, resolved);
 
   // Direct: workspace-foo or a symlink workspace-bar → workspace-foo
@@ -153,17 +153,17 @@ export async function GET(req: NextRequest) {
 
   const instanceId = getInstanceIdFromRequest(req);
   const instance = getInstance(instanceId);
-  const { openclawHome } = resolveOpenClawPaths(instance);
+  const { workspaceHome } = resolveWorkspacePaths(instance);
   const agentWorkspaceRoot = getAgentWorkspaceRoot();
 
   // Read agent config for labels and workspace mapping.
-  const agentList = await readAgentList(openclawHome);
+  const agentList = await readAgentList(workspaceHome);
 
   // Build workspace → agent names mapping.
   const wsToAgents = new Map<string, string[]>();
   for (const agent of agentList) {
     if (!agent.workspace) continue;
-    const rootId = resolveWorkspaceToRootId(agent.workspace, openclawHome, agentWorkspaceRoot);
+    const rootId = resolveWorkspaceToRootId(agent.workspace, workspaceHome, agentWorkspaceRoot);
     if (!rootId) continue;
     const label = agent.displayName || agent.name;
     const existing = wsToAgents.get(rootId) || [];
@@ -183,21 +183,13 @@ export async function GET(req: NextRequest) {
     ...(awAgents?.length ? { agents: awAgents } : {}),
   });
 
-  // Static: .openclaw (read-only).
-  roots.push({
-    id: 'openclaw',
-    label: '.openclaw',
-    kind: 'openclaw',
-    writable: false,
-  });
-
   // Workspace folders: workspace-* and shared (skip symlinks to avoid duplicates).
   try {
-    const names = await fs.readdir(openclawHome);
+    const names = await fs.readdir(workspaceHome);
     for (const name of names) {
       if (!name) continue;
       if (name === 'shared') {
-        const p = path.join(openclawHome, name);
+        const p = path.join(workspaceHome, name);
         if (await isRealDir(p)) {
           roots.push({ id: 'shared', label: 'Shared', kind: 'workspace', writable: true });
         }
@@ -205,7 +197,7 @@ export async function GET(req: NextRequest) {
       }
 
       if (!name.startsWith('workspace-')) continue;
-      const p = path.join(openclawHome, name);
+      const p = path.join(workspaceHome, name);
       if (!(await isRealDir(p))) continue;
       const slug = name.slice('workspace-'.length) || name;
       const agents = wsToAgents.get(name);
@@ -221,8 +213,8 @@ export async function GET(req: NextRequest) {
     // ignore
   }
 
-  // Agent config roots: driven by openclaw.json agent list.
-  const agentsDir = path.join(openclawHome, 'agents');
+  // Agent config roots: driven by workspace.json agent list.
+  const agentsDir = path.join(workspaceHome, 'agents');
   for (const agent of agentList) {
     const dirSlug = agent.dirName || agent.name.toLowerCase().replace(/\s+/g, '-');
     const agentCfg = path.join(agentsDir, dirSlug, 'agent');
@@ -238,7 +230,6 @@ export async function GET(req: NextRequest) {
   // Stable ordering.
   const order: Record<RootKind, number> = {
     'agent-workspace': 0,
-    openclaw: 3,
     workspace: 1,
     agent: 2,
   };

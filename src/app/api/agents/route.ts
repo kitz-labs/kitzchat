@@ -6,7 +6,7 @@ import type { AgentStatus, AgentStats, ActivityEntry } from '@/types';
 import fs from 'fs';
 import path from 'path';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,10 +31,10 @@ function getInstanceIdFromRequest(req: NextRequest): string | null {
   }
 }
 
-function getAgentModelRouting(openclawConfigPath: string, agentId: string): AgentModelConfig | null {
+function getAgentModelRouting(workspaceConfigPath: string, agentId: string): AgentModelConfig | null {
   try {
-    if (!fs.existsSync(openclawConfigPath)) return null;
-    const raw = fs.readFileSync(openclawConfigPath, 'utf-8');
+    if (!fs.existsSync(workspaceConfigPath)) return null;
+    const raw = fs.readFileSync(workspaceConfigPath, 'utf-8');
     const config = JSON.parse(raw) as {
       agents?: {
         defaults?: { model?: unknown };
@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
 
   const instanceId = getInstanceIdFromRequest(req);
   const instance = getInstance(instanceId);
-  const { openclawConfigPath, agentsDir } = resolveOpenClawPaths(instance);
+  const { workspaceConfigPath, agentsDir } = resolveWorkspacePaths(instance);
 
   const db = getDb();
   const now = Date.now();
@@ -245,7 +245,7 @@ export async function GET(req: NextRequest) {
     stats.cost_today = usage.cost_today;
     stats.cost_week = usage.cost_week;
 
-    const modelRouting = getAgentModelRouting(openclawConfigPath, agent.id);
+    const modelRouting = getAgentModelRouting(workspaceConfigPath, agent.id);
 
     return {
       ...agent,

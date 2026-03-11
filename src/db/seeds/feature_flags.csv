@@ -1,0 +1,6 @@
+feature_code,name,default_enabled
+webchat,Webchat,false
+agents,AI Agents,false
+history,Chat History,false
+billing,Billing Dashboard,true
+premium_mode,Premium Mode,false

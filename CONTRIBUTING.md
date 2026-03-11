@@ -8,12 +8,14 @@ pnpm install
 ```
 2. Copy env:
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 3. Run app:
 ```bash
 pnpm dev
 ```
+
+Local development uses a single app on `http://localhost:3000`. Admin and customer flows share the same process and are switched by the signed-in account type.
 
 ## Required Checks
 

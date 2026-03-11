@@ -154,7 +154,7 @@ export function CronBoard({ variant = 'embedded' }: { variant?: 'page' | 'embedd
     setTemplateId('');
     setEditJson(JSON.stringify({
       id: 'new-job-id',
-      agentId: 'hermes',
+      agentId: 'marketing',
       name: 'New Cron Job',
       enabled: true,
       schedule: { kind: 'cron', expr: '0 9 * * 1-5', tz: 'UTC' },
@@ -177,7 +177,7 @@ export function CronBoard({ variant = 'embedded' }: { variant?: 'page' | 'embedd
     setEditMode('edit');
     setEditJobId(job.id);
     setTemplateId('');
-    // Strip transient fields added by the Hermes API enrichment.
+    // Strip transient fields added by the API enrichment.
     const rest: Record<string, unknown> = { ...job };
     delete rest.lastRun;
     delete rest.lastResult;
@@ -302,7 +302,7 @@ export function CronBoard({ variant = 'embedded' }: { variant?: 'page' | 'embedd
                   {editMode === 'create' ? 'Add Cron Job' : `Edit Cron Job${editJobId ? `: ${editJobId}` : ''}`}
                 </h2>
                 <div className="text-[10px] text-muted-foreground mt-1">
-                  Edit the full job JSON. This writes back to OpenClaw&apos;s `cron/jobs.json`.
+                  Edit the full job JSON. This writes back to the local runtime `cron/jobs.json`.
                 </div>
               </div>
               <button type="button" aria-label="Close cron editor" onClick={() => setEditOpen(false)} className="text-muted-foreground hover:text-foreground">
@@ -370,7 +370,7 @@ export function CronBoard({ variant = 'embedded' }: { variant?: 'page' | 'embedd
           <div>
             <h2 className={variant === 'page' ? 'text-xl font-semibold' : 'text-sm font-medium'}>Cron Jobs</h2>
             {variant === 'page' && (
-              <p className="text-sm text-muted-foreground">Live status from OpenClaw cron jobs</p>
+              <p className="text-sm text-muted-foreground">Live status from local runtime cron jobs</p>
             )}
           </div>
           <div className="flex items-center gap-2">

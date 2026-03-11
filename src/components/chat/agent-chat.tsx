@@ -83,7 +83,7 @@ function parseConversationName(
     return { label: `${agentName} Session`, sublabel: `${instanceId}${short ? ' · ' + short : ''}`, emoji };
   }
 
-  // Cross-agent conversations, e.g. "hermes_apollo"
+  // Cross-agent conversations, e.g. "marketing_apollo"
   const firstUnderscore = convId.indexOf('_');
   if (firstUnderscore !== -1 && convId.indexOf('_', firstUnderscore + 1) === -1) {
     const aId = convId.slice(0, firstUnderscore);
@@ -436,7 +436,7 @@ export function AgentChat() {
                       value={input}
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={`Message ${activeConv === 'hermes_apollo' ? 'team' : activeConv.replace('agent_', '')}...`}
+                      placeholder={`Message ${activeConv === 'marketing_apollo' ? 'team' : activeConv.replace('agent_', '')}...`}
                       rows={1}
                       disabled={!canEdit}
                       className="flex-1 resize-none bg-muted/30 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"

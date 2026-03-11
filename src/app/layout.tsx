@@ -18,8 +18,8 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hermes Dashboard",
-  description: "Open-source marketing operations control center for AI agent teams",
+  title: "KitzChat",
+  description: "Local-first AI team chat and operations workspace",
 };
 
 export const viewport = {

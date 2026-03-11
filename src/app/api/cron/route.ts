@@ -6,7 +6,7 @@ import path from 'node:path';
 import { requireApiEditor, requireApiUser } from '@/lib/api-auth';
 import { requireUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
-import { allowCronWrite, getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { allowCronWrite, getInstance, resolveWorkspacePaths } from '@/lib/instances';
 import {
   normalizeJobId,
   readCronJobsFile,
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   if (auth) return auth;
   try {
     const instance = getInstance(getInstanceId(request));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
 
     const db = getDb();
     const jobsPath = path.join(cronDir, 'jobs.json');
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
   try {
     const actor = requireUser(request);
     const instance = getInstance(getInstanceId(request));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
     const logsDir = path.join(cronDir, 'logs');
 
     // Read cron jobs config
@@ -144,7 +144,7 @@ export async function PUT(request: Request) {
   const auth = requireApiEditor(request);
   if (auth) return auth;
   if (!allowCronWrite()) {
-    return NextResponse.json({ error: 'Cron writes are disabled (set HERMES_ALLOW_CRON_WRITE=true)' }, { status: 403 });
+    return NextResponse.json({ error: 'Cron writes are disabled (set KITZCHAT_ALLOW_CRON_WRITE=true)' }, { status: 403 });
   }
 
   const actor = requireUser(request);
@@ -157,7 +157,7 @@ export async function PUT(request: Request) {
 
   try {
     const instance = getInstance(getInstanceId(request));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
     const jobsFile = await readCronJobsFile(cronDir);
     const next =
       action === 'toggle'

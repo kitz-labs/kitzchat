@@ -1,0 +1,5 @@
+agent_code,pricing_mode,base_credits,input_token_factor,output_token_factor,min_charge
+webchat_simple,fixed,25,0,0,25
+webchat_smart,token_based,0,0.002,0.008,20
+instagram_agent,token_based,0,0.003,0.01,30
+research_agent,token_based,0,0.004,0.012,40

@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { getDb } from '@/lib/db';
-import { getHermesStateDir } from '@/lib/hermes-state';
+import { getAppStateDir } from '@/lib/app-state';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 export const dynamic = 'force-dynamic';
 
-const STATE_DIR = getHermesStateDir();
+const STATE_DIR = getAppStateDir();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
   try {
     const instance = getInstance(getInstanceId(request));
-    const { cronDir } = resolveOpenClawPaths(instance);
+    const { cronDir } = resolveWorkspacePaths(instance);
 
     const db = getDb();
 

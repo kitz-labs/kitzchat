@@ -1,0 +1,5 @@
+event_type,enabled,purpose
+checkout.session.completed,true,Topup successful
+payment_intent.succeeded,true,Backup payment confirmation
+charge.refunded,true,Reverse credits on refund
+charge.dispute.created,true,Freeze account for review

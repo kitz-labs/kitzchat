@@ -1,0 +1,7 @@
+rule_code,task_type,min_balance_ratio,max_balance_ratio,prompt_size_class,preferred_model,fallback_model,display_mode,active,priority
+rule_general_high,general,0.80,1.00,small,gpt_high,gpt_mid,premium_auto,true,1
+rule_general_mid,general,0.30,0.79,small,gpt_mid,gpt_low,balanced_mode,true,2
+rule_general_low,general,0.00,0.29,small,gpt_low,gpt_low,efficient_premium,true,3
+rule_complex_high,complex,0.80,1.00,large,gpt_high,gpt_mid,premium_auto,true,1
+rule_complex_mid,complex,0.30,0.79,large,gpt_mid,gpt_low,balanced_mode,true,2
+rule_complex_low,complex,0.00,0.29,large,gpt_low,gpt_low,efficient_premium,true,3

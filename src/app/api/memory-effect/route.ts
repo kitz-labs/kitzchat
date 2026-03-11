@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { requireApiUser } from '@/lib/api-auth';
-import { getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { getInstance, resolveWorkspacePaths } from '@/lib/instances';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
   if (auth) return auth;
   try {
     const instance = getInstance(getInstanceId(request));
-    const { logsDir } = resolveOpenClawPaths(instance);
+    const { logsDir } = resolveWorkspacePaths(instance);
 
     const historyPath = path.join(logsDir, 'memory-drift-history.jsonl');
     const policyAuditPath = path.join(logsDir, 'memory-policy-audit.jsonl');

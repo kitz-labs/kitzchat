@@ -14,7 +14,7 @@ import {
   writeCronJobsFile,
 } from './cron-jobs';
 
-const tempDir = mkdtempSync(path.join(tmpdir(), 'hermes-cron-jobs-test-'));
+const tempDir = mkdtempSync(path.join(tmpdir(), 'kitzchat-cron-jobs-test-'));
 
 after(() => {
   rmSync(tempDir, { recursive: true, force: true });
@@ -121,7 +121,7 @@ test('upsert/toggle/trigger/delete support jobId-only records', async () => {
   assert.equal(typeof nextRun, 'number');
 });
 
-test('cron schedule and delivery fields are preserved for OpenClaw compatibility', async () => {
+test('cron schedule and delivery fields are preserved for workspace compatibility', async () => {
   const jobsFile = {
     version: 1,
     jobs: [],

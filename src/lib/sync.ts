@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { getDb } from './db';
-import { getHermesStateDir } from '@/lib/hermes-state';
+import { getAppStateDir } from '@/lib/app-state';
 
-const STATE_DIR = getHermesStateDir();
+const STATE_DIR = getAppStateDir();
 const SYNC_INTERVAL = 30_000; // 30 seconds
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
@@ -386,7 +386,7 @@ const ICP_SEGMENTS: Record<number, string> = {
   1: 'AI Agents / Orchestration',
   2: 'Business Automation',
   3: 'Internal Ops Bots',
-  4: 'OpenClaw Adjacent',
+  4: 'Agent Runtime Adjacent',
   5: 'Solana / Crypto',
 };
 

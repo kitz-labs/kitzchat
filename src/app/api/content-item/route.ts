@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getDb } from '@/lib/db';
-import { getHermesStateDir } from '@/lib/hermes-state';
+import { getAppStateDir } from '@/lib/app-state';
 import { requireApiEditor, requireApiUser } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
-const STATE_DIR = getHermesStateDir();
+const STATE_DIR = getAppStateDir();
 const QUEUE_FILE = path.join(STATE_DIR, 'content-queue.json');
 
 type QueueItem = Record<string, unknown> & { id?: string };

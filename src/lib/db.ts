@@ -2,10 +2,10 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { seedChatMessages } from './seed-chat';
-import { getHermesStateDir } from './hermes-state';
+import { getAppStateDir } from './app-state';
 
 const DB_PATH =
-  process.env.HERMES_DB_PATH || path.join(getHermesStateDir(), 'hermes.db');
+  process.env.KITZCHAT_DB_PATH || path.join(getAppStateDir(), 'kitzchat.db');
 
 export function getDbPath(): string {
   return DB_PATH;
@@ -201,6 +201,61 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
     CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
 
+    CREATE TABLE IF NOT EXISTS support_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      sender TEXT NOT NULL,
+      message TEXT NOT NULL,
+      read_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_support_messages_user_created ON support_messages(user_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS customer_preferences (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      enabled_agent_ids TEXT,
+      usage_alert_enabled INTEGER NOT NULL DEFAULT 0,
+      usage_alert_daily_tokens INTEGER NOT NULL DEFAULT 50000,
+      memory_storage_mode TEXT NOT NULL DEFAULT 'state',
+      memory_storage_path TEXT,
+      docu_provider TEXT,
+      docu_root_path TEXT,
+      docu_account_email TEXT,
+      docu_app_password TEXT,
+      docu_api_key TEXT,
+      docu_access_token TEXT,
+      mail_provider TEXT,
+      mail_display_name TEXT,
+      mail_address TEXT,
+      mail_password TEXT,
+      mail_imap_host TEXT,
+      mail_imap_port INTEGER NOT NULL DEFAULT 993,
+      mail_smtp_host TEXT,
+      mail_smtp_port INTEGER NOT NULL DEFAULT 465,
+      mail_pop3_host TEXT,
+      mail_pop3_port INTEGER NOT NULL DEFAULT 995,
+      mail_use_ssl INTEGER NOT NULL DEFAULT 1,
+      instagram_username TEXT,
+      instagram_password TEXT,
+      instagram_graph_api TEXT,
+      instagram_user_access_token TEXT,
+      instagram_user_id TEXT,
+      facebook_page_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_uploads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      original_name TEXT NOT NULL,
+      mime_type TEXT,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      storage_path TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_uploads_user_created ON chat_uploads(user_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS seed_registry (
       table_name TEXT NOT NULL,
       record_id TEXT NOT NULL,
@@ -217,10 +272,27 @@ function migrate(db: Database.Database) {
       message_type TEXT NOT NULL DEFAULT 'text',
       metadata TEXT,
       read_at INTEGER,
+      owner_user_id INTEGER,
+      owner_username TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_messages_agents ON messages(from_agent, to_agent);
+
+    CREATE TABLE IF NOT EXISTS chat_usage_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      conversation_id TEXT NOT NULL,
+      agent_id TEXT,
+      prompt_tokens INTEGER NOT NULL DEFAULT 0,
+      completion_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      amount_cents INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_usage_user_created ON chat_usage_events(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_chat_usage_agent_created ON chat_usage_events(agent_id, created_at);
 
     CREATE TABLE IF NOT EXISTS session_sync (
       session_file TEXT PRIMARY KEY,
@@ -232,4 +304,26 @@ function migrate(db: Database.Database) {
 
   // Column migrations (safe to re-run)
   try { db.exec("ALTER TABLE leads ADD COLUMN pause_outreach INTEGER DEFAULT 0"); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE messages ADD COLUMN owner_user_id INTEGER'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE messages ADD COLUMN owner_username TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE support_messages ADD COLUMN read_at DATETIME'); } catch { /* column exists */ }
+  try { db.exec("ALTER TABLE customer_preferences ADD COLUMN memory_storage_mode TEXT NOT NULL DEFAULT 'state'"); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN memory_storage_path TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_provider TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_root_path TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_account_email TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_app_password TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_api_key TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_access_token TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_provider TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_display_name TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_address TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_password TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_imap_host TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_imap_port INTEGER NOT NULL DEFAULT 993'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_smtp_host TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_smtp_port INTEGER NOT NULL DEFAULT 465'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_pop3_host TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_pop3_port INTEGER NOT NULL DEFAULT 995'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_use_ssl INTEGER NOT NULL DEFAULT 1'); } catch { /* column exists */ }
 }

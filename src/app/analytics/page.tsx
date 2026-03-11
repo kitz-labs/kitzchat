@@ -584,7 +584,7 @@ function WebsitePanel({ website }: { website: WebsitePayload }) {
               <div className="mt-1 font-mono text-[11px]">GA4_PROPERTY_ID + GA4_SERVICE_ACCOUNT_JSON</div>
               <div className="mt-1">
                 or an embed URL:
-                <div className="mt-1 font-mono text-[11px]">HERMES_ANALYTICS_WEBSITE_IFRAME_URL</div>
+                <div className="mt-1 font-mono text-[11px]">KITZCHAT_ANALYTICS_WEBSITE_IFRAME_URL</div>
               </div>
             </div>
             {"iframeUrl" in website && website.iframeUrl && (
@@ -828,7 +828,7 @@ function SocialPanel({
               <span className="font-mono text-foreground">{social.summary.linkedinComments}</span>.
             </div>
             <div className="text-[11px] text-muted-foreground mt-2">
-              (Internal rollups come from Hermes activity, not platform analytics APIs.)
+              (Internal rollups come from KitzChat activity, not platform analytics APIs.)
             </div>
           </div>
         </div>

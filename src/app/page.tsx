@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import {
-  PenLine, MessageCircle, Mail, Users, AlertTriangle, Info, AlertCircle,
+  Activity, PenLine, MessageCircle, Mail, Users, AlertTriangle, Info, AlertCircle,
   Bell, ThumbsUp, ThumbsDown, Loader2, Zap,
-  CheckCircle, Search, Send,
+  CheckCircle, Search, Send, CreditCard, Database, ShieldAlert,
 } from 'lucide-react';
 import Link from 'next/link';
 import { StatCard } from '@/components/ui/stat-card';
@@ -17,6 +17,7 @@ import type { OverviewStats, Alert, ActivityEntry, DailyMetrics } from '@/types'
 import { PipelineFunnel } from '@/components/pipeline/pipeline-funnel';
 import { AgentSessions } from '@/components/sessions/agent-sessions';
 import { ContentCalendar } from '@/components/content/content-calendar';
+import { CustomerWebchat } from '@/components/customer/customer-webchat';
 
 interface AgentBrief {
   id: string;
@@ -57,9 +58,65 @@ interface OverviewData {
   metrics: DailyMetrics[];
   agents?: AgentBrief[];
   action_items?: ActionItem[];
+  admin_summary?: {
+    customers: {
+      total: number;
+      new_last_7d: number;
+      active_last_30d: number;
+      paid: number;
+      pending: number;
+      top_customers: Array<{
+        id: number;
+        username: string;
+        payment_status?: string | null;
+        wallet_balance_cents: number;
+        tokens_7d: number;
+        messages_7d: number;
+        last_active_at: string | null;
+      }>;
+    };
+    stripe: {
+      configured: boolean;
+      linked_customers: number;
+      total_wallet_balance_cents: number;
+      total_stripe_customer_balance_cents: number;
+      account_available_cents: number | null;
+      account_pending_cents: number | null;
+    };
+    usage: {
+      tokens_today: number;
+      tokens_week: number;
+      tokens_30d: number;
+      cost_today: number;
+      cost_week: number;
+      cost_30d: number;
+      active_customers_7d: number;
+      top_agents: Array<{ agent_id: string; tokens_week: number; cost_week: number }>;
+      daily: Array<{ day: string; total_tokens: number; total_cost: number }>;
+    };
+    compliance: {
+      unread_count: number;
+      danger_count: number;
+      violation_count: number;
+      latest: Array<{ id: number; type: string; message: string; created_at: string; read: boolean }>;
+    };
+    openai: {
+      configured: boolean;
+      tracked_tokens_30d: number;
+      tracked_cost_30d: number;
+      credits_remaining: number | null;
+      note: string;
+    };
+  };
 }
 
 type Role = 'admin' | 'editor' | 'viewer';
+
+interface ViewerState {
+  role: Role;
+  account_type?: 'staff' | 'customer';
+  app_audience?: 'admin' | 'customer';
+}
 
 interface CycleTimeBenchmarkPayload {
   metric: string;
@@ -80,38 +137,64 @@ export default function OverviewPage() {
   const { realOnly } = useDashboard();
   const realParam = realOnly ? '?real=true' : '';
   const [refreshKey, setRefreshKey] = useState(0);
-  const [role, setRole] = useState<Role>('viewer');
+  const [viewer, setViewer] = useState<ViewerState | null>(null);
+  const [viewerLoaded, setViewerLoaded] = useState(false);
+  const role = viewer?.role ?? 'viewer';
+  const customerView = viewer?.app_audience === 'customer';
 
   const { data, loading } = useSmartPoll<OverviewData>(
     () => fetch(`/api/overview${realParam}`).then(r => r.json()),
-    { interval: 30_000, key: `${realOnly}-${refreshKey}` },
+    { interval: 30_000, key: `${realOnly}-${refreshKey}`, enabled: viewerLoaded && !customerView },
   );
 
   const { data: budget } = useSmartPoll<XBudget>(
     () => fetch('/api/x-budget').then(r => r.json()),
-    { interval: 60_000 },
+    { interval: 60_000, enabled: viewerLoaded && !customerView },
   );
 
   const { data: cycleBenchmark } = useSmartPoll<CycleTimeBenchmarkPayload>(
     () => fetch(`/api/benchmarks/cycle-time?days=30${realOnly ? '&real=true' : ''}`).then(r => r.json()),
-    { interval: 300_000, key: `cycle-${realOnly}` },
+    { interval: 300_000, key: `cycle-${realOnly}`, enabled: viewerLoaded && !customerView },
   );
 
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => r.json())
-      .then((payload) => setRole(payload?.user?.role === 'admin' || payload?.user?.role === 'editor' ? payload.user.role : 'viewer'))
-      .catch(() => setRole('viewer'));
+      .then((payload) => {
+        setViewer({
+          role: payload?.user?.role === 'admin' || payload?.user?.role === 'editor' ? payload.user.role : 'viewer',
+          account_type: payload?.user?.account_type,
+          app_audience: payload?.app_audience,
+        });
+        setViewerLoaded(true);
+      })
+      .catch(() => {
+        setViewer({ role: 'viewer' });
+        setViewerLoaded(true);
+      });
   }, []);
 
   // Start sync service once
-  useEffect(() => { fetch('/api/sync').catch(() => {}); }, []);
+  useEffect(() => {
+    if (viewerLoaded && !customerView) {
+      fetch('/api/sync').catch(() => {});
+    }
+  }, [customerView, viewerLoaded]);
+
+  if (!viewerLoaded) {
+    return <PageSkeleton />;
+  }
+
+  if (customerView) {
+    return <CustomerWebchat />;
+  }
 
   if (!data || loading) {
     return <PageSkeleton />;
   }
 
   const { stats, alerts, recentActivity, metrics, agents, action_items } = data;
+  const adminSummary = data.admin_summary;
   const canEdit = role === 'admin' || role === 'editor';
 
   const metricsReversed = [...metrics].reverse();
@@ -127,6 +210,123 @@ export default function OverviewPage() {
           <h1 className="text-xl font-semibold">Overview</h1>
         </div>
       </div>
+
+      {adminSummary ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <SummaryCard title="Kunden gesamt" value={String(adminSummary.customers.total)} subtitle={`${adminSummary.customers.new_last_7d} neu in 7 Tagen`} icon={<Users size={16} />} tone="primary" />
+            <SummaryCard title="Aktive Kunden" value={String(adminSummary.customers.active_last_30d)} subtitle={`${adminSummary.customers.paid} bezahlt, ${adminSummary.customers.pending} offen`} icon={<Activity size={16} />} tone="success" />
+            <SummaryCard title="Wallet gesamt" value={formatEuro(adminSummary.stripe.total_wallet_balance_cents)} subtitle={`${adminSummary.stripe.linked_customers} Stripe-Kunden verknuepft`} icon={<CreditCard size={16} />} tone="warning" />
+            <SummaryCard title="OpenAI Tokens 30d" value={formatNumber(adminSummary.openai.tracked_tokens_30d)} subtitle={adminSummary.openai.configured ? 'Key erkannt' : 'nur lokal getrackt'} icon={<Database size={16} />} tone="info" />
+            <SummaryCard title="Neue Verstoesse" value={String(adminSummary.compliance.unread_count)} subtitle={`${adminSummary.compliance.danger_count} Gefahr, ${adminSummary.compliance.violation_count} Regelverstoesse`} icon={<ShieldAlert size={16} />} tone={adminSummary.compliance.unread_count > 0 ? 'danger' : 'success'} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_0.9fr_0.8fr]">
+            <div className="panel">
+              <div className="panel-header">
+                <h3 className="section-title">Live Nutzung Kunden / OpenAI</h3>
+              </div>
+              <div className="panel-body">
+                <TrendChart
+                  data={adminSummary.usage.daily.map((entry) => ({ date: entry.day.slice(5), tokens: entry.total_tokens, cost: entry.total_cost / 100 }))}
+                  xKey="date"
+                  lines={[
+                    { key: 'tokens', color: 'var(--primary)', label: 'Tokens' },
+                    { key: 'cost', color: 'var(--warning)', label: 'Kosten €' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-header">
+                <h3 className="section-title">Top 5 Kunden</h3>
+              </div>
+              <div className="panel-body space-y-3">
+                {adminSummary.customers.top_customers.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">Noch keine aktive Kundennutzung.</div>
+                ) : adminSummary.customers.top_customers.map((customer, index) => (
+                  <div key={customer.id} className="rounded-2xl border border-border/60 bg-muted/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium">{index + 1}. {customer.username}</div>
+                        <div className="text-xs text-muted-foreground">{customer.payment_status === 'paid' ? 'Bezahlt' : 'Offen'} · {customer.messages_7d} Antworten in 7 Tagen</div>
+                      </div>
+                      <div className="text-right text-xs">
+                        <div className="font-mono">{formatNumber(customer.tokens_7d)} Tok.</div>
+                        <div className="text-muted-foreground">{formatEuro(customer.wallet_balance_cents)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-[11px] text-muted-foreground">Letzte Aktivitaet {customer.last_active_at ? timeAgo(customer.last_active_at) : 'keine'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              <SummaryStack
+                title="Stripe"
+                rows={[
+                  { label: 'Account verfuegbar', value: adminSummary.stripe.account_available_cents !== null ? formatEuro(adminSummary.stripe.account_available_cents) : 'nicht verfuegbar' },
+                  { label: 'Account pending', value: adminSummary.stripe.account_pending_cents !== null ? formatEuro(adminSummary.stripe.account_pending_cents) : 'nicht verfuegbar' },
+                  { label: 'Kunden-Guthaben', value: formatEuro(adminSummary.stripe.total_wallet_balance_cents) },
+                  { label: 'Planvolumen', value: formatEuro(adminSummary.stripe.total_stripe_customer_balance_cents) },
+                ]}
+              />
+              <SummaryStack
+                title="OpenAI / lokal erfasst"
+                rows={[
+                  { label: 'Tokens heute', value: formatNumber(adminSummary.usage.tokens_today) },
+                  { label: 'Tokens 7 Tage', value: formatNumber(adminSummary.usage.tokens_week) },
+                  { label: 'Kosten 30 Tage', value: formatEuro(adminSummary.openai.tracked_cost_30d) },
+                  { label: 'Aktive Kunden 7 Tage', value: String(adminSummary.usage.active_customers_7d) },
+                ]}
+                footer={adminSummary.openai.note}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="panel">
+              <div className="panel-header">
+                <h3 className="section-title">Verstosslage</h3>
+              </div>
+              <div className="panel-body space-y-3">
+                {adminSummary.compliance.latest.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">Keine Vorfaelle vorhanden.</div>
+                ) : adminSummary.compliance.latest.map((incident) => (
+                  <div key={incident.id} className={`rounded-2xl border px-4 py-3 text-sm ${incident.type === 'danger' ? 'border-destructive/30 bg-destructive/5' : 'border-warning/30 bg-warning/5'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium">{incident.type === 'danger' ? 'Gefahrmeldung' : 'Policy-Verstoss'}</span>
+                      <span className="text-[11px] text-muted-foreground">{timeAgo(incident.created_at)}</span>
+                    </div>
+                    <div className="mt-1 text-muted-foreground">{incident.message}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-header">
+                <h3 className="section-title">Top Agenten nach 7-Tage-Nutzung</h3>
+              </div>
+              <div className="panel-body space-y-3">
+                {adminSummary.usage.top_agents.map((agent) => (
+                  <div key={agent.agent_id} className="rounded-2xl border border-border/60 bg-muted/10 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium">{agent.agent_id}</div>
+                      <div className="text-right text-xs">
+                        <div className="font-mono">{formatNumber(agent.tokens_week)} Tokens</div>
+                        <div className="text-muted-foreground">{formatEuro(agent.cost_week)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       {/* Agent Status Strip */}
       {agents && agents.length > 0 && (
@@ -399,6 +599,56 @@ function BudgetBar({ label, used, limit, icon }: { label: string; used: number; 
           }`}
           style={{ width: `${pct}%` }}
         />
+      </div>
+    </div>
+  );
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('de-DE').format(value || 0);
+}
+
+function formatEuro(valueCents: number): string {
+  return `€${((valueCents || 0) / 100).toFixed(2)}`;
+}
+
+function SummaryCard({ title, value, subtitle, icon, tone }: { title: string; value: string; subtitle: string; icon: React.ReactNode; tone: 'primary' | 'success' | 'warning' | 'info' | 'danger' }) {
+  const toneClass = {
+    primary: 'border-primary/30 bg-primary/5',
+    success: 'border-success/30 bg-success/5',
+    warning: 'border-warning/30 bg-warning/5',
+    info: 'border-info/30 bg-info/5',
+    danger: 'border-destructive/30 bg-destructive/5',
+  }[tone];
+
+  return (
+    <div className={`panel ${toneClass}`}>
+      <div className="panel-body space-y-3">
+        <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-wide text-muted-foreground">
+          <span>{title}</span>
+          <span>{icon}</span>
+        </div>
+        <div className="text-3xl font-semibold">{value}</div>
+        <div className="text-xs text-muted-foreground">{subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryStack({ title, rows, footer }: { title: string; rows: Array<{ label: string; value: string }>; footer?: string }) {
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h3 className="section-title">{title}</h3>
+      </div>
+      <div className="panel-body space-y-3">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-muted-foreground">{row.label}</span>
+            <span className="font-medium">{row.value}</span>
+          </div>
+        ))}
+        {footer ? <div className="rounded-2xl border border-border/60 bg-muted/10 p-3 text-xs text-muted-foreground">{footer}</div> : null}
       </div>
     </div>
   );

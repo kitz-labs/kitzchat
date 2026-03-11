@@ -4,7 +4,7 @@ import path from 'node:path';
 import { requireApiEditor, requireApiUser } from '@/lib/api-auth';
 import { requireUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
-import { allowWorkspaceWrite, getInstance, resolveOpenClawPaths } from '@/lib/instances';
+import { allowWorkspaceWrite, getInstance, resolveWorkspacePaths } from '@/lib/instances';
 import {
   getAgentWorkspaceRoot,
   isAllowedWorkspaceWritePath,
@@ -21,7 +21,7 @@ type Entry = {
   mtimeMs?: number;
 };
 
-type RootKind = 'agent-workspace' | 'openclaw' | 'workspace' | 'agent';
+type RootKind = 'agent-workspace' | 'workspace' | 'agent';
 
 type ResolvedRoot = {
   id: string;
@@ -126,22 +126,12 @@ function resolveRootFromId(req: NextRequest, rootIdRaw: string | null | undefine
 
   const instanceId = getInstanceIdFromRequest(req);
   const instance = getInstance(instanceId);
-  const { openclawHome } = resolveOpenClawPaths(instance);
-  const openclawResolved = path.resolve(openclawHome);
-
-  if (rootId === 'openclaw') {
-    return {
-      id: rootId,
-      label: '.openclaw',
-      kind: 'openclaw',
-      abs: openclawResolved,
-      writable: false,
-    };
-  }
+  const { workspaceHome } = resolveWorkspacePaths(instance);
+  const workspaceResolved = path.resolve(workspaceHome);
 
   if (rootId === 'shared' || /^workspace-[a-z0-9-]+$/i.test(rootId)) {
-    const abs = path.resolve(openclawResolved, rootId);
-    if (!abs.startsWith(openclawResolved + path.sep)) {
+    const abs = path.resolve(workspaceResolved, rootId);
+    if (!abs.startsWith(workspaceResolved + path.sep)) {
       throw new Error('Invalid root');
     }
     return {
@@ -156,8 +146,8 @@ function resolveRootFromId(req: NextRequest, rootIdRaw: string | null | undefine
   if (rootId.startsWith('agent:')) {
     const name = rootId.slice('agent:'.length).trim();
     if (!/^[a-z0-9][a-z0-9-]*$/i.test(name)) throw new Error('Invalid root');
-    const abs = path.resolve(openclawResolved, 'agents', name, 'agent');
-    if (!abs.startsWith(openclawResolved + path.sep)) {
+    const abs = path.resolve(workspaceResolved, 'agents', name, 'agent');
+    if (!abs.startsWith(workspaceResolved + path.sep)) {
       throw new Error('Invalid root');
     }
     return {
@@ -188,7 +178,7 @@ export async function GET(req: NextRequest) {
     await assertDirExists(root.abs);
 
     if (!rel) {
-      const depth = root.kind === 'openclaw' ? 2 : 4;
+      const depth = 4;
       const entries = await listDir(root.abs, '', depth, 5000);
       return NextResponse.json({ rootId: root.id, rootLabel: root.label, kind: root.kind, writable: root.writable, entries });
     }
@@ -222,7 +212,7 @@ export async function POST(req: NextRequest) {
   const auth = requireApiEditor(req as unknown as Request);
   if (auth) return auth;
   if (!allowWorkspaceWrite()) {
-    return NextResponse.json({ error: 'Workspace writes are disabled (set HERMES_ALLOW_WORKSPACE_WRITE=true)' }, { status: 403 });
+    return NextResponse.json({ error: 'Workspace writes are disabled (set KITZCHAT_ALLOW_WORKSPACE_WRITE=true)' }, { status: 403 });
   }
 
   const actor = requireUser(req as unknown as Request);
@@ -268,7 +258,7 @@ export async function PUT(req: NextRequest) {
   const auth = requireApiEditor(req as unknown as Request);
   if (auth) return auth;
   if (!allowWorkspaceWrite()) {
-    return NextResponse.json({ error: 'Workspace writes are disabled (set HERMES_ALLOW_WORKSPACE_WRITE=true)' }, { status: 403 });
+    return NextResponse.json({ error: 'Workspace writes are disabled (set KITZCHAT_ALLOW_WORKSPACE_WRITE=true)' }, { status: 403 });
   }
 
   const actor = requireUser(req as unknown as Request);
@@ -319,7 +309,7 @@ export async function DELETE(req: NextRequest) {
   const auth = requireApiEditor(req as unknown as Request);
   if (auth) return auth;
   if (!allowWorkspaceWrite()) {
-    return NextResponse.json({ error: 'Workspace writes are disabled (set HERMES_ALLOW_WORKSPACE_WRITE=true)' }, { status: 403 });
+    return NextResponse.json({ error: 'Workspace writes are disabled (set KITZCHAT_ALLOW_WORKSPACE_WRITE=true)' }, { status: 403 });
   }
 
   const actor = requireUser(req as unknown as Request);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { destroySession } from '@/lib/auth';
 
-const SESSION_COOKIE = 'hermes-session';
+const SESSION_COOKIE = 'kitzchat-session';
 
 function shouldUseSecureCookies(request: Request): boolean {
   const forced = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
@@ -21,7 +21,7 @@ function shouldUseSecureCookies(request: Request): boolean {
 
 export async function POST(request: Request) {
   const cookie = request.headers.get('cookie') || '';
-  const match = cookie.match(/(?:^|;\s*)hermes-session=([^;]*)/);
+  const match = cookie.match(/(?:^|;\s*)kitzchat-session=([^;]*)/);
   const token = match ? decodeURIComponent(match[1]) : null;
 
   if (token) destroySession(token);

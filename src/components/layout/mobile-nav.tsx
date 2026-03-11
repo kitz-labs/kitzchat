@@ -7,10 +7,11 @@ import {
   Gauge, Bot, Mail, Contact, MoreHorizontal,
   PenLine, MessageCircle, Zap, FlaskConical, Search,
   BarChart3, LineChart, BrainCircuit, Rocket, Clock, List, Settings,
-  FolderOpen,
+  FolderOpen, ShieldAlert,
 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useDashboard } from '@/store';
+import type { AppAudience } from '@/lib/app-audience';
 
 interface NavCounts {
   content: number;
@@ -37,17 +38,19 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Core',
+    label: 'Kern',
     items: [
-      { href: '/', label: 'Overview', icon: Gauge, priority: true },
+      { href: '/', label: 'Uebersicht', icon: Gauge, priority: true },
       { href: '/agents/squads', label: 'Squads', icon: Bot, priority: true },
       { href: '/outreach', label: 'Outreach', icon: Mail, countKey: 'outreach', priority: true },
       { href: '/crm', label: 'CRM', icon: Contact, countKey: 'new_leads', priority: true },
     ],
   },
   {
-    label: 'Operate',
+    label: 'Betrieb',
     items: [
+      { href: '/customers', label: 'Kunden', icon: Contact },
+      { href: '/compliance', label: 'Verstoesse', icon: ShieldAlert },
       { href: '/agents/comms', label: 'Comms', icon: MessageCircle },
       { href: '/agents/workspace', label: 'Workspace', icon: FolderOpen },
       { href: '/content', label: 'Content', icon: PenLine, countKey: 'content' },
@@ -57,7 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Observe',
+    label: 'Einblicke',
     items: [
       { href: '/research', label: 'Research', icon: Search, countKey: 'signals_today' },
       { href: '/kpis', label: 'KPIs', icon: BarChart3 },
@@ -66,35 +69,44 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/deploy', label: 'Deploy', icon: Rocket },
       { href: '/cron', label: 'Cron', icon: Clock },
       { href: '/activity', label: 'Activity', icon: List },
-      { href: '/settings', label: 'Settings', icon: Settings },
+      { href: '/settings', label: 'Einstellungen', icon: Settings },
     ],
   },
 ];
 
-export function MobileNav() {
+const CUSTOMER_ITEMS: NavItem[] = [
+  { href: '/', label: 'Webchat', icon: MessageCircle, priority: true },
+  { href: '/agents', label: 'Agenten', icon: Bot, priority: true },
+  { href: '/usage-token', label: 'Guthaben', icon: BarChart3, priority: true },
+  { href: '/settings', label: 'Einstellungen', icon: Settings, priority: true },
+  { href: '/hilfe', label: 'Hilfe', icon: Search, priority: true },
+];
+
+export function MobileNav({ currentUser, appAudience }: { currentUser: { account_type?: 'staff' | 'customer' } | null; appAudience: AppAudience }) {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const realOnly = useDashboard(s => s.realOnly);
+  const customerView = appAudience === 'customer';
 
   const { data: counts } = useSmartPoll<NavCounts>(
     () => fetch(`/api/counts${realOnly ? '?real=true' : ''}`).then(r => r.json()),
-    { interval: 30_000, key: realOnly },
+    { interval: 30_000, key: realOnly, enabled: !customerView },
   );
 
   const priorityItems = useMemo(
-    () => NAV_GROUPS.flatMap(g => g.items).filter(i => i.priority),
-    [],
+    () => customerView ? CUSTOMER_ITEMS : NAV_GROUPS.flatMap(g => g.items).filter(i => i.priority),
+    [customerView],
   );
   const nonPriorityItems = useMemo(
-    () => NAV_GROUPS.flatMap(g => g.items).filter(i => !i.priority),
-    [],
+    () => customerView ? [] : NAV_GROUPS.flatMap(g => g.items).filter(i => !i.priority),
+    [customerView],
   );
   const sheetGroups = useMemo(
-    () => NAV_GROUPS
+    () => customerView ? [] : NAV_GROUPS
       .map(group => ({ ...group, items: group.items.filter(i => !i.priority) }))
       .filter(group => group.items.length > 0),
-    [],
+    [customerView],
   );
   const moreActive = nonPriorityItems.some(i => isActive(pathname, i.href));
   const moreBadge = counts ? (counts.content + counts.total_pending) : 0;
@@ -137,24 +149,26 @@ export function MobileNav() {
             );
           })}
 
-          <button
-            onClick={() => setSheetOpen(true)}
-            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[48px] min-h-[48px] transition-smooth relative ${
-              moreActive || sheetOpen ? 'text-primary' : 'text-muted-foreground'
-            }`}
-          >
-            <MoreHorizontal size={17} />
-            <span className="text-[10px] leading-none">More</span>
-            {moreBadge > 0 && (
-              <span className="absolute top-0.5 right-1 min-w-[14px] h-3.5 px-0.5 text-[8px] font-bold rounded-full count-badge flex items-center justify-center">
-                {moreBadge > 99 ? '99+' : moreBadge}
-              </span>
-            )}
-          </button>
+          {!customerView ? (
+            <button
+              onClick={() => setSheetOpen(true)}
+              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[48px] min-h-[48px] transition-smooth relative ${
+                moreActive || sheetOpen ? 'text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <MoreHorizontal size={17} />
+              <span className="text-[10px] leading-none">Mehr</span>
+              {moreBadge > 0 && (
+                <span className="absolute top-0.5 right-1 min-w-[14px] h-3.5 px-0.5 text-[8px] font-bold rounded-full count-badge flex items-center justify-center">
+                  {moreBadge > 99 ? '99+' : moreBadge}
+                </span>
+              )}
+            </button>
+          ) : null}
         </div>
       </nav>
 
-      {sheetOpen && (
+      {sheetOpen && !customerView && (
         <div className="md:hidden fixed inset-0 z-[60]">
           <div className="absolute inset-0 bg-black/40" />
           <div
