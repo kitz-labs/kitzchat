@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, FileUp, Lock, Send, Sparkles, X } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
+import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
 import { PaymentCTA } from './payment-cta';
 
 type MeUser = {
@@ -50,11 +51,7 @@ type Preferences = {
   instagram_connected: boolean;
 };
 
-type WalletSnapshot = {
-  balance: number;
-  lowBalanceWarning: boolean;
-  premiumModeMessage: string;
-};
+type WalletSnapshot = WalletPayloadBase;
 
 export function CustomerWebchat() {
   const [me, setMe] = useState<MeUser | null>(null);
@@ -79,8 +76,11 @@ export function CustomerWebchat() {
       .catch(() => setPreferences({ enabled_agent_ids: [], instagram_connected: false }));
 
     fetch('/api/wallet', { cache: 'no-store' })
-      .then((response) => response.json())
-      .then((payload) => setWallet(payload || null))
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        return response.ok ? normalizeWalletPayload(payload) : null;
+      })
+      .then((payload) => setWallet(payload))
       .catch(() => setWallet(null));
   }, []);
 
@@ -202,7 +202,7 @@ export function CustomerWebchat() {
 
         {hasAccess && wallet ? (
           <div className={`mx-6 mt-4 rounded-2xl border px-4 py-3 text-sm ${wallet.lowBalanceWarning ? 'border-warning/40 bg-warning/5 text-warning' : 'border-border/60 bg-muted/10 text-foreground'}`}>
-            {wallet.premiumModeMessage} · Verfuegbar: {wallet.balance.toLocaleString('de-DE')} Credits
+            {wallet.premiumModeMessage} · Verfuegbar: {Number(wallet.balance || 0).toLocaleString('de-DE')} Credits
           </div>
         ) : null}
 

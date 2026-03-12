@@ -6,6 +6,7 @@ import { PaymentCTA } from './payment-cta';
 import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 import { CustomerOnboarding } from './customer-onboarding';
 import { useAudienceGuard } from '@/hooks/use-audience-guard';
+import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
 
 type UsagePayload = {
   totals: {
@@ -48,12 +49,7 @@ type InvoiceItem = {
   download_url: string;
 };
 
-type WalletPayload = {
-  balance: number;
-  currencyDisplay: string;
-  status: string;
-  lowBalanceWarning: boolean;
-  premiumModeMessage: string;
+type WalletPayload = WalletPayloadBase & {
   uiMessages?: Array<{
     message_code: string;
     title: string;
@@ -115,8 +111,9 @@ export function CustomerUsage() {
   }
 
   async function loadWallet() {
-    const payload = await fetch('/api/wallet', { cache: 'no-store' }).then((response) => response.json());
-    setWallet(payload || null);
+    const response = await fetch('/api/wallet', { cache: 'no-store' });
+    const payload = await response.json().catch(() => null);
+    setWallet(response.ok ? (normalizeWalletPayload<WalletPayload>(payload) as WalletPayload | null) : null);
   }
 
   async function loadLedger() {
