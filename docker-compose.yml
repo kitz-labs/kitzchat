@@ -1,44 +1,48 @@
 services:
-	kitzchat:
-		image: node:20-alpine
-		working_dir: /app
-		volumes:
-			- /opt/KitzChat:/app
-		environment:
-			NODE_ENV: production
-			PORT: "3001"
-			DATABASE_URL: postgres://kitzchat:widauer@db:5432/kitzchat
-		command: sh -lc "corepack enable && pnpm install --frozen-lockfile && pnpm build && pnpm start"
-		labels:
-			- traefik.enable=true
-			- traefik.http.routers.kitzchat.rule=Host(`www.aiworks.at`)
-			- traefik.http.routers.kitzchat.entrypoints=websecure
-			- traefik.http.routers.kitzchat.tls=true
-			- traefik.http.routers.kitzchat.tls.certresolver=letsencrypt
-			- traefik.http.services.kitzchat.loadbalancer.server.port=3001
-		networks:
-			- traefik
-			- internal
-		depends_on:
-			- db
-		restart: unless-stopped
+  kitzchat:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - /opt/KitzChat:/app
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3001"
+      AUTH_COOKIE_SECURE: "true"
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://www.aiworks.at}
+      KITZCHAT_HOST_LOCK: ${KITZCHAT_HOST_LOCK:-www.aiworks.at}
+      DATABASE_URL: postgres://kitzchat:widauer@db:5432/kitzchat
+    command: sh -lc "corepack enable && pnpm install --frozen-lockfile && pnpm run build:standalone && PORT=3001 HOSTNAME=0.0.0.0 sh scripts/start-standalone.sh"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kitzchat.rule=Host(`www.aiworks.at`)
+      - traefik.http.routers.kitzchat.entrypoints=websecure
+      - traefik.http.routers.kitzchat.tls=true
+      - traefik.http.routers.kitzchat.tls.certresolver=letsencrypt
+      - traefik.http.services.kitzchat.loadbalancer.server.port=3001
+    networks:
+      - traefik
+      - internal
+    depends_on:
+      - db
+    restart: unless-stopped
 
-	db:
-		image: postgres:16-alpine
-		environment:
-			POSTGRES_DB: kitzchat
-			POSTGRES_USER: kitzchat
-			POSTGRES_PASSWORD: widauer
-		volumes:
-			- kitzchat_db:/var/lib/postgresql/data
-		networks:
-			- internal
-		restart: unless-stopped
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kitzchat
+      POSTGRES_USER: kitzchat
+      POSTGRES_PASSWORD: widauer
+    volumes:
+      - kitzchat_db:/var/lib/postgresql/data
+    networks:
+      - internal
+    restart: unless-stopped
 
 volumes:
-	kitzchat_db:
+  kitzchat_db:
 
 networks:
-	internal:
-	traefik:
-		external: true
+  internal:
+  traefik:
+    external: true

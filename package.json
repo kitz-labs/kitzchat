@@ -9,7 +9,8 @@
     "prebuild": "pnpm run clean:caches",
     "build": "next build --webpack",
     "start": "next start",
-    "env:bootstrap": "bash scripts/bootstrap-env.sh",
+    "start:standalone": "sh scripts/start-standalone.sh",
+    "env:bootstrap": "sh scripts/bootstrap-env.sh",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "billing:migrate": "tsx src/server.ts --migrate-only",
@@ -18,8 +19,8 @@
     "typecheck": "tsc --noEmit --incremental false",
     "test": "node --import tsx --test --test-concurrency=1 src/lib/*.test.ts",
     "test:e2e": "pnpm build && playwright test",
-    "prepare:standalone": "bash scripts/prepare-standalone.sh",
-    "build:standalone": "pnpm build && pnpm run prepare:standalone",
+    "prepare:standalone": "sh scripts/prepare-standalone.sh",
+    "build:standalone": "pnpm build",
     "postbuild": "pnpm run prepare:standalone"
   },
   "dependencies": {

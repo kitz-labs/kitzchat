@@ -29,13 +29,13 @@ pnpm install --frozen-lockfile
 Build:
 
 ```bash
-pnpm build
+pnpm run build:standalone
 ```
 
 Start production app:
 
 ```bash
-pnpm start
+PORT=3001 HOSTNAME=0.0.0.0 sh scripts/start-standalone.sh
 ```
 
 Development only:
@@ -185,7 +185,7 @@ If Hostinger supports Docker Compose, use the repo's `docker-compose.yml` as bas
 App container command:
 
 ```bash
-sh -lc "corepack enable && pnpm install --frozen-lockfile && pnpm build && pnpm start"
+sh -lc "corepack enable && pnpm install --frozen-lockfile && pnpm run build:standalone && PORT=3001 HOSTNAME=0.0.0.0 sh scripts/start-standalone.sh"
 ```
 
 ## Relevant Project Files

@@ -1,16 +1,16 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+set -eu
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT"
 
-"$ROOT/scripts/prepare-standalone.sh"
+sh "$ROOT/scripts/prepare-standalone.sh"
 
 # Optional 1Password mode:
 # - off: never use op run
 # - auto (default): use op run when available; otherwise fall back to existing env
 # - required: fail startup unless op run succeeds
-OP_MODE="${KITZCHAT_1PASSWORD_MODE:-auto}"
+OP_MODE="$(printf '%s' "${KITZCHAT_1PASSWORD_MODE:-auto}" | tr '[:upper:]' '[:lower:]')"
 OP_ENV_FILE="${KITZCHAT_OP_ENV_FILE:-/etc/kitzchat/kitzchat.op.env}"
 
 run_with_op() {
@@ -20,11 +20,11 @@ run_with_op() {
 
 can_use_op() {
   command -v op >/dev/null 2>&1 \
-    && [[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]] \
-    && [[ -f "$OP_ENV_FILE" ]]
+    && [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] \
+    && [ -f "$OP_ENV_FILE" ]
 }
 
-case "${OP_MODE,,}" in
+case "$OP_MODE" in
   off|false|0|disabled)
     echo "[start] 1Password overlay disabled (KITZCHAT_1PASSWORD_MODE=$OP_MODE)" >&2
     ;;

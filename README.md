@@ -184,9 +184,20 @@ docker compose up -d
 Wichtig:
 
 - Der App-Container verwendet `corepack` und `pnpm`, nicht `npm ci`
+- Der Build sollte ueber `pnpm run build:standalone` laufen; gestartet wird danach mit `sh scripts/start-standalone.sh`
 - Der Compose-Stack mappt den Quellcode von `/opt/KitzChat` nach `/app`
 - Die App laeuft im Container auf Port `3001`; Routing erfolgt ueber Traefik
 - Der Postgres-Dienst nutzt ein benanntes Volume `kitzchat_db`
+
+Falls du die App zunaechst direkt ueber eine oeffentliche IP statt ueber eine Domain testest, setze zusaetzlich:
+
+```env
+PUBLIC_BASE_URL=http://187.124.23.227:8080
+KITZCHAT_HOST_LOCK=187.124.23.227,localhost,127.0.0.1
+AUTH_COOKIE_SECURE=false
+```
+
+und mappe den App-Port direkt, z. B. `8080:8080`.
 
 ## Wichtige Umgebungsvariablen
 

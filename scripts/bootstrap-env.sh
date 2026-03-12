@@ -1,24 +1,24 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+set -eu
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT"
 
 TARGET_FILE=".env"
 AUTH_USER_VALUE="${AUTH_USER_VALUE:-admin}"
 
-if [[ ! -f ".env.example" ]]; then
+if [ ! -f ".env.example" ]; then
   echo "Missing .env.example in repository root." >&2
   exit 1
 fi
 
-if [[ ! -f "$TARGET_FILE" ]]; then
+if [ ! -f "$TARGET_FILE" ]; then
   cp .env.example "$TARGET_FILE"
 fi
 
 generate_secret() {
-  local size="${1:-48}"
-  local value=""
+  size="${1:-48}"
+  value=""
 
   if command -v openssl >/dev/null 2>&1; then
     value="$(openssl rand -base64 64 | tr -d '\n' | tr '/+' 'Aa' | cut -c1-"$size")"
@@ -30,10 +30,9 @@ generate_secret() {
 }
 
 upsert_kv() {
-  local key="$1"
-  local value="$2"
-  local file="$3"
-  local tmp_file
+  key="$1"
+  value="$2"
+  file="$3"
   tmp_file="$(mktemp)"
 
   awk -v k="$key" -v v="$value" '

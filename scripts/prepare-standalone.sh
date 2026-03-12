@@ -1,14 +1,27 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+set -eu
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT"
+
+copy_tree() {
+  src="$1"
+  dest="$2"
+
+  mkdir -p "$dest"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a "$src/" "$dest/"
+    return
+  fi
+
+  cp -R "$src/." "$dest/"
+}
 
 # Ensure Next.js standalone has latest static/public assets before boot.
 mkdir -p .next/standalone/.next/static
 if [ -d .next/static ]; then
-  rsync -a .next/static/ .next/standalone/.next/static/
+  copy_tree .next/static .next/standalone/.next/static
 fi
 if [ -d public ]; then
-  rsync -a public/ .next/standalone/public/
+  copy_tree public .next/standalone/public
 fi
