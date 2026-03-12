@@ -102,6 +102,32 @@ test('seedAdmin does not require AUTH_USER and AUTH_PASS when users already exis
   process.env.AUTH_PASS = previousPass;
 });
 
+test('seedAdmin allows short admin password and keeps test login available in production mode', () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousUser = process.env.AUTH_USER;
+  const previousPass = process.env.AUTH_PASS;
+  const previousMin = process.env.AUTH_MIN_PASSWORD_LENGTH;
+
+  process.env.NODE_ENV = 'production';
+  process.env.AUTH_USER = 'ceo';
+  process.env.AUTH_PASS = 'widauer';
+  delete process.env.AUTH_MIN_PASSWORD_LENGTH;
+
+  assert.doesNotThrow(() => seedAdmin());
+
+  const admin = authenticate('ceo', 'widauer');
+  const testUser = authenticate('test', 'test');
+  assert.ok(admin);
+  assert.equal(admin.username, 'ceo');
+  assert.ok(testUser);
+  assert.equal(testUser.username, 'test');
+
+  process.env.NODE_ENV = previousNodeEnv;
+  process.env.AUTH_USER = previousUser;
+  process.env.AUTH_PASS = previousPass;
+  process.env.AUTH_MIN_PASSWORD_LENGTH = previousMin;
+});
+
 test('session lifecycle validates and invalidates correctly', () => {
   seedAdmin();
   const user = authenticate('admin_test', 'super-secure-pass');

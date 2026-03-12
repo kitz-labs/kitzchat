@@ -78,7 +78,11 @@ function normalizePaymentStatus(value: unknown, fallback: PaymentStatus = 'pendi
 }
 
 function minimumPasswordLength(): number {
-  return process.env.NODE_ENV === 'production' ? 10 : 4;
+  const configured = Number(process.env.AUTH_MIN_PASSWORD_LENGTH);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1, Math.round(configured));
+  }
+  return 4;
 }
 
 function assertPasswordLength(password: string): void {
@@ -256,7 +260,6 @@ function seedStaffUser(username: string, password: string, role: UserRole = 'adm
 }
 
 function seedLocalTestCustomer(): void {
-  if (process.env.NODE_ENV === 'production') return;
   const db = getDb();
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get('test') as { id?: number } | undefined;
   if (existing?.id) {
