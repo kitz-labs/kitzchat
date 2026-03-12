@@ -27,10 +27,27 @@ import {
   validateSession,
 } from './auth';
 
+function insertUser(username: string, passwordHash = 'salt:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', role = 'admin') {
+  const db = getDb();
+  db.prepare("INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents) VALUES (?, ?, ?, 'staff', 'not_required', 0)").run(
+    username,
+    passwordHash,
+    role,
+  );
+}
+
 function resetAuthState() {
   ensureAuthTables();
   const db = getDb();
-  db.exec('DELETE FROM sessions; DELETE FROM users; DELETE FROM google_login_requests;');
+  db.exec(`
+    DELETE FROM billing_events;
+    DELETE FROM support_messages;
+    DELETE FROM customer_preferences;
+    DELETE FROM chat_uploads;
+    DELETE FROM sessions;
+    DELETE FROM users;
+    DELETE FROM google_login_requests;
+  `);
 }
 
 beforeEach(() => {
@@ -60,6 +77,29 @@ test('seedAdmin creates initial admin and authenticate succeeds', () => {
   assert.ok(user);
   assert.equal(user.username, 'admin_test');
   assert.equal(user.role, 'admin');
+});
+
+test('seedAdmin does not fail when configured admin already exists but AUTH_PASS is short', () => {
+  insertUser('admin_test');
+  const previousPass = process.env.AUTH_PASS;
+  process.env.AUTH_PASS = 'short';
+
+  assert.doesNotThrow(() => seedAdmin());
+
+  process.env.AUTH_PASS = previousPass;
+});
+
+test('seedAdmin does not require AUTH_USER and AUTH_PASS when users already exist', () => {
+  insertUser('existing-admin');
+  const previousUser = process.env.AUTH_USER;
+  const previousPass = process.env.AUTH_PASS;
+  delete process.env.AUTH_USER;
+  delete process.env.AUTH_PASS;
+
+  assert.doesNotThrow(() => seedAdmin());
+
+  process.env.AUTH_USER = previousUser;
+  process.env.AUTH_PASS = previousPass;
 });
 
 test('session lifecycle validates and invalidates correctly', () => {

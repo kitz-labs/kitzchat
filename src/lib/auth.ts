@@ -242,9 +242,9 @@ function seedStaffUser(username: string, password: string, role: UserRole = 'adm
   if (username.length < 3) {
     throw new Error('AUTH_USER must be at least 3 characters');
   }
-  assertPasswordLength(password);
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username) as { id?: number } | undefined;
   if (existing?.id) return;
+  assertPasswordLength(password);
   db.prepare('INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents) VALUES (?, ?, ?, ?, ?, ?)').run(
     username,
     hashPassword(password),
@@ -269,6 +269,27 @@ function seedLocalTestCustomer(): void {
 }
 
 export function seedAdmin(): void {
+  ensureAuthTables();
+  const db = getDb();
+  const configuredUsername = process.env.AUTH_USER?.trim().toLowerCase();
+
+  if (configuredUsername) {
+    if (configuredUsername.length < 3) {
+      throw new Error('AUTH_USER must be at least 3 characters');
+    }
+    const configuredUser = db.prepare('SELECT id FROM users WHERE username = ?').get(configuredUsername) as { id?: number } | undefined;
+    if (configuredUser?.id) {
+      seedLocalTestCustomer();
+      return;
+    }
+  }
+
+  const existingUser = db.prepare('SELECT id FROM users LIMIT 1').get() as { id?: number } | undefined;
+  if (existingUser?.id) {
+    seedLocalTestCustomer();
+    return;
+  }
+
   const username = requireEnv('AUTH_USER').toLowerCase();
   const password = requireEnv('AUTH_PASS');
   seedStaffUser(username, password, 'admin');
