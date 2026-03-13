@@ -20,7 +20,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3001
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat su-exec
 
 COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/public ./public
@@ -28,6 +28,4 @@ COPY --from=builder --chown=node:node /app/scripts ./scripts
 
 EXPOSE 3001
 
-USER node
-
-CMD ["sh", "scripts/start-standalone.sh"]
+CMD ["sh", "scripts/docker-entrypoint.sh"]
