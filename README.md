@@ -186,7 +186,7 @@ Wichtig:
 
 - Der App-Container verwendet `corepack` und `pnpm`, nicht `npm ci`
 - Der Build laeuft ueber das lokale [Dockerfile](./Dockerfile); gestartet wird danach mit `sh scripts/start-standalone.sh`
-- Der Compose-Stack braucht kein Traefik und kein Host-Bind-Mount des Repos
+- Der Compose-Stack kann direkt auf Port `3001` laufen oder ueber einen vorhandenen Traefik-Proxy an eine Domain gehaengt werden
 - Die App laeuft im Container auf Port `3001`; extern wird standardmaessig `${APP_PORT:-3001}` nach `3001` gemappt
 - Der Postgres-Dienst nutzt das benannte Volume `kitzchat_db`
 - App-Zustand und Workspace-Runtime liegen im benannten Volume `kitzchat_state`
@@ -203,7 +203,7 @@ KITZCHAT_HOST_LOCK=your-domain.tld
 DATABASE_URL=postgres://kitzchat:widauer@db:5432/kitzchat
 ```
 
-Danach ist die App direkt unter `http://SERVER_IP:3001` erreichbar. Fuer Domain + HTTPS solltest du auf dem VPS einen Reverse Proxy wie Caddy oder Nginx davorsetzen.
+Danach ist die App direkt unter `http://SERVER_IP:3001` erreichbar. Falls auf dem VPS bereits Traefik auf `80/443` laeuft, kannst du die Domain ueber die in [docker-compose.yml](./docker-compose.yml) hinterlegten Traefik-Labels anbinden.
 
 Falls du die App zunaechst direkt ueber eine oeffentliche IP statt ueber eine Domain testest, setze zusaetzlich:
 

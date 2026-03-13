@@ -23,10 +23,19 @@ services:
       KITZCHAT_USE_DEFAULT_AGENT_META: ${KITZCHAT_USE_DEFAULT_AGENT_META:-false}
     ports:
       - ${APP_PORT:-3001}:3001
+    labels:
+      - traefik.enable=${TRAEFIK_ENABLE:-true}
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
+      - traefik.http.routers.kitzchat.rule=Host(`${TRAEFIK_HOST:-dashboard.aikitz.at}`)
+      - traefik.http.routers.kitzchat.entrypoints=${TRAEFIK_ENTRYPOINTS:-websecure}
+      - traefik.http.routers.kitzchat.tls=true
+      - traefik.http.routers.kitzchat.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.services.kitzchat.loadbalancer.server.port=3001
     volumes:
       - kitzchat_state:/app/state
     networks:
       - internal
+      - traefik
     depends_on:
       db:
         condition: service_healthy
@@ -55,3 +64,6 @@ volumes:
 
 networks:
   internal:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}

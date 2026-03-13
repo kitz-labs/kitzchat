@@ -193,9 +193,9 @@ Notes:
 
 - The compose file builds the app image locally from `Dockerfile`
 - The app is exposed directly on host port `3001` by default
-- No Traefik dependency is required
+- If the VPS already runs Traefik, the compose file can attach to the external `traefik` network and publish `dashboard.aikitz.at` via labels
 - Persist both PostgreSQL and `/app/state`
-- For domain + HTTPS, place Caddy or Nginx in front of the app on the VPS
+- For domain + HTTPS, either reuse the existing Traefik instance or place Caddy/Nginx in front of the app on the VPS
 
 ## Relevant Project Files
 
