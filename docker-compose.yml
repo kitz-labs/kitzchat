@@ -65,4 +65,5 @@ volumes:
 networks:
   internal: {}
   traefik:
-    external: true
+    external:
+      name: traefik
