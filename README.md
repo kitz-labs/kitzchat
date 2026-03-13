@@ -163,7 +163,7 @@ Die App laeuft danach unter `http://localhost:3000`.
 
 ![KitzChat Deployment](./public/kitzchat-readme-deployment.svg)
 
-Die mitgelieferte [docker-compose.yml](./docker-compose.yml) ist auf ein hostbasiertes Deployment ausgelegt und erwartet den Projektstand auf dem Server unter `/opt/KitzChat`.
+Die mitgelieferte [docker-compose.yml](./docker-compose.yml) ist auf direkten VPS-Betrieb mit Docker Compose ausgelegt. Die App wird lokal aus dem Repo per [Dockerfile](./Dockerfile) gebaut, laeuft auf Container-Port `3001` und wird standardmaessig auf Host-Port `3001` veroeffentlicht.
 
 Die aktuell hinterlegte PostgreSQL-Konfiguration ist:
 
@@ -178,16 +178,32 @@ Die aktuell hinterlegte PostgreSQL-Konfiguration ist:
 Start mit Docker Compose:
 
 ```bash
-docker compose up -d
+cp .env.example .env
+docker compose up --build -d
 ```
 
 Wichtig:
 
 - Der App-Container verwendet `corepack` und `pnpm`, nicht `npm ci`
-- Der Build sollte ueber `pnpm run build:standalone` laufen; gestartet wird danach mit `sh scripts/start-standalone.sh`
-- Der Compose-Stack mappt den Quellcode von `/opt/KitzChat` nach `/app`
-- Die App laeuft im Container auf Port `3001`; Routing erfolgt ueber Traefik
-- Der Postgres-Dienst nutzt ein benanntes Volume `kitzchat_db`
+- Der Build laeuft ueber das lokale [Dockerfile](./Dockerfile); gestartet wird danach mit `sh scripts/start-standalone.sh`
+- Der Compose-Stack braucht kein Traefik und kein Host-Bind-Mount des Repos
+- Die App laeuft im Container auf Port `3001`; extern wird standardmaessig `${APP_PORT:-3001}` nach `3001` gemappt
+- Der Postgres-Dienst nutzt das benannte Volume `kitzchat_db`
+- App-Zustand und Workspace-Runtime liegen im benannten Volume `kitzchat_state`
+
+Fuer den ersten Start solltest du in `.env` mindestens setzen:
+
+```env
+AUTH_USER=admin
+AUTH_PASS=change-me-to-a-long-password
+API_KEY=change-me-to-a-random-secret
+AUTH_COOKIE_SECURE=true
+PUBLIC_BASE_URL=https://your-domain.tld
+KITZCHAT_HOST_LOCK=your-domain.tld
+DATABASE_URL=postgres://kitzchat:widauer@db:5432/kitzchat
+```
+
+Danach ist die App direkt unter `http://SERVER_IP:3001` erreichbar. Fuer Domain + HTTPS solltest du auf dem VPS einen Reverse Proxy wie Caddy oder Nginx davorsetzen.
 
 Falls du die App zunaechst direkt ueber eine oeffentliche IP statt ueber eine Domain testest, setze zusaetzlich:
 

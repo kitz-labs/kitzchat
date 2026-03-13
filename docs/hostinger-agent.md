@@ -180,13 +180,22 @@ KITZCHAT_ANALYTICS_SOCIAL_IFRAME_URL=
 
 ## Docker Reference
 
-If Hostinger supports Docker Compose, use the repo's `docker-compose.yml` as baseline.
+If Hostinger VPS runs Docker Compose over SSH, use the repo's `docker-compose.yml` as the production baseline.
 
-App container command:
+Current deploy command:
 
 ```bash
-sh -lc "corepack enable && pnpm install --frozen-lockfile && pnpm run build:standalone && PORT=3001 HOSTNAME=0.0.0.0 sh scripts/start-standalone.sh"
+cp .env.example .env
+docker compose up --build -d
 ```
+
+Notes:
+
+- The compose file builds the app image locally from `Dockerfile`
+- The app is exposed directly on host port `3001` by default
+- No Traefik dependency is required
+- Persist both PostgreSQL and `/app/state`
+- For domain + HTTPS, place Caddy or Nginx in front of the app on the VPS
 
 ## Relevant Project Files
 
