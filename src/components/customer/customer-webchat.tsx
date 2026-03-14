@@ -194,7 +194,7 @@ export function CustomerWebchat() {
               </label>
             ) : null}
             <div className="badge border bg-muted/20 text-muted-foreground">
-              {hasAccess ? 'Zugang aktiv' : 'Zahlung erforderlich'}
+              {hasAccess ? 'Zugang aktiv' : 'Aktivierung offen'}
             </div>
           </div>
         </div>
@@ -212,10 +212,13 @@ export function CustomerWebchat() {
                 <Lock size={22} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Schalte alle Agenten mit deiner ersten Einzahlung frei</h3>
-                <p className="mt-2 text-sm text-muted-foreground">Waehle auf der Guthaben-Seite 10, 20, 50, 100 Euro oder deinen freien Betrag und gehe dann mit Stripe weiter.</p>
+                <h3 className="text-lg font-semibold">Webchat wird erst nach Aktivierung freigeschaltet</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Dein Onboarding kannst du trotzdem schon ohne Einzahlung abschliessen. Wenn du danach alle Agenten nutzen willst, startest du die Aktivierung separat auf der Guthaben-Seite.</p>
               </div>
-              <a href="/usage-token?onboarding=1" className="btn btn-primary text-sm">Einzahlung waehlen</a>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <a href="/usage-token?onboarding=1" className="btn btn-primary text-sm">Onboarding oeffnen</a>
+                <a href="/usage-token" className="btn btn-ghost text-sm">Aktivierung starten</a>
+              </div>
             </div>
           </div>
         ) : onboardingOpen ? (

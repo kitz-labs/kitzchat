@@ -17,17 +17,17 @@ type CustomerOnboardingProps = {
 const STEPS = [
   {
     title: 'Willkommen bei KitzChat',
-    description: 'Hier richtest du deinen Kundenbereich Schritt für Schritt ein, bis deine erste Einzahlung abgeschlossen ist.',
+    description: 'Hier richtest du deinen Kundenbereich Schritt fuer Schritt ein. Das Onboarding kannst du auch ohne sofortige Einzahlung abschliessen.',
     icon: Sparkles,
   },
   {
     title: 'So funktioniert dein Guthaben',
-    description: 'Mit der Aktivierung schaltest du alle Agenten frei. Danach kannst du Guthaben direkt in KitzChat nachladen. Nach deiner ersten erfolgreichen Einzahlung wird automatisch ein 30 %-Rabatt fuer die naechste Einzahlung vorbereitet.',
+    description: 'Aktivierung und Guthaben sind ein separater Schritt. Wenn du spaeter zahlst, schaltest du alle Agenten frei und bekommst danach automatisch 30 % Rabatt fuer die naechste Einzahlung vorbereitet.',
     icon: Coins,
   },
   {
-    title: 'Bereit für die erste Einzahlung',
-    description: 'Starte jetzt deine erste Zahlung. Danach kannst du Webchat und Agenten direkt verwenden.',
+    title: 'Onboarding abschliessen',
+    description: 'Speichere dein Onboarding jetzt ab. Einzahlung und Aktivierung kannst du direkt im Anschluss oder spaeter separat starten.',
     icon: MessageSquareText,
   },
 ];
@@ -61,7 +61,7 @@ export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalan
             <h3 className="text-lg font-semibold">{current.title}</h3>
             <p className="text-sm text-muted-foreground">{current.description}</p>
             {hasAccess ? <div className="text-xs text-success">Aktivierung erkannt. Aktuelles Guthaben: €{(walletBalanceCents / 100).toFixed(2)}</div> : null}
-            {!hasAccess && stepIndex === 2 ? <div className="text-xs text-primary">Nach deiner ersten erfolgreichen Zahlung steht dein 30 %-Folgerabatt fuer die naechste Einzahlung automatisch bereit.</div> : null}
+            {!hasAccess && stepIndex === 2 ? <div className="text-xs text-primary">Wenn du spaeter aktivierst, wird der 30 %-Folgerabatt fuer die naechste Einzahlung automatisch vorbereitet.</div> : null}
           </div>
         </div>
 
@@ -75,22 +75,27 @@ export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalan
           <button type="button" onClick={() => setStepIndex((value) => Math.min(value + 1, STEPS.length - 1))} className="btn btn-primary text-sm inline-flex items-center gap-2">
             Weiter <ArrowRight size={14} />
           </button>
-        ) : !hasAccess ? (
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">Waehle jetzt 10, 20, 50, 100 Euro oder gib deinen Wunschbetrag ein. Stripe oeffnet sich in einem neuen Tab und bietet dort auch die Eingabe eines Coupon-Codes an.</p>
-            <CheckoutAmountPicker
-              checkoutType="activation"
-              customAmount={customAmount}
-              onCustomAmountChange={setCustomAmount}
-              onCheckout={onStartCheckout}
-              loadingKey={checkoutLoading}
-              error={checkoutError}
-            />
-          </div>
         ) : (
-          <button type="button" onClick={() => void onFinish()} className="btn btn-primary text-sm inline-flex items-center gap-2">
-            <CheckCircle2 size={14} /> Onboarding abschließen
-          </button>
+          <div className="space-y-2">
+            <button type="button" onClick={() => void onFinish()} className="btn btn-primary text-sm inline-flex items-center gap-2">
+              <CheckCircle2 size={14} /> Onboarding abschliessen
+            </button>
+
+            {!hasAccess ? (
+              <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
+                <div className="text-sm font-medium">Optional: Aktivierung jetzt starten</div>
+                <p className="text-xs text-muted-foreground">Wenn du direkt alle Agenten freischalten willst, waehle jetzt 10, 20, 50, 100 Euro oder deinen Wunschbetrag. Du kannst das aber jederzeit spaeter nachholen.</p>
+                <CheckoutAmountPicker
+                  checkoutType="activation"
+                  customAmount={customAmount}
+                  onCustomAmountChange={setCustomAmount}
+                  onCheckout={onStartCheckout}
+                  loadingKey={checkoutLoading}
+                  error={checkoutError}
+                />
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
     </div>

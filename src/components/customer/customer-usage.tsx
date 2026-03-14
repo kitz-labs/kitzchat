@@ -297,7 +297,7 @@ export function CustomerUsage() {
               <p className="text-xs text-muted-foreground">Waehle 10 €, 20 €, 50 € oder gib deinen Wunschbetrag ein. Bei 20 € ist "meist genutzt" markiert.</p>
             </div>
             <div className={`badge border ${hasAccess ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-              {hasAccess ? 'Bezahlt / aktiv' : 'Aktivierung offen'}
+              {hasAccess ? 'Zugang aktiv' : 'Aktivierung optional'}
             </div>
           </div>
 
@@ -319,8 +319,8 @@ export function CustomerUsage() {
 
             {!hasAccess ? (
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
-                <div className="text-sm font-medium">Erste Einzahlung / Aktivierung</div>
-                <div className="text-xs text-muted-foreground">Mit der ersten erfolgreichen Zahlung werden alle Agenten freigeschaltet. Du kannst direkt 10, 20, 50, 100 Euro oder einen freien Startbetrag waehlen. Danach erhaeltst du automatisch 30 % Rabatt auf deine naechste Guthaben-Aufladung.</div>
+                <div className="text-sm font-medium">Aktivierung und erste Einzahlung</div>
+                <div className="text-xs text-muted-foreground">Dieser Schritt ist optional fuer das Onboarding. Wenn du ihn jetzt machst, werden alle Agenten freigeschaltet. Du kannst direkt 10, 20, 50, 100 Euro oder einen freien Startbetrag waehlen. Danach erhaeltst du automatisch 30 % Rabatt auf deine naechste Guthaben-Aufladung.</div>
                 <CheckoutAmountPicker
                   checkoutType="activation"
                   customAmount={activationAmount}
@@ -372,9 +372,9 @@ export function CustomerUsage() {
             </div>
             <div className="panel-body space-y-3 text-sm">
               {[
-                { label: 'Erste Einzahlung erfolgreich', done: hasAccess },
-                { label: '30 % Rabatt fuer naechste Einzahlung vorbereitet', done: nextTopupDiscountPercent > 0 || (me?.completed_payments_count ?? 0) > 1 },
                 { label: 'Onboarding abschliessen', done: Boolean(me?.onboarding_completed_at) },
+                { label: 'Optionale Aktivierung / Einzahlung', done: hasAccess },
+                { label: '30 % Rabatt fuer naechste Einzahlung vorbereitet', done: nextTopupDiscountPercent > 0 || (me?.completed_payments_count ?? 0) > 1 },
               ].map((step) => (
                 <div key={step.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/10 px-4 py-3">
                   <span>{step.label}</span>
@@ -383,7 +383,7 @@ export function CustomerUsage() {
                   </span>
                 </div>
               ))}
-              {!me?.onboarding_completed_at && hasAccess ? (
+              {!me?.onboarding_completed_at ? (
                 <button type="button" onClick={completeOnboarding} disabled={savingOnboarding} className="btn btn-primary text-sm">
                   {savingOnboarding ? 'Wird gespeichert...' : 'Onboarding abschliessen'}
                 </button>
@@ -408,7 +408,7 @@ export function CustomerUsage() {
               </div>
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Abrechnungsstatus</div>
-                <div className="mt-2 text-sm font-medium">{hasAccess ? 'Kundenzugang aktiv' : 'Wartet auf Aktivierung'}</div>
+                <div className="mt-2 text-sm font-medium">{hasAccess ? 'Kundenzugang aktiv' : 'Noch nicht aktiviert'}</div>
                 <div className="mt-1 text-xs text-muted-foreground">Geladenes Guthaben: {balanceCredits.toLocaleString('de-DE')} Credits</div>
               </div>
             </div>

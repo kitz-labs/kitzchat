@@ -304,8 +304,8 @@ export function CustomerSettings() {
 
             {!me?.has_agent_access ? (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Fuehre die erste Zahlung aus, um alle Agenten freizuschalten und den 30 %-Folgerabatt zu aktivieren.</p>
-                <PaymentCTA label="€20 mit Stripe bezahlen" returnPath="/settings" />
+                <p className="text-xs text-muted-foreground">Dein Onboarding ist davon getrennt. Wenn du alle Agenten freischalten willst, kannst du die Aktivierung hier oder spaeter auf der Guthaben-Seite starten.</p>
+                <PaymentCTA label="Aktivierung mit Stripe starten" returnPath="/settings" />
               </div>
             ) : (
               <div className="text-xs text-muted-foreground">Dein Zugang ist aktiv. Weitere Einzahlungen startest du jederzeit direkt auf der Seite Guthaben.</div>

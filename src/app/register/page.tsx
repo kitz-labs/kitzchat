@@ -39,7 +39,7 @@ export default function RegisterPage() {
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-1"><BrandLogo compact /></div>
           <h1 className="text-xl font-semibold">Erstelle dein KitzChat-Konto</h1>
-          <p className="text-sm text-[var(--muted-foreground)]">Registriere dich als Kunde und schalte danach alle Agenten mit deiner ersten Stripe-Zahlung frei.</p>
+          <p className="text-sm text-[var(--muted-foreground)]">Registriere dich als Kunde, schliesse dein Onboarding ab und entscheide danach selbst, wann du Guthaben oder Aktivierung nachladen willst.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

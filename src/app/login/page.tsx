@@ -11,6 +11,7 @@ type LoginResponse = {
   user?: {
     account_type?: 'staff' | 'customer';
     payment_status?: 'not_required' | 'pending' | 'paid';
+    onboarding_completed_at?: string | null;
     accepted_terms_at?: string | null;
   };
 };
@@ -38,9 +39,9 @@ function LoginForm() {
   function resolveRedirect(data: LoginResponse): string {
     const requestedPath = searchParams.get('from');
     const accountType = data.user?.account_type;
-    const paymentStatus = data.user?.payment_status;
+    const onboardingCompleted = Boolean(data.user?.onboarding_completed_at);
     const defaultPath = accountType === 'customer'
-      ? (paymentStatus !== 'paid' ? '/usage-token?onboarding=1' : '/')
+      ? (onboardingCompleted ? '/' : '/usage-token?onboarding=1')
       : '/';
 
     if (!requestedPath || !requestedPath.startsWith('/')) {

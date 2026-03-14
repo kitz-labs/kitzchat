@@ -111,7 +111,7 @@ export function CustomerAgents() {
         {hasAccess ? (
           <div className="badge border bg-success/10 text-success"><ShieldCheck size={12} /> Aktiv</div>
         ) : (
-          <div className="badge border bg-warning/10 text-warning"><Lock size={12} /> Bis zur Zahlung gesperrt</div>
+          <div className="badge border bg-warning/10 text-warning"><Lock size={12} /> Noch nicht aktiviert</div>
         )}
       </div>
 
@@ -119,10 +119,10 @@ export function CustomerAgents() {
         <div className="panel">
           <div className="panel-body flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <div className="text-sm font-medium">Schliesse deine erste Einzahlung ab</div>
-              <div className="text-xs text-muted-foreground">Auf der Guthaben-Seite kannst du 10, 20, 50, 100 Euro oder einen freien Betrag waehlen. Danach werden alle Agenten freigeschaltet und der Rabatt fuer die naechste Einzahlung vorbereitet.</div>
+              <div className="text-sm font-medium">Aktivierung ist ein separater Schritt</div>
+              <div className="text-xs text-muted-foreground">Dein Onboarding kann schon abgeschlossen sein. Wenn du alle Agenten freischalten willst, waehle auf der Guthaben-Seite 10, 20, 50, 100 Euro oder einen freien Betrag. Danach wird der Rabatt fuer die naechste Einzahlung vorbereitet.</div>
             </div>
-            <a href="/usage-token?onboarding=1" className="btn btn-primary text-sm">Betrag waehlen</a>
+            <a href="/usage-token" className="btn btn-primary text-sm">Aktivierung oeffnen</a>
           </div>
         </div>
       ) : null}
