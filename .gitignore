@@ -57,3 +57,4 @@ kitzchat-seed-fix.bundle
 /.tmp/
 /test-results/
 /playwright-report/
+state/kitzchat.db.backup
