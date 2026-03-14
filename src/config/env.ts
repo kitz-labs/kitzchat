@@ -20,6 +20,7 @@ type StringEnv = {
   STRIPE_SUCCESS_URL: string;
   STRIPE_CANCEL_URL: string;
   OPENAI_API_KEY: string;
+  OPENAI_WEBHOOK_SECRET: string;
   OPENAI_ORG_ID: string;
   OPENAI_PROJECT: string;
 };
@@ -47,6 +48,7 @@ export const env = {
   STRIPE_SUCCESS_URL: readString('STRIPE_SUCCESS_URL', 'http://localhost:3000/usage-token?payment=success&session_id={CHECKOUT_SESSION_ID}'),
   STRIPE_CANCEL_URL: readString('STRIPE_CANCEL_URL', 'http://localhost:3000/usage-token?payment=cancelled'),
   OPENAI_API_KEY: readString('OPENAI_API_KEY'),
+  OPENAI_WEBHOOK_SECRET: readString('OPENAI_WEBHOOK_SECRET'),
   OPENAI_ORG_ID: readString('OPENAI_ORG_ID'),
   OPENAI_PROJECT: readString('OPENAI_PROJECT'),
   MIN_TOPUP_EUR: readNumber('MIN_TOPUP_EUR', 5),
@@ -76,6 +78,10 @@ export function hasStripeConfig(): boolean {
 
 export function hasOpenAiConfig(): boolean {
   return Boolean(env.OPENAI_API_KEY);
+}
+
+export function hasOpenAiWebhookConfig(): boolean {
+  return Boolean(env.OPENAI_API_KEY && env.OPENAI_WEBHOOK_SECRET);
 }
 
 export function amountEurToCredits(amountEur: number): number {

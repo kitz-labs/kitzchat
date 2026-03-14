@@ -115,10 +115,13 @@ LOW_BALANCE_THRESHOLD_RATIO=0.2
 
 ```env
 OPENAI_API_KEY=
+OPENAI_WEBHOOK_SECRET=
 OPENAI_ORG=
 OPENAI_ORG_ID=
 OPENAI_PROJECT=
 ```
+
+OpenAI-Webhooks koennen auf `/api/openai/webhook` zeigen. Dafuer muss `OPENAI_WEBHOOK_SECRET` zum in OpenAI hinterlegten Signing Secret passen.
 
 ### Google OAuth
 

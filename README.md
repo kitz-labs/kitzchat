@@ -248,6 +248,7 @@ Workspace und Laufzeit:
 Optionale Integrationen:
 
 - `OPENAI_API_KEY`
+- `OPENAI_WEBHOOK_SECRET`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `PLAUSIBLE_API_KEY`
@@ -265,6 +266,8 @@ KitzChat verwendet ein internes Credit-System:
 - Kosten, Token-Nutzung und Kundenverbrauch werden im Admin-Bereich zusammengefuehrt
 
 Wenn `OPENAI_API_KEY` fehlt, bleibt die App benutzbar; bestimmte agentenbezogene Antworten koennen dann auf lokale oder Mock-Pfade zurueckfallen.
+
+Wenn OpenAI Webhooks verwendet werden, zeigt die App den Endpoint unter `/api/openai/webhook` an. Dafuer muss `OPENAI_WEBHOOK_SECRET` gesetzt sein.
 
 ## Verfuegbare Skripte
 

@@ -69,8 +69,8 @@ export function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Stripe must be able to call webhook routes without a user session.
-  if (pathname === '/api/billing/webhook' || pathname === '/api/stripe/webhook') {
+  // Third-party webhook providers must be able to call webhook routes without a user session.
+  if (pathname === '/api/billing/webhook' || pathname === '/api/stripe/webhook' || pathname === '/api/openai/webhook') {
     return NextResponse.next();
   }
 
