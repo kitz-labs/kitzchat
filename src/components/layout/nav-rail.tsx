@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Gauge, Bot, PenLine, MessageCircle, Mail, Contact, Zap,
   Search, BarChart3, LineChart, BrainCircuit, Rocket, Clock, List, Settings,
-  FolderOpen, Users, CreditCard, Database,
+  FolderOpen, Users, CreditCard, Database, LifeBuoy,
 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useDashboard } from '@/store';
@@ -94,6 +94,7 @@ const CUSTOMER_NAV_GROUPS: NavGroup[] = [
       { href: '/', label: 'Webchat', icon: MessageCircle },
       { href: '/agents', label: 'Agenten', icon: Bot },
       { href: '/usage-token', label: 'Guthaben', icon: BarChart3 },
+      { href: '/support-chat', label: 'Support', icon: LifeBuoy },
       { href: '/settings', label: 'Einstellungen', icon: Settings },
       { href: '/hilfe', label: 'Hilfe', icon: Search },
     ],

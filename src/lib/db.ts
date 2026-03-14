@@ -279,6 +279,17 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_messages_agents ON messages(from_agent, to_agent);
 
+    CREATE TABLE IF NOT EXISTS chat_conversations (
+      conversation_id TEXT PRIMARY KEY,
+      owner_user_id INTEGER,
+      owner_username TEXT,
+      agent_id TEXT,
+      title TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_conversations_owner_updated ON chat_conversations(owner_user_id, updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS chat_usage_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,

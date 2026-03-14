@@ -9,6 +9,7 @@ import { requireUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { ensureCustomerPreferences } from '@/lib/customer-preferences';
 import { getAppStateDir } from '@/lib/app-state';
+import { normalizeConversationTitle } from '@/lib/chat-conversations';
 import { inspectPolicyContent, reportPolicyIncident } from '@/lib/policy-enforcement';
 import { hasPostgresConfig } from '@/config/env';
 import { runAgentChat } from '@/modules/agents/agents.service';
@@ -181,13 +182,27 @@ export async function POST(req: NextRequest) {
     }
 
     const metadata = attachments.length > 0 ? JSON.stringify({ attachments }) : null;
+    const now = Math.floor(Date.now() / 1000);
+
+    if (actor.account_type === 'customer') {
+      const fallbackTitle = normalizeConversationTitle(typeof body.title === 'string' ? body.title : content.slice(0, 48), 'Neuer Chat');
+      db.prepare(`
+        INSERT INTO chat_conversations (conversation_id, owner_user_id, owner_username, agent_id, title, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(conversation_id) DO UPDATE SET
+          owner_user_id = excluded.owner_user_id,
+          owner_username = excluded.owner_username,
+          agent_id = COALESCE(chat_conversations.agent_id, excluded.agent_id),
+          title = CASE WHEN chat_conversations.title = '' THEN excluded.title ELSE chat_conversations.title END,
+          updated_at = excluded.updated_at
+      `).run(conversation_id, actor.id, actor.username, to, fallbackTitle, now, now);
+    }
 
     // Save the human message
     const stmt = db.prepare(`
       INSERT INTO messages (conversation_id, from_agent, to_agent, content, message_type, metadata, owner_user_id, owner_username, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const now = Math.floor(Date.now() / 1000);
     const result = stmt.run(conversation_id, from, to, content, message_type, metadata, actor.id, actor.username, now);
     const messageId = result.lastInsertRowid as number;
 

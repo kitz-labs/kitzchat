@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CreditCard, LogOut, Save, SendHorizontal, ShieldCheck } from 'lucide-react';
+import { CreditCard, LogOut, Save, ShieldCheck } from 'lucide-react';
 import { PaymentCTA } from './payment-cta';
+import { CustomerSupportPanel } from './customer-support-panel';
 import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 
 type MeUser = {
@@ -17,13 +18,6 @@ type MeUser = {
   wallet_balance_cents?: number;
   onboarding_completed_at?: string | null;
   next_topup_discount_percent?: number;
-};
-
-type SupportMessage = {
-  id: number;
-  sender: 'customer' | 'support';
-  message: string;
-  created_at: string;
 };
 
 type AgentItem = {
@@ -103,9 +97,6 @@ const EMPTY_PREFERENCES: Preferences = {
 export function CustomerSettings() {
   const [me, setMe] = useState<MeUser | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
-  const [supportDraft, setSupportDraft] = useState('');
-  const [supportSending, setSupportSending] = useState(false);
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [preferences, setPreferences] = useState<Preferences>(EMPTY_PREFERENCES);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
@@ -127,20 +118,14 @@ export function CustomerSettings() {
     setPreferences(payload?.preferences || EMPTY_PREFERENCES);
   }, []);
 
-  const loadSupport = useCallback(async () => {
-    const payload = await fetch('/api/customer/support', { cache: 'no-store' }).then((response) => response.json());
-    setSupportMessages(Array.isArray(payload?.messages) ? payload.messages : []);
-  }, []);
-
   useEffect(() => {
     loadMe().catch(() => setMe(null));
     loadPreferences().catch(() => setPreferences(EMPTY_PREFERENCES));
-    loadSupport().catch(() => setSupportMessages([]));
     fetch('/api/agents?real=true', { cache: 'no-store' })
       .then((response) => response.json())
       .then((payload) => setAgents(Array.isArray(payload) ? payload.filter((agent: AgentItem) => agent.customerVisible !== false) : []))
       .catch(() => setAgents([]));
-  }, [loadMe, loadPreferences, loadSupport]);
+  }, [loadMe, loadPreferences]);
 
   useCustomerBillingSync({
     onConfirmed: async () => {
@@ -217,26 +202,6 @@ export function CustomerSettings() {
       setPreferences(data?.preferences || preferences);
     } finally {
       setPreferencesSaving(false);
-    }
-  }
-
-  async function sendSupportMessage() {
-    const message = supportDraft.trim();
-    if (!message || supportSending) return;
-    setSupportSending(true);
-    try {
-      const response = await fetch('/api/customer/support', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
-      });
-      const payload = await response.json();
-      if (response.ok) {
-        setSupportMessages(Array.isArray(payload?.messages) ? payload.messages : []);
-        setSupportDraft('');
-      }
-    } finally {
-      setSupportSending(false);
     }
   }
 
@@ -504,39 +469,8 @@ export function CustomerSettings() {
         </div>
       </div>
 
-      <div id="support" className="panel scroll-mt-24">
-        <div className="panel-header">
-          <div>
-            <h2 className="text-sm font-medium">Support-Chat</h2>
-            <p className="text-xs text-muted-foreground">Schreibe direkt hier, wenn du Fragen hast oder ein Problem melden moechtest.</p>
-          </div>
-        </div>
-        <div className="panel-body space-y-4">
-          <div className="max-h-72 space-y-3 overflow-auto rounded-2xl border border-border/50 bg-muted/10 p-4">
-            {supportMessages.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Noch keine Nachrichten. Du kannst hier jederzeit eine Support-Anfrage senden.</div>
-            ) : supportMessages.map((message) => (
-              <div key={message.id} className={`flex ${message.sender === 'customer' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${message.sender === 'customer' ? 'bg-primary text-primary-foreground' : 'bg-background border border-border/50'}`}>
-                  <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{message.sender === 'customer' ? 'Du' : 'Support'}</div>
-                  <div>{message.message}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-background p-3">
-            <textarea
-              value={supportDraft}
-              onChange={(event) => setSupportDraft(event.target.value)}
-              placeholder="Beschreibe dein Problem oder deine Frage..."
-              className="min-h-[74px] flex-1 resize-none bg-transparent text-sm outline-none"
-            />
-            <button type="button" onClick={sendSupportMessage} disabled={supportSending || !supportDraft.trim()} className="btn btn-primary btn-sm">
-              <SendHorizontal size={14} /> {supportSending ? 'Sende...' : 'Senden'}
-            </button>
-          </div>
-        </div>
+      <div id="support" className="scroll-mt-24">
+        <CustomerSupportPanel compact />
       </div>
 
       <div className="panel">

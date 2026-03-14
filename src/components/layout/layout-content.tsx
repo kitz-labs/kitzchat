@@ -11,7 +11,7 @@ import { PwaInstallPrompt } from '../pwa/pwa-install-prompt';
 import type { AppAudience } from '@/lib/app-audience';
 
 const AUTH_PATHS = ['/login', '/register'];
-const CUSTOMER_ALLOWED_PATHS = ['/', '/agents', '/usage-token', '/settings', '/hilfe', '/nutzungshinweise', '/datenschutz'];
+const CUSTOMER_ALLOWED_PATHS = ['/', '/agents', '/usage-token', '/settings', '/hilfe', '/support-chat', '/nutzungshinweise', '/datenschutz'];
 
 type ShellUser = {
   id: number;

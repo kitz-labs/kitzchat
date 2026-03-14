@@ -170,6 +170,11 @@ export function CustomerUsage() {
   const hasAccess = Boolean(me?.has_agent_access);
   const isActivated = me?.payment_status === 'paid';
   const nextTopupDiscountPercent = Math.max(0, Math.round(me?.next_topup_discount_percent ?? 0));
+  const onboardingSteps = [
+    { label: 'Onboarding', value: Boolean(me?.onboarding_completed_at) ? 1 : 0, color: '#0f766e' },
+    { label: 'Aktivierung', value: isActivated ? 1 : 0, color: '#2563eb' },
+    { label: 'Rabatt vorbereitet', value: nextTopupDiscountPercent > 0 || (me?.completed_payments_count ?? 0) > 1 ? 1 : 0, color: '#f59e0b' },
+  ];
   const checkoutPresetOptions = useMemo(() => {
     const configuredOptions = topupOffers
       .slice()
@@ -364,6 +369,24 @@ export function CustomerUsage() {
         </div>
 
         <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <DonutCard
+              title="Wallet als Cake"
+              description="Verfuegbares Guthaben gegen 30-Tage-Verbrauch."
+              totalLabel={`€${(loadedCents / 100).toFixed(2)}`}
+              segments={[
+                { label: 'Verfuegbar', value: Math.max(loadedCents, 0), color: '#2563eb' },
+                { label: '30 Tage Verbrauch', value: Math.max(spentCents, 0), color: '#f97316' },
+              ]}
+            />
+            <DonutCard
+              title="Fortschritt als Cake"
+              description="Onboarding, Aktivierung und Rabattstatus auf einen Blick."
+              totalLabel={`${onboardingSteps.filter((step) => step.value > 0).length}/3`}
+              segments={onboardingSteps}
+            />
+          </div>
+
           <div className="panel">
             <div className="panel-header">
               <div>
@@ -489,6 +512,77 @@ function MetricCard({ icon, label, value, hint }: { icon: React.ReactNode; label
       <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">{icon} {label}</div>
       <div className="mt-2 text-2xl font-semibold">{value}</div>
       <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+    </div>
+  );
+}
+
+function DonutCard({
+  title,
+  description,
+  totalLabel,
+  segments,
+}: {
+  title: string;
+  description: string;
+  totalLabel: string;
+  segments: Array<{ label: string; value: number; color: string }>;
+}) {
+  const validSegments = segments.filter((segment) => segment.value > 0);
+  const total = validSegments.reduce((sum, segment) => sum + segment.value, 0);
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <div>
+          <h2 className="text-sm font-medium">{title}</h2>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div className="panel-body flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative mx-auto h-36 w-36 shrink-0">
+          <svg viewBox="0 0 120 120" className="h-36 w-36 -rotate-90">
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="currentColor" strokeWidth="12" className="text-border/50" />
+            {validSegments.length > 0 ? validSegments.map((segment) => {
+              const segmentLength = (segment.value / total) * circumference;
+              const circle = (
+                <circle
+                  key={segment.label}
+                  cx="60"
+                  cy="60"
+                  r={radius}
+                  fill="none"
+                  stroke={segment.color}
+                  strokeWidth="12"
+                  strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
+                  strokeDashoffset={-offset}
+                  strokeLinecap="round"
+                />
+              );
+              offset += segmentLength;
+              return circle;
+            }) : null}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Gesamt</div>
+            <div className="text-xl font-semibold">{totalLabel}</div>
+          </div>
+        </div>
+
+        <div className="grid flex-1 gap-2">
+          {segments.map((segment) => (
+            <div key={segment.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: segment.color }} />
+                <span>{segment.label}</span>
+              </div>
+              <span className="font-medium">{segment.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

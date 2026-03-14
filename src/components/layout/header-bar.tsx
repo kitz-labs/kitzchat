@@ -2,7 +2,7 @@
 
 import {
   Activity, Search, Sun, Moon, Radio, PenLine, Mail, Users, LogOut,
-  Bell, Eye, EyeOff, Check, CheckCheck, ShieldAlert,
+  Bell, Eye, EyeOff, Check, CheckCheck, ShieldAlert, LifeBuoy,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState, useRef } from 'react';
@@ -40,11 +40,11 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
 
   if (customerView) {
     return (
-      <header className="fixed top-0 left-0 right-0 header-height bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center justify-between px-3 sm:px-4 z-50">
-        <div className="md:hidden">
+      <header className="fixed top-0 left-0 right-0 header-height bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center gap-3 px-3 sm:px-4 z-50">
+        <div className="md:hidden shrink-0">
           <BrandLogo compact />
         </div>
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3">
           <CustomerHeaderMeta walletBalanceCents={currentUser?.wallet_balance_cents ?? 0} />
           <CustomerSupportInboxButton />
           <ThemeToggle />
@@ -128,10 +128,10 @@ function CustomerHeaderMeta({ walletBalanceCents }: { walletBalanceCents: number
   }, []);
 
   return (
-    <div className="hidden lg:flex items-center gap-2 text-[11px] text-muted-foreground">
-      <span className="rounded-full border border-border/60 px-2.5 py-1">Uhrzeit {time}</span>
-      <span className="rounded-full border border-border/60 px-2.5 py-1">Guthaben €{(walletBalanceCents / 100).toFixed(2)}</span>
-      <span className="rounded-full border border-border/60 px-2.5 py-1">Systemstatus {health?.status === 'ok' ? 'OK' : 'Pruefung'}</span>
+    <div className="hidden md:flex items-center justify-end gap-2 text-sm text-muted-foreground">
+      <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5 font-medium">Uhrzeit {time}</span>
+      <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5 font-medium">Guthaben €{(walletBalanceCents / 100).toFixed(2)}</span>
+      <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5 font-medium">Systemstatus {health?.status === 'ok' ? 'OK' : 'Pruefung'}</span>
     </div>
   );
 }
@@ -146,11 +146,11 @@ function CustomerSupportInboxButton() {
 
   return (
     <a
-      href="/settings#support"
+      href="/support-chat"
       className="relative flex h-9 w-9 items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
       title="Support-Antworten"
     >
-      <Mail size={15} />
+      <LifeBuoy size={15} />
       {unreadCount > 0 ? (
         <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full count-badge flex items-center justify-center px-1 text-[9px] font-bold">
           {unreadCount > 9 ? '9+' : unreadCount}

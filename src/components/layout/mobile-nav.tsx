@@ -7,7 +7,7 @@ import {
   Gauge, Bot, Mail, Contact, MoreHorizontal,
   PenLine, MessageCircle, Zap, FlaskConical, Search,
   BarChart3, LineChart, BrainCircuit, Rocket, Clock, List, Settings,
-  FolderOpen, ShieldAlert,
+  FolderOpen, ShieldAlert, LifeBuoy,
 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useDashboard } from '@/store';
@@ -78,6 +78,7 @@ const CUSTOMER_ITEMS: NavItem[] = [
   { href: '/', label: 'Webchat', icon: MessageCircle, priority: true },
   { href: '/agents', label: 'Agenten', icon: Bot, priority: true },
   { href: '/usage-token', label: 'Guthaben', icon: BarChart3, priority: true },
+  { href: '/support-chat', label: 'Support', icon: LifeBuoy, priority: true },
   { href: '/settings', label: 'Einstellungen', icon: Settings, priority: true },
   { href: '/hilfe', label: 'Hilfe', icon: Search, priority: true },
 ];
