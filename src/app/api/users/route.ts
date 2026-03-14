@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createCustomerUserWithEmail, createUser, deleteUser, listUsers, requireAdmin, resetUserPassword, updateUserRole } from '@/lib/auth';
+import { getAllowUserDeletion } from '@/lib/settings';
 import { getDb } from '@/lib/db';
 import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
 
@@ -111,6 +112,8 @@ export async function DELETE(request: Request) {
     const admin = requireAdmin(request);
     const body = (await request.json()) as { id?: number };
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    // respect runtime setting to prevent accidental deletions
+    if (!getAllowUserDeletion()) return NextResponse.json({ error: 'User deletion is disabled in settings' }, { status: 403 });
     if (admin.id === body.id) {
       ensureAnotherAdminExists(admin.id);
     }

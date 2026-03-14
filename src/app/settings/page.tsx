@@ -171,6 +171,7 @@ export default function SettingsPage() {
   });
   const [savingOffer, setSavingOffer] = useState(false);
   const [meResolved, setMeResolved] = useState(false);
+  const [appSettings, setAppSettings] = useState<{ allow_user_deletion?: boolean } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -233,6 +234,17 @@ export default function SettingsPage() {
     return () => {
       alive = false;
     };
+  }, []);
+
+  useEffect(() => {
+    // load admin runtime settings
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/settings', { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        setAppSettings(data?.settings || null);
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {
@@ -561,6 +573,35 @@ export default function SettingsPage() {
               <div>
                 <span className="text-xs text-muted-foreground block mb-0.5">Seed Records</span>
                 <span className="font-mono">{syncInfo.seed_count}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t pt-4">
+              <h3 className="text-sm font-medium">Admin: User deletion</h3>
+              <p className="text-xs text-muted-foreground">Allow deleting users in the app (this will not remove Stripe customers).</p>
+              <div className="mt-2">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!appSettings?.allow_user_deletion}
+                    onChange={async (e) => {
+                      try {
+                        const allow = e.target.checked;
+                        const res = await fetch('/api/admin/settings', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ allow_user_deletion: allow }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data.error || 'Failed to update setting');
+                        setAppSettings(data.settings || null);
+                      } catch (err) {
+                        toast.error((err as Error).message);
+                      }
+                    }}
+                  />
+                  <span className="text-sm">Allow deleting users in app</span>
+                </label>
               </div>
             </div>
 
