@@ -38,6 +38,7 @@ type StripeCustomerOverview = {
   stripe_name?: string | null;
   stripe_balance_cents?: number;
   stripe_created_at?: string | null;
+  session_token?: string | null;
 };
 
 export default function BillingPage() {
