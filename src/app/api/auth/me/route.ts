@@ -23,6 +23,7 @@ function shouldUseSecureCookies(request: Request): boolean {
 }
 
 export async function POST(request: Request) {
+  try { console.log('[auth/me] POST handler called', request.method, request.url); } catch {}
   try {
     seedAdmin();
   } catch (error) {
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  try { console.log('[auth/me] GET handler called', request.method, request.url, 'cookie-present:', Boolean(request.headers.get('cookie'))); } catch {}
   try {
     const user = getUserFromRequest(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
