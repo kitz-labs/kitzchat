@@ -91,6 +91,8 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+  overscroll-behavior-y: contain;
 }
 
 /* ─── Scrollbar ────────────────────────────────────────── */
@@ -388,6 +390,8 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .panel-body {
@@ -499,9 +503,19 @@ textarea:focus {
 
   /* Tighter card padding on mobile */
   .card { border-radius: 8px; }
+  .panel-header, .panel-body { padding: 12px; }
+  .btn { min-height: 38px; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select { min-height: 38px; }
 
   /* Stack stat cards at full width */
   h1 { font-size: 1.125rem; }
+}
+
+.ios-install-list {
+  list-style: decimal;
+  margin: 0;
+  padding-left: 1rem;
 }
 
 @media (min-width: 769px) {

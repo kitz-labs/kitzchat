@@ -7,6 +7,7 @@ import { HeaderBar } from './header-bar';
 import { MobileNav } from './mobile-nav';
 import { AppShell } from './app-shell';
 import { CommandPalette } from '../command-palette';
+import { PwaInstallPrompt } from '../pwa/pwa-install-prompt';
 import type { AppAudience } from '@/lib/app-audience';
 
 const AUTH_PATHS = ['/login', '/register'];
@@ -77,6 +78,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         <NavRail currentUser={currentUser} appAudience={appAudience} />
         <AppShell customerView={customerView}>{children}</AppShell>
       </div>
+      <PwaInstallPrompt />
       <MobileNav currentUser={currentUser} appAudience={appAudience} />
       {!customerView ? <CommandPalette /> : null}
     </>

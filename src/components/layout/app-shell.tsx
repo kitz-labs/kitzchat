@@ -22,7 +22,7 @@ export function AppShell({ children, customerView = false }: { children: React.R
 
   return (
     <>
-      <main className={`main-content surface-0 flex-1 nav-offset-margin-left header-offset-margin-top p-3 sm:p-5 pb-20 sm:pb-5 overflow-auto transition-[margin] duration-300 ${
+      <main className={`main-content surface-0 flex-1 nav-offset-margin-left header-offset-margin-top p-3 sm:p-5 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 overflow-auto transition-[margin] duration-300 ${
         !customerView && feedOpen ? 'lg:mr-80' : ''
       }`}>
         {children}

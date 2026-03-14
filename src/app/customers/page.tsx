@@ -89,7 +89,7 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6 animate-in">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard icon={<Users size={16} />} label="Kunden" value={String(customers.length)} />
         <SummaryCard icon={<CreditCard size={16} />} label="Bezahlt" value={String(paidCustomers.length)} />
         <SummaryCard icon={<CreditCard size={16} />} label="Ausstehend" value={String(pendingCustomers.length)} />
@@ -125,7 +125,28 @@ export default function CustomersPage() {
           {createError ? <div className="text-sm text-destructive">{createError}</div> : null}
         </div>
         <div className="panel-body">
-          <div className="overflow-x-auto">
+          <div className="grid gap-3 md:hidden">
+            {customers.map((customer) => (
+              <Link key={customer.id} href={`/customers/${customer.id}`} className="card card-hover p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">{customer.username}</div>
+                    <div className="text-xs text-muted-foreground">{customer.role}</div>
+                  </div>
+                  <span className={`badge border ${customer.payment_status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                    {customer.payment_status === 'paid' ? 'bezahlt' : 'ausstehend'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <MiniInfo label="Plan" value={`€${((customer.plan_amount_cents ?? 0) / 100).toFixed(2)}`} />
+                  <MiniInfo label="Guthaben" value={`€${((customer.wallet_balance_cents ?? 0) / 100).toFixed(2)}`} />
+                </div>
+                <div className="text-xs text-muted-foreground">Erstellt {new Date(customer.created_at).toLocaleDateString()}</div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -179,6 +200,15 @@ function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: str
         </div>
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">{icon}</div>
       </div>
+    </div>
+  );
+}
+
+function MiniInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-background/70 p-2.5">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-semibold">{value}</div>
     </div>
   );
 }

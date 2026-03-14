@@ -58,36 +58,53 @@ export function DataTable<T extends Record<string, any>>({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="data-table">
-        <thead>
-          <tr>
+    <>
+      <div className="space-y-3 sm:hidden">
+        {sorted.map(row => (
+          <div key={String(row[keyField])} className="card p-3 space-y-2">
             {columns.map(col => (
-              <th
-                key={col.key}
-                className={col.sortable ? 'cursor-pointer select-none hover:text-foreground' : ''}
-                onClick={() => col.sortable && toggleSort(col.key)}
-              >
-                {col.label}
-                {sortKey === col.key && (
-                  <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                )}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map(row => (
-            <tr key={String(row[keyField])}>
-              {columns.map(col => (
-                <td key={col.key}>
+              <div key={col.key} className="flex items-start justify-between gap-3 border-b border-border/30 pb-2 last:border-b-0 last:pb-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{col.label}</div>
+                <div className="max-w-[65%] text-right text-sm break-words">
                   {col.render ? col.render(row) : String(row[col.key] ?? '—')}
-                </td>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="data-table">
+          <thead>
+            <tr>
+              {columns.map(col => (
+                <th
+                  key={col.key}
+                  className={col.sortable ? 'cursor-pointer select-none hover:text-foreground' : ''}
+                  onClick={() => col.sortable && toggleSort(col.key)}
+                >
+                  {col.label}
+                  {sortKey === col.key && (
+                    <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {sorted.map(row => (
+              <tr key={String(row[keyField])}>
+                {columns.map(col => (
+                  <td key={col.key}>
+                    {col.render ? col.render(row) : String(row[col.key] ?? '—')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

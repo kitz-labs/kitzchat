@@ -72,12 +72,16 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        <SeedToggle active={realOnly} onToggle={toggleRealOnly} />
+        <div className="hidden sm:block">
+          <SeedToggle active={realOnly} onToggle={toggleRealOnly} />
+        </div>
         <SearchTrigger />
         <ComplianceBell />
         <NotificationBell />
         <ThemeToggle />
-        <FeedToggle open={feedOpen} onToggle={toggleFeed} />
+        <div className="hidden sm:block">
+          <FeedToggle open={feedOpen} onToggle={toggleFeed} />
+        </div>
         <SyncStatus />
         <LogoutButton />
       </div>

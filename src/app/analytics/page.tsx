@@ -214,7 +214,7 @@ export default function AnalyticsPage() {
       </div>
 
       {executiveStats ? (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
           <StatCard label="Website Users" value={executiveStats.websiteUsers} icon={Globe} color="var(--primary)" />
           <StatCard label="Pageviews" value={executiveStats.websitePageviews} icon={FileText} color="var(--info)" />
           <StatCard label="Social Leads" value={executiveStats.socialLeads} icon={Users} color="var(--success)" />

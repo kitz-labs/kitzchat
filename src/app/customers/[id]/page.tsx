@@ -197,7 +197,7 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SummaryCard icon={<MessageSquare size={16} />} label="Unterhaltungen" value={String(summary.conversations)} />
         <SummaryCard icon={<Bot size={16} />} label="Genutzte Agenten" value={String(agents.length)} />
         <SummaryCard icon={<Wallet size={16} />} label="Token gesamt" value={summary.total_tokens.toLocaleString()} />
@@ -225,7 +225,7 @@ export default function CustomerDetailPage() {
                   <input value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
                 </label>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
                 <button type="button" onClick={() => patchCustomer({ username, email: email || null }, 'Kundendaten gespeichert')} disabled={saving} className="btn btn-primary text-sm">
                   Speichern
                 </button>
@@ -371,11 +371,11 @@ function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: str
   return (
     <div className="panel">
       <div className="panel-body flex items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-          <div className="mt-1 text-2xl font-semibold">{value}</div>
+          <div className="mt-1 text-xl sm:text-2xl font-semibold break-words">{value}</div>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">{icon}</div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">{icon}</div>
       </div>
     </div>
   );

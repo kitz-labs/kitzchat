@@ -17,16 +17,16 @@ export function StatCard({ label, value, icon: Icon, trend, sparkline, color = '
   return (
     <div className="card card-hover stat-glow p-4 relative">
       <div className="flex items-start justify-between relative z-10">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">{label}</p>
-          <p className="text-2xl font-bold font-mono tracking-tight">{formatNumber(value)}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-1 truncate">{label}</p>
+          <p className="text-xl sm:text-2xl font-bold font-mono tracking-tight break-words">{formatNumber(value)}</p>
           {trend !== undefined && (
             <p className={`text-xs mt-1 ${trend >= 0 ? 'text-success' : 'text-destructive'}`}>
               {trend >= 0 ? '+' : ''}{trend.toFixed(1)}% vs last week
             </p>
           )}
         </div>
-        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
+        <div className="w-9 h-9 rounded-lg flex shrink-0 items-center justify-center" style={{ background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
           <Icon size={18} style={{ color }} />
         </div>
       </div>

@@ -20,12 +20,30 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "KitzChat",
   description: "Local-first AI team chat and operations workspace",
+  applicationName: "KitzChat",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/kitzchat.svg", type: "image/svg+xml" },
+      { url: "/kitzchat.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/kitzchat.png", sizes: "512x512", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "KitzChat",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover" as const,
+  themeColor: "#2f6bff",
 };
 
 export default function RootLayout({
@@ -34,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="de" suppressHydrationWarning>
       <body className={`${inter.variable} ${jetbrains.variable} antialiased`}>
         <ThemeProvider>
           <LayoutContent>{children}</LayoutContent>
