@@ -13,8 +13,10 @@ export function verifyStripeWebhook(payload: string, signature: string): Stripe.
 }
 
 export async function processStripeEvent(event: Stripe.Event): Promise<{ processed: boolean }> {
+  console.info('[stripe:service] processing event', { eventId: event.id, eventType: event.type });
   const existing = await queryPg<{ processed: boolean }>('SELECT processed FROM webhook_events WHERE stripe_event_id = $1', [event.id]);
   if (existing.rowCount && existing.rowCount > 0) {
+    console.info('[stripe:service] duplicate event skipped', { eventId: event.id, processed: existing.rows[0].processed });
     return { processed: existing.rows[0].processed };
   }
 
@@ -26,11 +28,18 @@ export async function processStripeEvent(event: Stripe.Event): Promise<{ process
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
+    console.info('[stripe:service] checkout session completed received', {
+      eventId: event.id,
+      sessionId: session.id,
+      paymentStatus: session.payment_status,
+      customerId: typeof session.customer === 'string' ? session.customer : null,
+    });
     if (session.payment_status === 'paid') {
       const metadata = session.metadata || {};
       const credits = Number(metadata.credits || 0);
       const grossAmount = Number(metadata.gross_amount || 0);
       const userId = Number(metadata.user_id || 0);
+      console.info('[stripe:service] checkout metadata parsed', { eventId: event.id, userId, credits, grossAmount });
       if (userId > 0 && credits > 0 && grossAmount > 0) {
         await recordSuccessfulPayment({
           userId,
@@ -40,6 +49,14 @@ export async function processStripeEvent(event: Stripe.Event): Promise<{ process
           grossAmountEur: grossAmount,
           creditsIssued: credits,
           source: 'stripe_webhook',
+        });
+        console.info('[stripe:service] payment recorded', { eventId: event.id, userId, sessionId: session.id });
+      } else {
+        console.warn('[stripe:service] checkout metadata incomplete, skipping payment record', {
+          eventId: event.id,
+          userId,
+          credits,
+          grossAmount,
         });
       }
     }
@@ -60,6 +77,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<{ process
   }
 
   await queryPg('UPDATE webhook_events SET processed = TRUE, processed_at = CURRENT_TIMESTAMP WHERE stripe_event_id = $1', [event.id]);
+  console.info('[stripe:service] event marked processed', { eventId: event.id, eventType: event.type });
   return { processed: true };
 }
 
