@@ -240,6 +240,33 @@ export default function CustomerDetailPage() {
                 <button type="button" onClick={() => patchCustomer({ ensure_stripe_customer: true }, 'Stripe-Kunde bereit')} disabled={saving} className="btn text-sm">
                   Stripe-Kunde anlegen
                 </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!confirm('Kunden wirklich löschen? Dies kann nicht rückgängig gemacht werden.')) return;
+                    setSaving(true);
+                    setActionError(null);
+                    try {
+                      const res = await fetch('/api/users', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: Number(params.id) }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(String(data?.error || 'Kunde konnte nicht gelöscht werden'));
+                      setNotice('Kunde gelöscht');
+                      window.location.href = '/customers';
+                    } catch (err) {
+                      setActionError(err instanceof Error ? err.message : 'Kunde konnte nicht gelöscht werden');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                  className="btn btn-destructive text-sm"
+                >
+                  Kunde löschen
+                </button>
               </div>
 
               <div className="grid gap-3 md:grid-cols-[1fr_auto]">
