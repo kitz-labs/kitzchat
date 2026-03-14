@@ -7,6 +7,7 @@ import { CustomerOnboarding } from './customer-onboarding';
 import { CheckoutAmountPicker } from './checkout-amount-picker';
 import { useAudienceGuard } from '@/hooks/use-audience-guard';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
+import { CHECKOUT_PRESET_OPTIONS } from '@/lib/billing';
 
 type UsagePayload = {
   totals: {
@@ -178,7 +179,19 @@ export function CustomerUsage() {
         marketingLabel: offer.marketingLabel || offer.name,
       }));
 
-    return configuredOptions.length > 0 ? configuredOptions : undefined;
+    if (configuredOptions.length >= 4) {
+      return configuredOptions;
+    }
+
+    const missingDefaults = CHECKOUT_PRESET_OPTIONS
+      .filter((amountCents) => !configuredOptions.some((option) => option.amountCents === amountCents))
+      .map((amountCents) => ({ amountCents }));
+
+    const merged = [...configuredOptions, ...missingDefaults]
+      .sort((left, right) => left.amountCents - right.amountCents)
+      .slice(0, 4);
+
+    return merged.length > 0 ? merged : undefined;
   }, [topupOffers]);
 
   async function completeOnboarding() {
