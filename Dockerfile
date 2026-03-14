@@ -20,7 +20,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3001
-RUN apk add --no-cache libc6-compat su-exec
+RUN apk add --no-cache libc6-compat su-exec curl ca-certificates tar gzip && update-ca-certificates || true
+
+# Install Stripe CLI (latest release) into /usr/local/bin
+RUN curl -L -o /tmp/stripe.tar.gz "https://github.com/stripe/stripe-cli/releases/latest/download/stripe_linux_x86_64.tar.gz" \
+	&& tar -xzf /tmp/stripe.tar.gz -C /tmp \
+	&& mv /tmp/stripe /usr/local/bin/stripe \
+	&& chmod +x /usr/local/bin/stripe \
+	&& rm -f /tmp/stripe.tar.gz || true
 
 COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/public ./public
