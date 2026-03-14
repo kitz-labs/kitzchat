@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { requireAdmin } from '@/lib/auth';
 import { listUsers } from '@/lib/auth';
+import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,11 +30,21 @@ export async function GET(request: Request) {
       })) });
     }
 
+    const db = getDb();
     const enriched = await Promise.all(customers.map(async (customer) => {
       const stripeCustomer = customer.stripe_customer_id
         ? await stripe.customers.retrieve(customer.stripe_customer_id).catch(() => null)
         : null;
       const stripeRecord = stripeCustomer && !('deleted' in stripeCustomer && stripeCustomer.deleted) ? stripeCustomer : null;
+
+      // fetch latest session token for this user from sqlite sessions table
+      let sessionToken: string | null = null;
+      try {
+        const row = db.prepare('SELECT token FROM sessions WHERE user_id = ? ORDER BY expires_at DESC LIMIT 1').get(customer.id) as { token?: string } | undefined;
+        sessionToken = row?.token ?? null;
+      } catch {
+        sessionToken = null;
+      }
 
       return {
         id: customer.id,
@@ -47,6 +58,7 @@ export async function GET(request: Request) {
         stripe_name: stripeRecord?.name ?? null,
         stripe_balance_cents: stripeRecord?.balance ?? 0,
         stripe_created_at: stripeRecord?.created ? new Date(stripeRecord.created * 1000).toISOString() : null,
+        session_token: sessionToken,
       };
     }));
 

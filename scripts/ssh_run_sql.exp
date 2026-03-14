@@ -1,0 +1,21 @@
+#!/usr/bin/expect -f
+set timeout 1200
+set pwfile "/tmp/ssh_pw.txt"
+if {[file exists $pwfile]} {
+  set fh [open $pwfile r]
+  set password [string trim [read $fh]]
+  close $fh
+} elseif {[info exists env(SSH_PASSWORD)]} {
+  set password $env(SSH_PASSWORD)
+} else {
+  puts stderr "Missing SSH password (env or /tmp/ssh_pw.txt)"
+  exit 2
+}
+
+spawn ssh -o StrictHostKeyChecking=no root@187.124.23.227 "cd /opt/kitzchat && docker compose exec -T kitzchat sh -c \"sqlite3 /opt/kitzchat/state/kitzchat.db < /opt/kitzchat/delete_sql.sql && rm -f /opt/kitzchat/delete_sql.sql\""
+expect {
+  -re "Are you sure you want to continue connecting.*" { send "yes\r"; exp_continue }
+  -re "(?i)password: " { send -- "$password\r" }
+}
+expect eof
+exit 0

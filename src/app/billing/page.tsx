@@ -186,6 +186,7 @@ export default function BillingPage() {
             <div key={customer.id} className="rounded-2xl border border-border/60 bg-muted/10 p-4">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground font-mono">Token: {customer.session_token ?? '—'}</div>
                   <div className="text-sm font-semibold">{customer.username}</div>
                   <div className="text-xs text-muted-foreground">E-Mail: {customer.email || 'nicht hinterlegt'}</div>
                   <div className="text-xs text-muted-foreground">Stripe ID: {customer.stripe_customer_id || 'noch nicht angelegt'}</div>

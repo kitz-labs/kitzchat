@@ -1,0 +1,39 @@
+#!/usr/bin/expect -f
+
+# Upload scripts/stripe_customers.csv to the server, restart the service, and verify
+set timeout 600
+set fh [open "scripts/ssh_pw_local.txt" r]
+set password [string trim [read $fh]]
+close $fh
+
+# create remote dir
+spawn ssh -o StrictHostKeyChecking=no root@187.124.23.227 "mkdir -p /opt/kitzchat/data && chmod 755 /opt/kitzchat/data"
+expect {
+  -re "Are you sure you want to continue connecting.*" { send "yes\r"; exp_continue }
+  -re "(?i)password: " { send -- "$password\r" }
+}
+expect eof
+
+# scp the CSV
+spawn scp scripts/stripe_customers.csv root@187.124.23.227:/opt/kitzchat/data/stripe_customers.csv
+expect {
+  -re "Are you sure you want to continue connecting.*" { send "yes\r"; exp_continue }
+  -re "(?i)password: " { send -- "$password\r" }
+}
+expect eof
+
+# restart the app
+spawn ssh -o StrictHostKeyChecking=no root@187.124.23.227 "cd /opt/kitzchat && docker compose restart kitzchat || docker compose up -d --force-recreate kitzchat"
+expect {
+  -re "Are you sure you want to continue connecting.*" { send "yes\r"; exp_continue }
+  -re "(?i)password: " { send -- "$password\r" }
+}
+expect eof
+
+# verify file presence and line count
+spawn ssh -o StrictHostKeyChecking=no root@187.124.23.227 "ls -l /opt/kitzchat/data/stripe_customers.csv && echo __COUNT__ && (wc -l /opt/kitzchat/data/stripe_customers.csv 2>/dev/null || true)"
+expect {
+  -re "Are you sure you want to continue connecting.*" { send "yes\r"; exp_continue }
+  -re "(?i)password: " { send -- "$password\r" }
+}
+expect eof

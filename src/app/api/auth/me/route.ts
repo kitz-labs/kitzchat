@@ -1,8 +1,28 @@
 import { NextResponse } from 'next/server';
-import { getCustomerFreeMessageUsage, getUserFromRequest, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
+import { authenticate, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
 import { getAudienceFromAccountType } from '@/lib/app-audience';
+import { ensureBillingUser, getWalletView } from '@/modules/wallet/wallet.service';
 
-export async function GET(request: Request) {
+const SESSION_COOKIE = 'kitzchat-session';
+const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
+
+function shouldUseSecureCookies(request: Request): boolean {
+  const forced = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
+  if (forced === 'true' || forced === '1' || forced === 'yes') return true;
+  if (forced === 'false' || forced === '0' || forced === 'no') return false;
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  if (forwardedProto) {
+    return forwardedProto.split(',')[0].trim().toLowerCase() === 'https';
+  }
+
+  try {
+    return new URL(request.url).protocol === 'https:';
+  } catch {
+    return process.env.NODE_ENV === 'production';
+  }
+}
+
+export async function POST(request: Request) {
   try {
     seedAdmin();
   } catch (error) {
@@ -11,11 +31,42 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-  const user = getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+  const { username, password } = await request.json();
+  if (!username || !password) {
+    return NextResponse.json({ error: 'Username and password required' }, { status: 400 });
   }
+
+  const user = authenticate(username, password);
+  if (!user) {
+    return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+  }
+
   const freeMessages = getCustomerFreeMessageUsage(user.id, user.username);
+
+  let walletBalanceCredits = 0;
+  try {
+    await ensureBillingUser({
+      userId: user.id,
+      email: user.email ?? null,
+      name: user.username,
+      stripeCustomerId: user.stripe_customer_id ?? null,
+      chatEnabled: user.payment_status === 'paid',
+    });
+    const wallet = await getWalletView(user.id);
+    walletBalanceCredits = wallet.balance;
+  } catch {
+    walletBalanceCredits = 0;
+  }
+
+  const cookie = request.headers.get('cookie') || '';
+  const existingMatch = cookie.match(/(?:^|;\s*)kitzchat-session=([^;]*)/);
+  const existingToken = existingMatch ? decodeURIComponent(existingMatch[1]) : null;
+  if (existingToken) {
+    destroySession(existingToken);
+  }
+
+  const token = createSession(user.id);
   const response = NextResponse.json({
     app_audience: getAudienceFromAccountType(user.account_type),
     user: {
@@ -28,6 +79,7 @@ export async function GET(request: Request) {
       email: user.email ?? null,
       plan_amount_cents: user.plan_amount_cents ?? 0,
       wallet_balance_cents: user.wallet_balance_cents ?? 0,
+      wallet_balance_credits: walletBalanceCredits,
       onboarding_completed_at: user.onboarding_completed_at ?? null,
       next_topup_discount_percent: user.next_topup_discount_percent ?? 0,
       completed_payments_count: user.completed_payments_count ?? 0,
@@ -37,6 +89,16 @@ export async function GET(request: Request) {
       free_messages_remaining: freeMessages.remaining,
     },
   });
+
+  const secure = shouldUseSecureCookies(request);
+  response.cookies.set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure,
+    sameSite: 'strict',
+    maxAge: SESSION_MAX_AGE,
+    path: '/',
+  });
   response.headers.set('Cache-Control', 'no-store');
+
   return response;
 }

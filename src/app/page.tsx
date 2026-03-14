@@ -213,7 +213,7 @@ export default function OverviewPage() {
     <div className="space-y-6 animate-in">
       <div className="panel">
         <div className="panel-header">
-          <h1 className="text-xl font-semibold">Overview</h1>
+          <h1 className="text-xl font-semibold">Übersicht</h1>
         </div>
       </div>
 
@@ -339,7 +339,7 @@ export default function OverviewPage() {
       {/* Agent Status Strip */}
       {agents && agents.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {agents.map(agent => (
+                {agents.map(agent => (
             <Link key={agent.id} href="/agents/squads" className="panel card-hover p-4 flex items-center gap-4">
               <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-lg shrink-0">
                 {agent.emoji}
@@ -355,15 +355,15 @@ export default function OverviewPage() {
                   <span className="text-[10px] text-muted-foreground capitalize">{agent.status}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                  <span className="font-mono">{agent.actions_today} actions today</span>
+                  <span className="font-mono">{agent.actions_today} Aktionen heute</span>
                   {agent.last_action_at && (
-                    <span className="truncate">Last: {timeAgo(agent.last_action_at)}</span>
+                    <span className="truncate">Letzte: {timeAgo(agent.last_action_at)}</span>
                   )}
                 </div>
               </div>
               {agent.next_job && (
                 <div className="text-right shrink-0">
-                  <div className="text-[10px] text-muted-foreground">Next</div>
+                  <div className="text-[10px] text-muted-foreground">Nächste</div>
                   <div className="text-xs font-medium">{agent.next_job}</div>
                   {agent.next_job_time && (
                     <div className="text-[10px] text-muted-foreground font-mono">{agent.next_job_time}</div>
@@ -383,22 +383,22 @@ export default function OverviewPage() {
             <div className="panel-header">
               <h3 className="section-title flex items-center gap-2">
               <Search size={14} />
-              X API Budget
+              X-API Budget
               <span className="text-[10px] text-muted-foreground font-mono ml-auto">{budget.date}</span>
               </h3>
             </div>
             <div className="panel-body space-y-3">
               <BudgetBar
-                label="Search"
+                label="Suche"
                 used={budget.calls}
                 limit={budget.daily_search_limit}
                 icon={<Search size={12} />}
               />
               <BudgetBar
-                label="Posts"
+                label="Beiträge"
                 used={budget.posts}
                 limit={budget.daily_post_limit}
-                icon={<Send size={12} />}
+                icon={<Zap size={12} />}
               />
             </div>
           </div>
