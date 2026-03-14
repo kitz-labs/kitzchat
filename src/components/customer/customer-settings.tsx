@@ -168,6 +168,7 @@ export function CustomerSettings() {
     if (me?.payment_status === 'pending') return 'Zahlung ausstehend';
     return 'Nicht erforderlich';
   }, [me?.payment_status]);
+  const isActivated = me?.payment_status === 'paid';
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -270,7 +271,7 @@ export function CustomerSettings() {
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">E-Mail-Adresse</div>
                 <input value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
               </label>
-              <AccountField label="Agentenzugang" value={me?.has_agent_access ? 'Aktiv' : 'Gesperrt'} readOnly />
+              <AccountField label="Agentenzugang" value={me?.has_agent_access ? (isActivated ? 'Aktiviert' : 'Freier Einstieg aktiv') : 'Gesperrt'} readOnly />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1.5 text-sm">
@@ -292,7 +293,7 @@ export function CustomerSettings() {
         <div className="panel">
           <div className="panel-header flex items-center justify-between">
             <h2 className="text-sm font-medium">Abrechnung</h2>
-            {me?.has_agent_access ? <ShieldCheck size={16} className="text-success" /> : <CreditCard size={16} className="text-warning" />}
+            {isActivated ? <ShieldCheck size={16} className="text-success" /> : <CreditCard size={16} className="text-warning" />}
           </div>
           <div className="panel-body space-y-4">
             <div className="rounded-xl border border-border/50 bg-muted/10 p-4 space-y-2">
@@ -302,7 +303,7 @@ export function CustomerSettings() {
               <DetailRow label="Naechster Rabatt" value={me?.next_topup_discount_percent ? `${me.next_topup_discount_percent}%` : 'Kein aktiver Rabatt'} />
             </div>
 
-            {!me?.has_agent_access ? (
+            {!isActivated ? (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Dein Onboarding ist davon getrennt. Wenn du alle Agenten freischalten willst, kannst du die Aktivierung hier oder spaeter auf der Guthaben-Seite starten.</p>
                 <PaymentCTA label="Aktivierung mit Stripe starten" returnPath="/settings" />

@@ -5,7 +5,7 @@ import { ArrowRight, CheckCircle2, Coins, MessageSquareText, Sparkles } from 'lu
 import { CheckoutAmountPicker } from './checkout-amount-picker';
 
 type CustomerOnboardingProps = {
-  hasAccess: boolean;
+  isActivated: boolean;
   onboardingCompleted: boolean;
   walletBalanceCents: number;
   onFinish: () => Promise<void> | void;
@@ -26,13 +26,13 @@ const STEPS = [
     icon: Coins,
   },
   {
-    title: 'Onboarding abschliessen',
-    description: 'Speichere dein Onboarding jetzt ab. Einzahlung und Aktivierung kannst du direkt im Anschluss oder spaeter separat starten.',
+    title: 'Onboarding ohne Einzahlung abschliessen',
+    description: 'Speichere dein Onboarding jetzt ab. Danach kannst du die Aktivierung direkt im Anschluss oder spaeter separat starten.',
     icon: MessageSquareText,
   },
 ];
 
-export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalanceCents, onFinish, checkoutLoading, checkoutError, onStartCheckout }: CustomerOnboardingProps) {
+export function CustomerOnboarding({ isActivated, onboardingCompleted, walletBalanceCents, onFinish, checkoutLoading, checkoutError, onStartCheckout }: CustomerOnboardingProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [customAmount, setCustomAmount] = useState('20');
 
@@ -60,8 +60,8 @@ export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalan
           <div className="space-y-2">
             <h3 className="text-lg font-semibold">{current.title}</h3>
             <p className="text-sm text-muted-foreground">{current.description}</p>
-            {hasAccess ? <div className="text-xs text-success">Aktivierung erkannt. Aktuelles Guthaben: €{(walletBalanceCents / 100).toFixed(2)}</div> : null}
-            {!hasAccess && stepIndex === 2 ? <div className="text-xs text-primary">Wenn du spaeter aktivierst, wird der 30 %-Folgerabatt fuer die naechste Einzahlung automatisch vorbereitet.</div> : null}
+            {isActivated ? <div className="text-xs text-success">Aktivierung erkannt. Aktuelles Guthaben: €{(walletBalanceCents / 100).toFixed(2)}</div> : null}
+            {!isActivated && stepIndex === 2 ? <div className="text-xs text-primary">Wenn du spaeter aktivierst, wird der 30 %-Folgerabatt fuer die naechste Einzahlung automatisch vorbereitet.</div> : null}
           </div>
         </div>
 
@@ -78,12 +78,12 @@ export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalan
         ) : (
           <div className="space-y-2">
             <button type="button" onClick={() => void onFinish()} className="btn btn-primary text-sm inline-flex items-center gap-2">
-              <CheckCircle2 size={14} /> Onboarding abschliessen
+              <CheckCircle2 size={14} /> Onboarding ohne Einzahlung abschliessen
             </button>
 
-            {!hasAccess ? (
+            {!isActivated ? (
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
-                <div className="text-sm font-medium">Optional: Aktivierung jetzt starten</div>
+                <div className="text-sm font-medium">Danach optional Aktivierung starten</div>
                 <p className="text-xs text-muted-foreground">Wenn du direkt alle Agenten freischalten willst, waehle jetzt 10, 20, 50, 100 Euro oder deinen Wunschbetrag. Du kannst das aber jederzeit spaeter nachholen.</p>
                 <CheckoutAmountPicker
                   checkoutType="activation"

@@ -38,8 +38,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--card)] p-8 space-y-6">
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-1"><BrandLogo compact /></div>
-          <h1 className="text-xl font-semibold">Erstelle dein KitzChat-Konto</h1>
-          <p className="text-sm text-[var(--muted-foreground)]">Registriere dich als Kunde, schliesse dein Onboarding ab und entscheide danach selbst, wann du Guthaben oder Aktivierung nachladen willst.</p>
+          <h1 className="text-xl font-semibold">Kunde registrieren</h1>
+          <p className="text-sm text-[var(--muted-foreground)]">Registriere dich als Kunde, schliesse dein Onboarding ohne Einzahlung ab und starte danach optional die Aktivierung.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -57,7 +57,7 @@ export default function RegisterPage() {
           </div>
           {error ? <p className="text-sm text-[var(--destructive)] bg-[var(--destructive)]/10 px-3 py-2 rounded-lg">{error}</p> : null}
           <button type="submit" disabled={loading} className="w-full py-2.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium disabled:opacity-50">
-            {loading ? 'Konto wird erstellt...' : 'Kundenkonto erstellen'}
+            {loading ? 'Kunde wird registriert...' : 'Kunde registrieren'}
           </button>
         </form>
 

@@ -18,6 +18,7 @@ type AgentItem = {
 };
 
 type MeUser = {
+  payment_status?: 'not_required' | 'pending' | 'paid';
   has_agent_access?: boolean;
 };
 
@@ -88,6 +89,7 @@ export function CustomerAgents() {
   }, []);
 
   const hasAccess = Boolean(me?.has_agent_access);
+  const isActivated = me?.payment_status === 'paid';
   const visibleAgents = agents;
 
   useEffect(() => {
@@ -108,14 +110,14 @@ export function CustomerAgents() {
           <h1 className="text-xl font-semibold">Agenten</h1>
           <p className="text-xs text-muted-foreground">Links siehst du deine Agentenliste. Rechts oeffnen sich Details, Nutzen, Verwendungen, Beispiele und Modell-Hinweise.</p>
         </div>
-        {hasAccess ? (
+        {isActivated ? (
           <div className="badge border bg-success/10 text-success"><ShieldCheck size={12} /> Aktiv</div>
         ) : (
           <div className="badge border bg-warning/10 text-warning"><Lock size={12} /> Noch nicht aktiviert</div>
         )}
       </div>
 
-      {!hasAccess ? (
+      {!isActivated ? (
         <div className="panel">
           <div className="panel-body flex items-center justify-between gap-4 flex-wrap">
             <div>

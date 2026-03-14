@@ -168,6 +168,7 @@ export function CustomerUsage() {
   const balanceEur = balanceCredits / 1000;
   const loadedCents = Math.round(balanceEur * 100);
   const hasAccess = Boolean(me?.has_agent_access);
+  const isActivated = me?.payment_status === 'paid';
   const nextTopupDiscountPercent = Math.max(0, Math.round(me?.next_topup_discount_percent ?? 0));
   const checkoutPresetOptions = useMemo(() => {
     const configuredOptions = topupOffers
@@ -269,7 +270,7 @@ export function CustomerUsage() {
       ) : null}
 
       <CustomerOnboarding
-        hasAccess={hasAccess}
+        isActivated={isActivated}
         onboardingCompleted={Boolean(me?.onboarding_completed_at)}
         walletBalanceCents={Math.round(balanceEur * 100)}
         onFinish={completeOnboarding}
@@ -296,8 +297,8 @@ export function CustomerUsage() {
               <h2 className="text-sm font-medium">Einzahlungen und Guthaben</h2>
               <p className="text-xs text-muted-foreground">Waehle 10 €, 20 €, 50 € oder gib deinen Wunschbetrag ein. Bei 20 € ist "meist genutzt" markiert.</p>
             </div>
-            <div className={`badge border ${hasAccess ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-              {hasAccess ? 'Zugang aktiv' : 'Aktivierung optional'}
+            <div className={`badge border ${isActivated ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+              {isActivated ? 'Zugang aktiviert' : 'Aktivierung optional'}
             </div>
           </div>
 
@@ -317,7 +318,7 @@ export function CustomerUsage() {
               </div>
             ) : null}
 
-            {!hasAccess ? (
+            {!isActivated ? (
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
                 <div className="text-sm font-medium">Aktivierung und erste Einzahlung</div>
                 <div className="text-xs text-muted-foreground">Dieser Schritt ist optional fuer das Onboarding. Wenn du ihn jetzt machst, werden alle Agenten freigeschaltet. Du kannst direkt 10, 20, 50, 100 Euro oder einen freien Startbetrag waehlen. Danach erhaeltst du automatisch 30 % Rabatt auf deine naechste Guthaben-Aufladung.</div>
@@ -372,8 +373,8 @@ export function CustomerUsage() {
             </div>
             <div className="panel-body space-y-3 text-sm">
               {[
-                { label: 'Onboarding abschliessen', done: Boolean(me?.onboarding_completed_at) },
-                { label: 'Optionale Aktivierung / Einzahlung', done: hasAccess },
+                { label: 'Onboarding ohne Einzahlung abschliessen', done: Boolean(me?.onboarding_completed_at) },
+                { label: 'Optionale Aktivierung / Einzahlung', done: isActivated },
                 { label: '30 % Rabatt fuer naechste Einzahlung vorbereitet', done: nextTopupDiscountPercent > 0 || (me?.completed_payments_count ?? 0) > 1 },
               ].map((step) => (
                 <div key={step.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/10 px-4 py-3">
@@ -385,7 +386,7 @@ export function CustomerUsage() {
               ))}
               {!me?.onboarding_completed_at ? (
                 <button type="button" onClick={completeOnboarding} disabled={savingOnboarding} className="btn btn-primary text-sm">
-                  {savingOnboarding ? 'Wird gespeichert...' : 'Onboarding abschliessen'}
+                  {savingOnboarding ? 'Wird gespeichert...' : 'Onboarding ohne Einzahlung abschliessen'}
                 </button>
               ) : null}
             </div>

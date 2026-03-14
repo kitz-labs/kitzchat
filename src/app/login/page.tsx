@@ -139,10 +139,6 @@ function LoginForm() {
       <div className="text-center text-xs text-muted-foreground">
         Noch kein Konto? <Link className="text-primary hover:underline" href="/register">Registrieren</Link>
       </div>
-
-      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        Testkunde lokal: <span className="font-mono text-foreground">test / test</span>
-      </div>
     </form>
   );
 }

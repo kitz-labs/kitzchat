@@ -110,6 +110,7 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
   );
   const moreActive = nonPriorityItems.some(i => isActive(pathname, i.href));
   const moreBadge = counts ? (counts.content + counts.total_pending) : 0;
+  const slotCount = customerView ? priorityItems.length : priorityItems.length + 1;
 
   useEffect(() => {
     if (!sheetOpen) return;
@@ -125,7 +126,10 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
   return (
     <>
       <nav className="mobile-nav md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-lg z-50 border-t border-border/70 safe-area-bottom">
-        <div className="flex items-center justify-around h-14 px-1 pb-[env(safe-area-inset-bottom)]">
+        <div
+          className="grid h-16 w-full gap-1 px-1 pb-[env(safe-area-inset-bottom)]"
+          style={{ gridTemplateColumns: `repeat(${slotCount}, minmax(0, 1fr))` }}
+        >
           {priorityItems.map((item) => {
             const active = isActive(pathname, item.href);
             const count = item.countKey && counts ? counts[item.countKey] : 0;
@@ -134,14 +138,14 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[48px] min-h-[48px] transition-smooth relative ${
+                className={`flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 transition-smooth relative ${
                   active ? 'text-primary' : 'text-muted-foreground'
                 }`}
               >
                 <Icon size={17} />
-                <span className="text-[10px] leading-none">{item.label}</span>
+                <span className="max-w-full truncate text-[10px] leading-none">{item.label}</span>
                 {count > 0 && (
-                  <span className="absolute top-0.5 right-1 min-w-[14px] h-3.5 px-0.5 text-[8px] font-bold rounded-full count-badge flex items-center justify-center">
+                  <span className="absolute top-1 right-2 min-w-[14px] h-3.5 px-0.5 text-[8px] font-bold rounded-full count-badge flex items-center justify-center">
                     {count > 99 ? '99+' : count}
                   </span>
                 )}
@@ -152,14 +156,14 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
           {!customerView ? (
             <button
               onClick={() => setSheetOpen(true)}
-              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[48px] min-h-[48px] transition-smooth relative ${
+              className={`flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 transition-smooth relative ${
                 moreActive || sheetOpen ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
               <MoreHorizontal size={17} />
-              <span className="text-[10px] leading-none">Mehr</span>
+              <span className="max-w-full truncate text-[10px] leading-none">Mehr</span>
               {moreBadge > 0 && (
-                <span className="absolute top-0.5 right-1 min-w-[14px] h-3.5 px-0.5 text-[8px] font-bold rounded-full count-badge flex items-center justify-center">
+                <span className="absolute top-1 right-2 min-w-[14px] h-3.5 px-0.5 text-[8px] font-bold rounded-full count-badge flex items-center justify-center">
                   {moreBadge > 99 ? '99+' : moreBadge}
                 </span>
               )}
