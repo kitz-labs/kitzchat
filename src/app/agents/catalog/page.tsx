@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Bot, Save, ShieldCheck, Sparkles } from 'lucide-react';
+import AgentEditor, { AgentEditorItem } from '@/components/agent-editor';
 import { useAudienceGuard } from '@/hooks/use-audience-guard';
 import { toast } from '@/components/ui/toast';
 
@@ -54,6 +55,7 @@ export default function AgentCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -361,23 +363,44 @@ export default function AgentCatalogPage() {
 
                 <div className="flex items-center justify-between gap-3 flex-wrap border-t border-border/60 pt-3">
                   <div className="text-xs text-muted-foreground">
-                    Vorlage: {draft.inspiredBy || 'individuell'}{draft.sourceRepo ? ` · ${draft.sourceRepo}` : ''} · {draft.modelUsage.reasoningEffort} reasoning
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => saveAgent(agent.id)}
-                    disabled={!changed || savingId === agent.id}
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Save size={14} />
-                    {savingId === agent.id ? 'Speichert...' : changed ? 'Aenderungen speichern' : 'Gespeichert'}
-                  </button>
+                      Vorlage: {draft.inspiredBy || 'individuell'}{draft.sourceRepo ? ` · ${draft.sourceRepo}` : ''} · {draft.modelUsage.reasoningEffort} reasoning
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(agent.id)}
+                        className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium"
+                      >
+                        Bearbeiten
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveAgent(agent.id)}
+                        disabled={!changed || savingId === agent.id}
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Save size={14} />
+                        {savingId === agent.id ? 'Speichert...' : changed ? 'Aenderungen speichern' : 'Gespeichert'}
+                      </button>
+                    </div>
                 </div>
               </div>
             </div>
           );
         })}
       </div>
+        {editingId && drafts[editingId] && (
+          <AgentEditor
+            agent={drafts[editingId] as unknown as AgentEditorItem}
+            saving={savingId === editingId}
+            onChange={(patch) => updateDraft(editingId, patch as Partial<AgentCatalogItem>)}
+            onClose={() => setEditingId(null)}
+            onSave={async () => {
+              await saveAgent(editingId);
+              setEditingId(null);
+            }}
+          />
+        )}
     </div>
   );
 }
