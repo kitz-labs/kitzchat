@@ -37,7 +37,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<{ process
     if (session.payment_status === 'paid') {
       const metadata = session.metadata || {};
       const credits = Number(metadata.credits || 0);
-      const grossAmount = Number(metadata.gross_amount || 0);
+      const grossAmount = (typeof session.amount_total === 'number' ? session.amount_total / 100 : 0) || Number(metadata.gross_amount || 0);
       const userId = Number(metadata.user_id || 0);
       console.info('[stripe:service] checkout metadata parsed', { eventId: event.id, userId, credits, grossAmount });
       if (userId > 0 && credits > 0 && grossAmount > 0) {

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, FileUp, Lock, Send, Sparkles, X } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
-import { PaymentCTA } from './payment-cta';
 
 type MeUser = {
   id: number;
@@ -213,10 +212,10 @@ export function CustomerWebchat() {
                 <Lock size={22} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Schalte alle Agenten fuer €20 frei</h3>
-                <p className="mt-2 text-sm text-muted-foreground">Nach erfolgreicher Zahlung erhaelt dein Kunden-Dashboard Zugriff auf alle aktivierten Agenten.</p>
+                <h3 className="text-lg font-semibold">Schalte alle Agenten mit deiner ersten Einzahlung frei</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Waehle auf der Guthaben-Seite 10, 20, 50, 100 Euro oder deinen freien Betrag und gehe dann mit Stripe weiter.</p>
               </div>
-              <PaymentCTA label="€20 mit Stripe bezahlen" returnPath="/usage-token" />
+              <a href="/usage-token?onboarding=1" className="btn btn-primary text-sm">Einzahlung waehlen</a>
             </div>
           </div>
         ) : onboardingOpen ? (

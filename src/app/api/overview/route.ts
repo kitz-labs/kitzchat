@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { getAgents, ACTION_TO_AGENT } from '@/lib/agent-config';
 import { requireApiUser } from '@/lib/api-auth';
 import { listUsers } from '@/lib/auth';
+import { fetchOpenAiCreditBalance } from '@/config/openai';
 import Stripe from 'stripe';
 
 interface AgentBrief {
@@ -78,6 +79,8 @@ interface AdminSummaryOpenAi {
   tracked_tokens_30d: number;
   tracked_cost_30d: number;
   credits_remaining: number | null;
+  credits_used: number | null;
+  credits_granted: number | null;
   note: string;
 }
 
@@ -199,6 +202,8 @@ async function getAdminSummary(): Promise<AdminSummary> {
     }
   }
 
+  const openAiBalance = await fetchOpenAiCreditBalance();
+
   return {
     customers: {
       total: customers.length,
@@ -234,13 +239,13 @@ async function getAdminSummary(): Promise<AdminSummary> {
       latest: latestIncidents.map((incident) => ({ ...incident, read: incident.read === 1 })),
     },
     openai: {
-      configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      configured: openAiBalance.configured,
       tracked_tokens_30d: usageTotals.tokens_30d ?? 0,
       tracked_cost_30d: usageTotals.cost_30d ?? 0,
-      credits_remaining: null,
-      note: process.env.OPENAI_API_KEY?.trim()
-        ? 'OpenAI-Key ist vorhanden, aber Credits werden in diesem lokalen Setup nicht direkt aus der Billing-API gelesen.'
-        : 'Kein OpenAI-Key gefunden. Angezeigt wird die lokal erfasste Nutzung aus chat_usage_events.',
+      credits_remaining: openAiBalance.creditsRemainingUsd,
+      credits_used: openAiBalance.creditsUsedUsd,
+      credits_granted: openAiBalance.creditsGrantedUsd,
+      note: openAiBalance.note,
     },
   };
 }

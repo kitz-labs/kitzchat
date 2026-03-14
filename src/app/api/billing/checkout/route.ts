@@ -39,7 +39,8 @@ export async function POST(request: Request) {
         email: user.email ?? null,
         name: user.username,
         stripeCustomerId: user.stripe_customer_id ?? null,
-        amountEur: creditAmountCents / 100,
+        amountEur: amountCents / 100,
+        creditAmountEur: creditAmountCents / 100,
         returnUrlBase: `${origin}${returnPath}`,
       });
       return NextResponse.json({
@@ -54,7 +55,6 @@ export async function POST(request: Request) {
 
     const origin = request.headers.get('origin') || new URL(request.url).origin;
     const stripe = getStripe();
-    const priceId = process.env.STRIPE_PRICE_ID?.trim() || null;
     const checkoutCopy = getCheckoutCopy(checkoutType, amountCents);
 
     if (!stripe) {
@@ -72,23 +72,19 @@ export async function POST(request: Request) {
       mode: 'payment',
       success_url: `${origin}${returnPath}?payment=success&session_id={CHECKOUT_SESSION_ID}&checkout_type=${checkoutType}`,
       cancel_url: `${origin}${returnPath}?payment=cancelled&checkout_type=${checkoutType}`,
+      allow_promotion_codes: true,
       line_items: [
-        checkoutType === 'activation' && priceId
-          ? {
-              quantity: 1,
-              price: priceId,
-            }
-          : {
-              quantity: 1,
-              price_data: {
-                currency: PLAN_CURRENCY,
-                unit_amount: amountCents,
-                product_data: {
-                  name: checkoutCopy.name,
-                  description: checkoutCopy.description,
-                },
-              },
+        {
+          quantity: 1,
+          price_data: {
+            currency: PLAN_CURRENCY,
+            unit_amount: amountCents,
+            product_data: {
+              name: checkoutCopy.name,
+              description: checkoutCopy.description,
             },
+          },
+        },
       ],
       customer_email: user.email ?? undefined,
       metadata: {

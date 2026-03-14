@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Lock, ShieldCheck } from 'lucide-react';
-import { PaymentCTA } from './payment-cta';
 
 type AgentItem = {
   id: string;
@@ -120,10 +119,10 @@ export function CustomerAgents() {
         <div className="panel">
           <div className="panel-body flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <div className="text-sm font-medium">Schliesse deine €20-Aktivierung ab</div>
-              <div className="text-xs text-muted-foreground">Nach der ersten erfolgreichen Zahlung werden alle Agenten freigeschaltet und der Rabatt fuer die naechste Einzahlung vorbereitet.</div>
+              <div className="text-sm font-medium">Schliesse deine erste Einzahlung ab</div>
+              <div className="text-xs text-muted-foreground">Auf der Guthaben-Seite kannst du 10, 20, 50, 100 Euro oder einen freien Betrag waehlen. Danach werden alle Agenten freigeschaltet und der Rabatt fuer die naechste Einzahlung vorbereitet.</div>
             </div>
-            <PaymentCTA label="€20 bezahlen" returnPath="/usage-token" />
+            <a href="/usage-token?onboarding=1" className="btn btn-primary text-sm">Betrag waehlen</a>
           </div>
         </div>
       ) : null}

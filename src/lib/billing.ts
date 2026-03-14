@@ -3,10 +3,11 @@ import { addUserWalletBalance, getUserById, incrementCompletedPayments, markUser
 import { getDb } from './db';
 
 export const ACTIVATION_AMOUNT_CENTS = 2000;
-export const TOP_UP_OPTIONS = [1000, 2000, 5000] as const;
+export const CHECKOUT_PRESET_OPTIONS = [1000, 2000, 5000, 10000] as const;
+export const TOP_UP_OPTIONS = CHECKOUT_PRESET_OPTIONS;
 export type CheckoutType = 'activation' | 'topup';
 export const FIRST_TOPUP_DISCOUNT_PERCENT = 30;
-const MIN_CUSTOM_TOPUP_CENTS = 100;
+export const MIN_CUSTOM_TOPUP_CENTS = 1000;
 const MAX_CUSTOM_TOPUP_CENTS = 100_000;
 
 export function ensureBillingTables(): void {
@@ -37,9 +38,8 @@ export function isCheckoutType(value: string | null | undefined): value is Check
 }
 
 export function normalizeCheckoutAmount(checkoutType: CheckoutType, rawAmount: unknown): number {
-  if (checkoutType === 'activation') return ACTIVATION_AMOUNT_CENTS;
   const amount = Math.round(Number(rawAmount));
-  if (!Number.isFinite(amount)) return TOP_UP_OPTIONS[0];
+  if (!Number.isFinite(amount)) return checkoutType === 'activation' ? ACTIVATION_AMOUNT_CENTS : TOP_UP_OPTIONS[0];
   return Math.min(MAX_CUSTOM_TOPUP_CENTS, Math.max(MIN_CUSTOM_TOPUP_CENTS, amount));
 }
 
@@ -62,8 +62,8 @@ export function getCheckoutCopy(checkoutType: CheckoutType, amountCents: number)
   }
 
   return {
-    name: 'KitzChat Agentenzugang',
-    description: 'Einmalige Aktivierung fuer den vollen Zugriff auf alle verfuegbaren Agenten.',
+    name: `KitzChat Startguthaben ${formatEuro(amountCents)}`,
+    description: 'Die erste Einzahlung schaltet den Kundenzugang frei und bucht dein Startguthaben direkt ins Wallet.',
   };
 }
 
@@ -83,7 +83,7 @@ function applyCheckoutToUser(userId: number, checkoutType: CheckoutType, charged
       setNextTopupDiscountPercent(userId, 0);
     }
   } else {
-    markUserPaid(userId, checkoutSessionId);
+    markUserPaid(userId, creditAmountCents, checkoutSessionId);
   }
 
   incrementCompletedPayments(userId);

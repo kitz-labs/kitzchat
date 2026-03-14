@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       const session = await confirmStripeSession(body.session_id);
       if (session.payment_status === 'paid' || session.status === 'complete') {
         const metadata = session.metadata || {};
-        const fallbackAmountEur = Number(metadata.gross_amount || 0) || (Number(metadata.amount_cents || 0) / 100);
+        const fallbackAmountEur = (typeof session.amount_total === 'number' ? session.amount_total / 100 : 0) || Number(metadata.gross_amount || 0) || (Number(metadata.amount_cents || 0) / 100);
         const fallbackCredits = Number(metadata.credits || 0) || Math.max(0, Math.round(Number(metadata.credit_amount_cents || metadata.amount_cents || 0) * 10));
         await recordSuccessfulPayment({
           userId: Number(metadata.user_id || user.id),

@@ -1010,6 +1010,20 @@ export default function SettingsPage() {
         <h2 className="text-sm font-medium flex items-center gap-2">
           <Database size={14} className="text-success" /> Topup Offers
         </h2>
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground">
+          Die ersten vier aktiven Offers nach Sortierung steuern die festen Checkout-Betraege fuer Kunden und Onboarding. Mit `Sortierung` legst du fest, welche vier Buttons zuerst erscheinen.
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-4">
+          {topupOffers.slice().sort((left, right) => (left.sortOrder - right.sortOrder) || (left.amountEur - right.amountEur)).slice(0, 4).map((offer, index) => (
+            <div key={`checkout-slot-${offer.offerCode}`} className="rounded-xl border border-border/40 bg-muted/10 p-4">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Checkout Slot {index + 1}</div>
+              <div className="mt-2 text-lg font-semibold">€{offer.amountEur.toFixed(0)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{offer.offerCode} · {offer.marketingLabel || offer.name}</div>
+            </div>
+          ))}
+        </div>
+
         <form onSubmit={saveTopupOffer} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <input
             value={offerDraft.offerCode}
@@ -1075,7 +1089,7 @@ export default function SettingsPage() {
             Aktiv
           </label>
           <button type="submit" disabled={savingOffer} className="btn btn-primary text-sm md:col-span-2 xl:col-span-4">
-            {savingOffer ? 'Speichert...' : 'Topup Offer speichern'}
+            {savingOffer ? 'Speichert...' : 'Offer speichern und Checkout aktualisieren'}
           </button>
         </form>
 

@@ -2,13 +2,16 @@
 
 import { useState } from 'react';
 import { ArrowRight, CheckCircle2, Coins, MessageSquareText, Sparkles } from 'lucide-react';
-import { PaymentCTA } from './payment-cta';
+import { CheckoutAmountPicker } from './checkout-amount-picker';
 
 type CustomerOnboardingProps = {
   hasAccess: boolean;
   onboardingCompleted: boolean;
   walletBalanceCents: number;
   onFinish: () => Promise<void> | void;
+  checkoutLoading: number | 'custom' | null;
+  checkoutError: string | null;
+  onStartCheckout: (amountCents: number, key: number | 'custom') => void;
 };
 
 const STEPS = [
@@ -29,8 +32,9 @@ const STEPS = [
   },
 ];
 
-export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalanceCents, onFinish }: CustomerOnboardingProps) {
+export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalanceCents, onFinish, checkoutLoading, checkoutError, onStartCheckout }: CustomerOnboardingProps) {
   const [stepIndex, setStepIndex] = useState(0);
+  const [customAmount, setCustomAmount] = useState('20');
 
   if (onboardingCompleted) {
     return null;
@@ -73,8 +77,15 @@ export function CustomerOnboarding({ hasAccess, onboardingCompleted, walletBalan
           </button>
         ) : !hasAccess ? (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">Stripe öffnet sich in einem neuen Tab. Diese Seite bleibt offen und aktualisiert dein Konto nach der erfolgreichen Zahlung.</p>
-            <PaymentCTA label="Erste Einzahlung starten" returnPath="/usage-token" />
+            <p className="text-xs text-muted-foreground">Waehle jetzt 10, 20, 50, 100 Euro oder gib deinen Wunschbetrag ein. Stripe oeffnet sich in einem neuen Tab und bietet dort auch die Eingabe eines Coupon-Codes an.</p>
+            <CheckoutAmountPicker
+              checkoutType="activation"
+              customAmount={customAmount}
+              onCustomAmountChange={setCustomAmount}
+              onCheckout={onStartCheckout}
+              loadingKey={checkoutLoading}
+              error={checkoutError}
+            />
           </div>
         ) : (
           <button type="button" onClick={() => void onFinish()} className="btn btn-primary text-sm inline-flex items-center gap-2">

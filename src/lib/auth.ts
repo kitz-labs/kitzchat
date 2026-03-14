@@ -603,9 +603,10 @@ export function updateStripeCustomer(userId: number, stripeCustomerId: string | 
   db.prepare('UPDATE users SET stripe_customer_id = ?, stripe_checkout_session_id = ? WHERE id = ?').run(stripeCustomerId, checkoutSessionId, userId);
 }
 
-export function markUserPaid(userId: number, checkoutSessionId?: string | null): void {
+export function markUserPaid(userId: number, amountCents = 2000, checkoutSessionId?: string | null): void {
   const db = getDb();
-  db.prepare("UPDATE users SET payment_status = 'paid', stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), plan_amount_cents = CASE WHEN plan_amount_cents <= 0 THEN 2000 ELSE plan_amount_cents END, wallet_balance_cents = wallet_balance_cents + CASE WHEN plan_amount_cents <= 0 THEN 2000 ELSE plan_amount_cents END WHERE id = ?").run(checkoutSessionId ?? null, userId);
+  const normalizedAmount = Math.max(0, Math.round(amountCents)) || 2000;
+  db.prepare("UPDATE users SET payment_status = 'paid', stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), plan_amount_cents = CASE WHEN plan_amount_cents <= 0 THEN ? ELSE plan_amount_cents END, wallet_balance_cents = wallet_balance_cents + ? WHERE id = ?").run(checkoutSessionId ?? null, normalizedAmount, normalizedAmount, userId);
 }
 
 export function addUserWalletBalance(userId: number, amountCents: number, checkoutSessionId?: string | null): void {
@@ -613,11 +614,12 @@ export function addUserWalletBalance(userId: number, amountCents: number, checko
   db.prepare("UPDATE users SET payment_status = CASE WHEN payment_status = 'not_required' THEN payment_status ELSE 'paid' END, stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), wallet_balance_cents = wallet_balance_cents + ? WHERE id = ?").run(checkoutSessionId ?? null, amountCents, userId);
 }
 
-export function activateCustomerPaymentAccess(userId: number, checkoutSessionId?: string | null, stripeCustomerId?: string | null): void {
+export function activateCustomerPaymentAccess(userId: number, checkoutSessionId?: string | null, stripeCustomerId?: string | null, planAmountCents?: number): void {
   const db = getDb();
+  const normalizedPlanAmount = Math.max(0, Math.round(planAmountCents ?? 0));
   db.prepare(
-    "UPDATE users SET payment_status = CASE WHEN payment_status = 'not_required' THEN payment_status ELSE 'paid' END, stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), stripe_customer_id = COALESCE(?, stripe_customer_id) WHERE id = ?",
-  ).run(checkoutSessionId ?? null, stripeCustomerId ?? null, userId);
+    "UPDATE users SET payment_status = CASE WHEN payment_status = 'not_required' THEN payment_status ELSE 'paid' END, stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), stripe_customer_id = COALESCE(?, stripe_customer_id), plan_amount_cents = CASE WHEN plan_amount_cents <= 0 AND ? > 0 THEN ? ELSE plan_amount_cents END WHERE id = ?",
+  ).run(checkoutSessionId ?? null, stripeCustomerId ?? null, normalizedPlanAmount, normalizedPlanAmount, userId);
 }
 
 export function incrementCompletedPayments(userId: number): void {

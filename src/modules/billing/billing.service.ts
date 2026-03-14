@@ -59,13 +59,15 @@ export async function createCheckoutSession(params: {
   stripeCustomerId?: string | null;
   preset?: string;
   amountEur?: number;
+  creditAmountEur?: number;
   returnUrlBase?: string;
 }) {
   await ensureBillingUser({ userId: params.userId, email: params.email, name: params.name, stripeCustomerId: params.stripeCustomerId, chatEnabled: false });
   const offers = await getTopupOffers();
   const selected = params.preset ? offers.find((offer) => offer.offerCode === params.preset) : null;
   const amountEur = normalizeAmountEur(selected?.amountEur ?? Number(params.amountEur ?? 0));
-  const credits = Math.round(amountEur * env.CREDIT_MULTIPLIER);
+  const creditAmountEur = normalizeAmountEur(selected?.amountEur ?? Number(params.creditAmountEur ?? params.amountEur ?? 0));
+  const credits = Math.round(creditAmountEur * env.CREDIT_MULTIPLIER);
   const bonusCredits = selected?.bonusCredits ?? 0;
   const totalCredits = credits + bonusCredits;
   const stripe = getStripeClient();
@@ -73,6 +75,7 @@ export async function createCheckoutSession(params: {
     user_id: String(params.userId),
     credits: String(totalCredits),
     gross_amount: amountEur.toFixed(2),
+    credit_amount: creditAmountEur.toFixed(2),
     allocation_rule: '70_30',
     type: 'wallet_topup',
     bonus_credits: String(bonusCredits),
@@ -103,6 +106,7 @@ export async function createCheckoutSession(params: {
     mode: 'payment',
     success_url: env.STRIPE_SUCCESS_URL,
     cancel_url: env.STRIPE_CANCEL_URL,
+    allow_promotion_codes: true,
     customer_email: params.email ?? undefined,
     metadata,
     line_items: [
@@ -174,7 +178,7 @@ export async function recordSuccessfulPayment(params: {
   });
 
   await enableCorePremiumEntitlements(params.userId, params.source);
-  activateCustomerPaymentAccess(params.userId, params.sessionId, params.stripeCustomerId ?? null);
+  activateCustomerPaymentAccess(params.userId, params.sessionId, params.stripeCustomerId ?? null, eurToCents(params.grossAmountEur));
   await queryPg('UPDATE users SET chat_enabled = TRUE, stripe_customer_id = COALESCE($2, stripe_customer_id), updated_at = CURRENT_TIMESTAMP WHERE id = $1', [params.userId, params.stripeCustomerId ?? null]);
 
   const wallet = await getWalletView(params.userId);

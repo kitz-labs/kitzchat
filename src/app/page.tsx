@@ -105,6 +105,8 @@ interface OverviewData {
       tracked_tokens_30d: number;
       tracked_cost_30d: number;
       credits_remaining: number | null;
+      credits_used: number | null;
+      credits_granted: number | null;
       note: string;
     };
   };
@@ -217,7 +219,7 @@ export default function OverviewPage() {
             <SummaryCard title="Kunden gesamt" value={String(adminSummary.customers.total)} subtitle={`${adminSummary.customers.new_last_7d} neu in 7 Tagen`} icon={<Users size={16} />} tone="primary" />
             <SummaryCard title="Aktive Kunden" value={String(adminSummary.customers.active_last_30d)} subtitle={`${adminSummary.customers.paid} bezahlt, ${adminSummary.customers.pending} offen`} icon={<Activity size={16} />} tone="success" />
             <SummaryCard title="Wallet gesamt" value={formatEuro(adminSummary.stripe.total_wallet_balance_cents)} subtitle={`${adminSummary.stripe.linked_customers} Stripe-Kunden verknuepft`} icon={<CreditCard size={16} />} tone="warning" />
-            <SummaryCard title="OpenAI Tokens 30d" value={formatNumber(adminSummary.openai.tracked_tokens_30d)} subtitle={adminSummary.openai.configured ? 'Key erkannt' : 'nur lokal getrackt'} icon={<Database size={16} />} tone="info" />
+            <SummaryCard title="OpenAI Guthaben" value={formatUsd(adminSummary.openai.credits_remaining)} subtitle={adminSummary.openai.configured ? adminSummary.openai.note : 'OpenAI nicht konfiguriert'} icon={<Database size={16} />} tone="info" />
             <SummaryCard title="Neue Verstoesse" value={String(adminSummary.compliance.unread_count)} subtitle={`${adminSummary.compliance.danger_count} Gefahr, ${adminSummary.compliance.violation_count} Regelverstoesse`} icon={<ShieldAlert size={16} />} tone={adminSummary.compliance.unread_count > 0 ? 'danger' : 'success'} />
           </div>
 
@@ -276,10 +278,11 @@ export default function OverviewPage() {
               <SummaryStack
                 title="OpenAI / lokal erfasst"
                 rows={[
+                  { label: 'Guthaben', value: formatUsd(adminSummary.openai.credits_remaining) },
+                  { label: 'Verbraucht', value: formatUsd(adminSummary.openai.credits_used) },
                   { label: 'Tokens heute', value: formatNumber(adminSummary.usage.tokens_today) },
                   { label: 'Tokens 7 Tage', value: formatNumber(adminSummary.usage.tokens_week) },
                   { label: 'Kosten 30 Tage', value: formatEuro(adminSummary.openai.tracked_cost_30d) },
-                  { label: 'Aktive Kunden 7 Tage', value: String(adminSummary.usage.active_customers_7d) },
                 ]}
                 footer={adminSummary.openai.note}
               />
@@ -610,6 +613,10 @@ function formatNumber(value: number): string {
 
 function formatEuro(valueCents: number): string {
   return `€${((valueCents || 0) / 100).toFixed(2)}`;
+}
+
+function formatUsd(value: number | null | undefined): string {
+  return typeof value === 'number' ? `$${value.toFixed(2)}` : 'nicht verfuegbar';
 }
 
 function SummaryCard({ title, value, subtitle, icon, tone }: { title: string; value: string; subtitle: string; icon: React.ReactNode; tone: 'primary' | 'success' | 'warning' | 'info' | 'danger' }) {
