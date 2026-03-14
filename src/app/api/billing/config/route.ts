@@ -16,6 +16,12 @@ export async function GET(request: Request) {
       billing_mode: stripeSecretConfigured ? 'live-or-test' : 'dev-simulated',
       env_keys_required: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
       webhook_path: '/api/billing/webhook',
+      public_base_url: process.env.PUBLIC_BASE_URL?.trim() || null,
+      success_url: process.env.STRIPE_SUCCESS_URL?.trim() || null,
+      cancel_url: process.env.STRIPE_CANCEL_URL?.trim() || null,
+      webhook_url: process.env.PUBLIC_BASE_URL?.trim()
+        ? `${process.env.PUBLIC_BASE_URL.trim().replace(/\/$/, '')}/api/billing/webhook`
+        : null,
     });
   } catch (err) {
     const msg = (err as Error).message;

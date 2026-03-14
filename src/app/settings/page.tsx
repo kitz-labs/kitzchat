@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   Settings, Database, Shield, Info, ExternalLink,
-  RefreshCw, Trash2, Users, UserPlus, KeyRound, BrainCircuit, BellRing,
+  RefreshCw, Trash2, Users, UserPlus, KeyRound, BrainCircuit, BellRing, CreditCard, Webhook,
 } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { timeAgo } from '@/lib/utils';
@@ -38,7 +38,30 @@ interface SyncInfo {
 }
 
 type Role = 'admin' | 'editor' | 'viewer';
-type SettingsTab = 'general' | 'memory' | 'access' | 'about';
+type SettingsTab = 'general' | 'memory' | 'stripe' | 'access' | 'about';
+
+interface BillingConfig {
+  stripe_secret_configured: boolean;
+  stripe_webhook_configured: boolean;
+  billing_mode: 'dev-simulated' | 'live-or-test';
+  env_keys_required: string[];
+  webhook_path: string;
+  public_base_url?: string | null;
+  success_url?: string | null;
+  cancel_url?: string | null;
+  webhook_url?: string | null;
+}
+
+interface TopupOffer {
+  offerCode: string;
+  name: string;
+  amountEur: number;
+  credits: number;
+  bonusCredits: number;
+  active: boolean;
+  sortOrder: number;
+  marketingLabel?: string | null;
+}
 
 interface UserRecord {
   id: number;
@@ -134,6 +157,19 @@ export default function SettingsPage() {
   const [alertPolicies, setAlertPolicies] = useState<Record<InstanceId, AlertPolicy | null>>({});
   const [savingAlertPolicy, setSavingAlertPolicy] = useState<Record<InstanceId, boolean>>({});
   const [memoryEffects, setMemoryEffects] = useState<Record<InstanceId, MemoryEffectPayload | null>>({});
+  const [billingConfig, setBillingConfig] = useState<BillingConfig | null>(null);
+  const [topupOffers, setTopupOffers] = useState<TopupOffer[]>([]);
+  const [offerDraft, setOfferDraft] = useState<TopupOffer>({
+    offerCode: '',
+    name: '',
+    amountEur: 20,
+    credits: 20000,
+    bonusCredits: 0,
+    active: true,
+    sortOrder: 1,
+    marketingLabel: '',
+  });
+  const [savingOffer, setSavingOffer] = useState(false);
   const [meResolved, setMeResolved] = useState(false);
 
   useEffect(() => {
@@ -141,6 +177,8 @@ export default function SettingsPage() {
 
     (async () => {
       fetch('/api/settings').then(r => r.json()).then(setSyncInfo).catch(() => {});
+      fetch('/api/billing/config').then(r => r.json()).then(setBillingConfig).catch(() => {});
+      fetch('/api/admin/topup-offers').then(r => r.json()).then((data) => setTopupOffers(Array.isArray(data?.offers) ? data.offers : [])).catch(() => {});
 
       // Discover configured workspace instances from the server.
       let discovered: WorkspaceInstance[] = [];
@@ -423,6 +461,39 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveTopupOffer(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingOffer(true);
+    try {
+      const res = await fetch('/api/admin/topup-offers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(offerDraft),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save topup offer');
+      toast.success('Topup offer gespeichert');
+      setOfferDraft({
+        offerCode: '',
+        name: '',
+        amountEur: 20,
+        credits: 20000,
+        bonusCredits: 0,
+        active: true,
+        sortOrder: 1,
+        marketingLabel: '',
+      });
+      const offersPayload = await fetch('/api/admin/topup-offers', { cache: 'no-store' }).then((r) => r.json());
+      setTopupOffers(Array.isArray(offersPayload?.offers) ? offersPayload.offers : []);
+      const configPayload = await fetch('/api/billing/config', { cache: 'no-store' }).then((r) => r.json());
+      setBillingConfig(configPayload);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingOffer(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in w-full">
       <div className="panel">
@@ -439,6 +510,7 @@ export default function SettingsPage() {
             {[
               { key: 'general', label: 'General' },
               { key: 'memory', label: 'Memory' },
+              { key: 'stripe', label: 'Stripe' },
               { key: 'access', label: 'Access' },
               { key: 'about', label: 'About' },
             ].map((tab) => (
@@ -907,6 +979,128 @@ export default function SettingsPage() {
       </>
       )}
 
+      {activeTab === 'stripe' && (
+      <>
+      <div className="panel p-5 space-y-4">
+        <h2 className="text-sm font-medium flex items-center gap-2">
+          <CreditCard size={14} className="text-primary" /> Stripe Konfiguration
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Status, URLs und Angebotskonfiguration fuer Checkout, Wallet und Webhooks. Geheimnisse bleiben serverseitig in der .env.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <StatusTile label="Secret Key" value={billingConfig?.stripe_secret_configured ? 'Verbunden' : 'Fehlt'} ok={Boolean(billingConfig?.stripe_secret_configured)} icon={<KeyRound size={14} />} />
+          <StatusTile label="Webhook" value={billingConfig?.stripe_webhook_configured ? 'Konfiguriert' : 'Fehlt'} ok={Boolean(billingConfig?.stripe_webhook_configured)} icon={<Webhook size={14} />} />
+          <StatusTile label="Modus" value={billingConfig?.billing_mode === 'live-or-test' ? 'Stripe aktiv' : 'Dev-Modus'} ok={billingConfig?.billing_mode === 'live-or-test'} icon={<CreditCard size={14} />} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <ConfigBlock label="PUBLIC_BASE_URL" value={billingConfig?.public_base_url || 'nicht gesetzt'} />
+          <ConfigBlock label="Webhook URL" value={billingConfig?.webhook_url || billingConfig?.webhook_path || '/api/billing/webhook'} />
+          <ConfigBlock label="Success URL" value={billingConfig?.success_url || 'nicht gesetzt'} />
+          <ConfigBlock label="Cancel URL" value={billingConfig?.cancel_url || 'nicht gesetzt'} />
+        </div>
+
+        <div className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-xs text-muted-foreground">
+          STRIPE_SECRET_KEY und STRIPE_WEBHOOK_SECRET werden bewusst nicht im Browser bearbeitet. Diese Seite zeigt Status, Ziel-URLs und Angebotsdaten. Die eigentlichen Secrets bleiben auf dem Server.
+        </div>
+      </div>
+
+      <div className="panel p-5 space-y-4">
+        <h2 className="text-sm font-medium flex items-center gap-2">
+          <Database size={14} className="text-success" /> Topup Offers
+        </h2>
+        <form onSubmit={saveTopupOffer} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <input
+            value={offerDraft.offerCode}
+            onChange={(e) => setOfferDraft((prev) => ({ ...prev, offerCode: e.target.value }))}
+            className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            placeholder="offerCode"
+            required
+          />
+          <input
+            value={offerDraft.name}
+            onChange={(e) => setOfferDraft((prev) => ({ ...prev, name: e.target.value }))}
+            className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            placeholder="Name"
+            required
+          />
+          <input
+            type="number"
+            min={1}
+            step="0.01"
+            value={offerDraft.amountEur}
+            onChange={(e) => setOfferDraft((prev) => ({ ...prev, amountEur: Number(e.target.value) }))}
+            className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            placeholder="Betrag EUR"
+            required
+          />
+          <input
+            type="number"
+            min={0}
+            value={offerDraft.credits}
+            onChange={(e) => setOfferDraft((prev) => ({ ...prev, credits: Number(e.target.value) }))}
+            className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            placeholder="Credits"
+            required
+          />
+          <input
+            type="number"
+            min={0}
+            value={offerDraft.bonusCredits}
+            onChange={(e) => setOfferDraft((prev) => ({ ...prev, bonusCredits: Number(e.target.value) }))}
+            className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            placeholder="Bonus Credits"
+          />
+          <input
+            type="number"
+            min={1}
+            value={offerDraft.sortOrder}
+            onChange={(e) => setOfferDraft((prev) => ({ ...prev, sortOrder: Number(e.target.value) }))}
+            className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            placeholder="Sortierung"
+          />
+          <input
+            value={offerDraft.marketingLabel || ''}
+            onChange={(e) => setOfferDraft((prev) => ({ ...prev, marketingLabel: e.target.value }))}
+            className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+            placeholder="Marketing Label"
+          />
+          <label className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={offerDraft.active}
+              onChange={(e) => setOfferDraft((prev) => ({ ...prev, active: e.target.checked }))}
+            />
+            Aktiv
+          </label>
+          <button type="submit" disabled={savingOffer} className="btn btn-primary text-sm md:col-span-2 xl:col-span-4">
+            {savingOffer ? 'Speichert...' : 'Topup Offer speichern'}
+          </button>
+        </form>
+
+        <div className="grid gap-3">
+          {topupOffers.length === 0 ? (
+            <div className="rounded-xl border border-border/40 p-4 text-sm text-muted-foreground bg-muted/10">
+              Noch keine Topup Offers geladen.
+            </div>
+          ) : topupOffers.map((offer) => (
+            <div key={offer.offerCode} className="rounded-xl border border-border/40 p-4 bg-muted/10 flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className="text-sm font-medium">{offer.name}</div>
+                <div className="text-xs text-muted-foreground">{offer.offerCode} · {offer.marketingLabel || 'ohne Label'}</div>
+              </div>
+              <div className="text-right text-xs text-muted-foreground">
+                <div>€{offer.amountEur.toFixed(2)} · {offer.credits} Credits</div>
+                <div>Bonus {offer.bonusCredits} · Sort {offer.sortOrder} · {offer.active ? 'aktiv' : 'inaktiv'}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      </>
+      )}
+
       {/* Users & Roles */}
       {activeTab === 'access' && (
       <div className="panel p-5 space-y-4">
@@ -1193,6 +1387,31 @@ function MetricDelta({
         {fmt(value.before)} → {fmt(value.after)}{' '}
         <span className={cls}>({deltaPrefix}{fmt(value.delta)})</span>
       </div>
+    </div>
+  );
+}
+
+function StatusTile({ icon, label, value, ok }: { icon: React.ReactNode; label: string; value: string; ok: boolean }) {
+  return (
+    <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+          {icon}
+          <span>{label}</span>
+        </div>
+        <div className={`badge border ${ok ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfigBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border/40 p-3 bg-muted/10">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 break-all text-sm font-mono">{value}</div>
     </div>
   );
 }

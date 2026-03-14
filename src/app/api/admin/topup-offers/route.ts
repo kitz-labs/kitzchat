@@ -2,6 +2,20 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { createTopupOffer } from '@/modules/admin/admin.service';
 import { hasPostgresConfig } from '@/config/env';
+import { getTopupOffers } from '@/modules/billing/billing.service';
+
+export async function GET(request: Request) {
+  try {
+    requireAdmin(request);
+    if (!hasPostgresConfig()) return NextResponse.json({ offers: [] });
+    return NextResponse.json({ offers: await getTopupOffers() });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load topup offers';
+    if (message === 'unauthorized') return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (message === 'forbidden') return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    return NextResponse.json({ error: 'Failed to load topup offers' }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {

@@ -1,7 +1,32 @@
 import { queryPg } from '@/config/db';
-import { env } from '@/config/env';
+import { env, getBillingDbKind } from '@/config/env';
 import { getEntitlements } from '@/modules/entitlements/entitlements.service';
 import { appendWalletLedger, type WalletLedgerEntry } from './wallet.ledger.service';
+
+function getEnsureBillingUserSql() {
+  return getBillingDbKind() === 'mysql'
+   ? `INSERT INTO users (id, email, name, stripe_customer_id, chat_enabled)
+     VALUES ($1, $2, $3, $4, $5)
+     ON DUPLICATE KEY UPDATE email = VALUES(email), name = VALUES(name), stripe_customer_id = COALESCE(VALUES(stripe_customer_id), stripe_customer_id), chat_enabled = VALUES(chat_enabled), updated_at = CURRENT_TIMESTAMP`
+   : `INSERT INTO users (id, email, name, stripe_customer_id, chat_enabled)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (id) DO UPDATE
+     SET email = EXCLUDED.email,
+        name = EXCLUDED.name,
+        stripe_customer_id = COALESCE(EXCLUDED.stripe_customer_id, users.stripe_customer_id),
+        chat_enabled = EXCLUDED.chat_enabled,
+        updated_at = CURRENT_TIMESTAMP`;
+}
+
+function getEnsureWalletSql() {
+  return getBillingDbKind() === 'mysql'
+   ? `INSERT INTO wallets (user_id, balance_credits, currency_display, status)
+     VALUES ($1, 0, 'Credits', 'active')
+     ON DUPLICATE KEY UPDATE user_id = user_id`
+   : `INSERT INTO wallets (user_id, balance_credits, currency_display, status)
+     VALUES ($1, 0, 'Credits', 'active')
+     ON CONFLICT (user_id) DO NOTHING`;
+}
 
 export type WalletView = {
   balance: number;
@@ -19,19 +44,9 @@ export async function ensureBillingUser(params: {
   stripeCustomerId?: string | null;
   chatEnabled?: boolean;
 }): Promise<void> {
-  await queryPg(
-    `INSERT INTO users (id, email, name, stripe_customer_id, chat_enabled)
-     VALUES ($1, $2, $3, $4, $5)
-     ON DUPLICATE KEY UPDATE email = VALUES(email), name = VALUES(name), stripe_customer_id = COALESCE(VALUES(stripe_customer_id), stripe_customer_id), chat_enabled = VALUES(chat_enabled), updated_at = CURRENT_TIMESTAMP`,
-    [params.userId, params.email ?? null, params.name, params.stripeCustomerId ?? null, params.chatEnabled ?? false],
-  );
+  await queryPg(getEnsureBillingUserSql(), [params.userId, params.email ?? null, params.name, params.stripeCustomerId ?? null, params.chatEnabled ?? false]);
 
-  await queryPg(
-    `INSERT INTO wallets (user_id, balance_credits, currency_display, status)
-     VALUES ($1, 0, 'Credits', 'active')
-     ON DUPLICATE KEY UPDATE user_id = user_id`,
-    [params.userId],
-  );
+  await queryPg(getEnsureWalletSql(), [params.userId]);
 }
 
 export async function getWalletRecord(userId: number): Promise<{ id: number; balance_credits: number; currency_display: string; status: string }> {

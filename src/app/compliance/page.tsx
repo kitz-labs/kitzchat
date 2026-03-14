@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ShieldAlert, ShieldX } from 'lucide-react';
+import { AlertTriangle, SendHorizontal, ShieldAlert, ShieldX } from 'lucide-react';
 import { useAudienceGuard } from '@/hooks/use-audience-guard';
+import { toast } from '@/components/ui/toast';
 
 type IncidentType = 'danger' | 'policy-violation';
 
@@ -40,6 +41,8 @@ export default function CompliancePage() {
   const [filter, setFilter] = useState<'all' | IncidentType>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [telegramConfigured, setTelegramConfigured] = useState(false);
+  const [telegramTesting, setTelegramTesting] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -67,6 +70,28 @@ export default function CompliancePage() {
       alive = false;
     };
   }, [filter, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    fetch('/api/admin/telegram/test', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => setTelegramConfigured(Boolean(data?.configured)))
+      .catch(() => setTelegramConfigured(false));
+  }, [ready]);
+
+  async function sendTelegramTest() {
+    setTelegramTesting(true);
+    try {
+      const response = await fetch('/api/admin/telegram/test', { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(data?.error || 'Telegram-Test fehlgeschlagen'));
+      toast.success('Telegram-Test erfolgreich gesendet');
+    } catch (sendError) {
+      toast.error(sendError instanceof Error ? sendError.message : 'Telegram-Test fehlgeschlagen');
+    } finally {
+      setTelegramTesting(false);
+    }
+  }
 
   const incidents = useMemo(() => payload?.incidents || [], [payload]);
 
@@ -111,6 +136,26 @@ export default function CompliancePage() {
               {item.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-body flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-sm font-medium">Alert-Kanaele</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Telegram ist aktuell {telegramConfigured ? 'konfiguriert' : 'nicht konfiguriert'}. Hier kannst du die Zustellung direkt testen.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={sendTelegramTest}
+            disabled={!telegramConfigured || telegramTesting}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <SendHorizontal size={14} />
+            {telegramTesting ? 'Sende Test...' : 'Telegram testen'}
+          </button>
         </div>
       </div>
 

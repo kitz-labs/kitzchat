@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { getDb } from '@/lib/db';
+import { sendOperationsAlert } from '@/lib/alerts';
 import { inspectPolicyContent, reportPolicyIncident } from '@/lib/policy-enforcement';
 
 export const dynamic = 'force-dynamic';
@@ -54,14 +55,24 @@ export async function POST(request: Request) {
         'Vielen Dank fuer Ihre Nachricht. Wir melden uns schnellstmoeglich bei Ihnen. Mail-Support: Montag bis Freitag von 10:00 bis 23:00 Uhr, Samstag von 08:00 bis 12:00 Uhr, an Feiertagen von 11:00 bis 12:00 Uhr. Der Support in der Webapp ist taeglich verfuegbar.',
       );
       db.prepare('INSERT INTO notifications (type, severity, title, message, data) VALUES (?, ?, ?, ?, ?)').run(
-        'support-reply',
+        'support-request',
         'info',
-        'Neue Support-Antwort',
-        `Support hat ${user.username} geantwortet.`,
-        JSON.stringify({ user_id: user.id, username: user.username }),
+        'Neue Support-Anfrage',
+        `${user.username} hat eine neue Support-Anfrage gesendet.`,
+        JSON.stringify({ user_id: user.id, username: user.username, source: 'customer-support' }),
       );
     });
     tx();
+
+    await sendOperationsAlert(
+      'Neue Support-Anfrage',
+      `${user.username} hat eine neue Support-Anfrage gesendet.`,
+      [
+        `Benutzer: ${user.username}`,
+        `User ID: ${user.id}`,
+        `Nachricht: ${message.slice(0, 500)}`,
+      ],
+    ).catch(() => null);
 
     const rows = db
       .prepare('SELECT id, sender, message, created_at FROM support_messages WHERE user_id = ? ORDER BY created_at ASC, id ASC')

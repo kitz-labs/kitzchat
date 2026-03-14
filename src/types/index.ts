@@ -173,7 +173,7 @@ export interface ActivityEntry {
 }
 
 // ─── Notifications ────────────────────────────────────
-export type NotificationType = 'daily_report' | 'alert' | 'lead_reply' | 'bounce_spike' | 'experiment_result' | 'custom' | 'support-reply' | 'policy-violation' | 'danger';
+export type NotificationType = 'daily_report' | 'alert' | 'lead_reply' | 'bounce_spike' | 'experiment_result' | 'custom' | 'support-reply' | 'support-request' | 'policy-violation' | 'danger';
 export type NotificationSeverity = 'info' | 'warning' | 'error';
 
 export interface Notification {

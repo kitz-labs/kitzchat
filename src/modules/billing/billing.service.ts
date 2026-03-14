@@ -152,10 +152,11 @@ export async function recordSuccessfulPayment(params: {
   const payment = await queryPg<{ id: number }>(
     `INSERT INTO payments
       (user_id, stripe_session_id, stripe_payment_intent_id, stripe_customer_id, gross_amount_eur, currency, status, credits_issued)
-     VALUES ($1, $2, $3, $4, $5, 'eur', 'paid', $6)`,
+     VALUES ($1, $2, $3, $4, $5, 'eur', 'paid', $6)
+     RETURNING id`,
     [params.userId, params.sessionId, params.paymentIntentId ?? null, params.stripeCustomerId ?? null, params.grossAmountEur, params.creditsIssued],
   );
-  const paymentId = Number(payment.insertId ?? 0);
+  const paymentId = Number(payment.rows[0]?.id ?? payment.insertId ?? 0);
 
   await queryPg(
     `INSERT INTO payment_allocations
