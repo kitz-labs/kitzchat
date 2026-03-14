@@ -297,7 +297,7 @@ export default function AgentWorkspacePage() {
         <div className="space-y-1">
           <h1 className="text-xl font-semibold">Workspace</h1>
           <p className="text-xs text-muted-foreground">
-            Browse and edit workspace files. Hidden by default: dotfiles, credentials/state/logs, sessions, sandboxes.
+            Browse and edit workspace files. Jeder Agent bekommt ordnerweise `memory/`, `core/` und `config/`. Hidden by default: dotfiles, credentials/state/logs, sessions, sandboxes.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

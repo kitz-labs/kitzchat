@@ -40,9 +40,30 @@ function ensureWorkspaceScaffold(workspaceRoot: string): string {
   for (const dir of ['agents', 'cron', 'health', 'logs', 'shared']) {
     fs.mkdirSync(path.join(resolved, dir), { recursive: true });
   }
+  for (const dir of ['config', 'core', 'memory']) {
+    fs.mkdirSync(path.join(resolved, 'shared', dir), { recursive: true });
+  }
+
   const configPath = path.join(resolved, 'workspace.json');
   if (!fs.existsSync(configPath)) {
     fs.writeFileSync(configPath, JSON.stringify({ agents: { list: [] } }, null, 2));
+  }
+
+  const sharedReadmePath = path.join(resolved, 'shared', 'README.md');
+  if (!fs.existsSync(sharedReadmePath)) {
+    fs.writeFileSync(
+      sharedReadmePath,
+      [
+        '# Shared Workspace',
+        '',
+        'Hier liegen gemeinsame Dateien fuer alle Agenten.',
+        '- `memory/` fuer uebergreifenden Kontext',
+        '- `core/` fuer zentrale Markdown-Grundlagen',
+        '- `config/` fuer gemeinsame Konfigurationen',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
   }
   return resolved;
 }

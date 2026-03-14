@@ -99,7 +99,7 @@ export function CustomerAgents() {
   }, [selectedId, visibleAgents]);
 
   const selectedAgent = useMemo(() => visibleAgents.find((agent) => agent.id === selectedId) || visibleAgents[0] || null, [selectedId, visibleAgents]);
-  const enabledAgents = new Set(preferences.enabled_agent_ids);
+  const enabledAgents = new Set(visibleAgents.map((agent) => agent.id));
   const selectedEnabled = selectedAgent ? enabledAgents.has(selectedAgent.id) : false;
   const selectedBlockedReason = getBlockedReason(selectedAgent?.id, preferences);
 
@@ -169,7 +169,7 @@ export function CustomerAgents() {
                   </div>
                 </div>
                 <div className={`rounded-full px-3 py-1 text-xs font-medium ${selectedEnabled && !selectedBlockedReason ? 'bg-success/15 text-success' : 'bg-warning/10 text-warning'}`}>
-                  {selectedBlockedReason ? selectedBlockedReason : selectedEnabled ? 'In Einstellungen aktiviert' : 'In Einstellungen deaktiviert'}
+                  {selectedBlockedReason ? selectedBlockedReason : selectedEnabled ? 'Aktiviert' : 'Deaktiviert'}
                 </div>
               </div>
 

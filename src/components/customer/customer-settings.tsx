@@ -240,15 +240,6 @@ export function CustomerSettings() {
     }
   }
 
-  function toggleAgent(agentId: string) {
-    setPreferences((current) => {
-      const enabled = current.enabled_agent_ids.includes(agentId)
-        ? current.enabled_agent_ids.filter((id) => id !== agentId)
-        : [...current.enabled_agent_ids, agentId];
-      return { ...current, enabled_agent_ids: enabled };
-    });
-  }
-
   return (
     <div className="space-y-6 animate-in">
       <div>
@@ -319,23 +310,23 @@ export function CustomerSettings() {
         <div className="panel">
           <div className="panel-header">
             <div>
-              <h2 className="text-sm font-medium">Agenten aktivieren oder deaktivieren</h2>
-              <p className="text-xs text-muted-foreground">Diese Auswahl ist mit deiner Agenten-Seite und dem Webchat synchron.</p>
+              <h2 className="text-sm font-medium">Alle Agenten sind aktiviert</h2>
+              <p className="text-xs text-muted-foreground">Der komplette Agenten-Katalog steht im Kundenbereich bereit. Verbindungen wie Mail, Dokumente oder Instagram schalten zusaetzliche Spezialfunktionen frei.</p>
             </div>
           </div>
           <div className="panel-body space-y-3">
             {agents.map((agent) => {
-              const enabled = preferences.enabled_agent_ids.includes(agent.id);
+              const enabled = true;
               return (
-                <button key={agent.id} type="button" onClick={() => toggleAgent(agent.id)} className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-muted/10 px-4 py-3 text-left">
+                <div key={agent.id} className="flex w-full items-center justify-between rounded-2xl border border-border/60 bg-muted/10 px-4 py-3 text-left">
                   <div>
                     <div className="text-sm font-medium">{agent.name}</div>
-                    <div className="text-xs text-muted-foreground">{enabled ? 'Im Kundenbereich aktiv' : 'Derzeit deaktiviert'}</div>
+                    <div className="text-xs text-muted-foreground">Im Kundenbereich aktiv</div>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${enabled ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'}`}>
-                    {enabled ? 'Aktiv' : 'Aus'}
+                  <span className="rounded-full bg-success/15 px-3 py-1 text-xs font-medium text-success">
+                    Aktiv
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -374,7 +365,7 @@ export function CustomerSettings() {
             </div>
 
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
-              <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'Agenten, Alerts und Limits speichern'}
+              <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'Alerts und Limits speichern'}
             </button>
           </div>
         </div>

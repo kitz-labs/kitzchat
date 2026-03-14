@@ -606,6 +606,102 @@ function persistWorkspaceConfig(workspaceConfigPath: string, config: WorkspaceCo
   fs.writeFileSync(workspaceConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf-8');
 }
 
+function ensureTextFile(filePath: string, content: string): void {
+  if (fs.existsSync(filePath)) return;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf-8');
+}
+
+function ensureJsonFile(filePath: string, value: unknown): void {
+  if (fs.existsSync(filePath)) return;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
+}
+
+function scaffoldAgentStorage(workspaceHome: string, agentsDir: string, agent: AgentDefinition): void {
+  const agentConfigRoot = path.join(agentsDir, agent.id, 'agent');
+  const workspaceRoot = path.resolve(agent.workspace || defaultWorkspaceFor(workspaceHome, agent.id));
+  const safeWorkspaceRoot = workspaceRoot.startsWith(path.resolve(workspaceHome) + path.sep)
+    ? workspaceRoot
+    : path.join(workspaceHome, `workspace-${agent.id}`);
+
+  for (const root of [agentConfigRoot, safeWorkspaceRoot]) {
+    for (const dir of ['config', 'core', 'memory']) {
+      fs.mkdirSync(path.join(root, dir), { recursive: true });
+    }
+  }
+
+  ensureTextFile(
+    path.join(agentConfigRoot, 'core', 'CORE.md'),
+    [
+      `# ${agent.name} Core`,
+      '',
+      `Rolle: ${agent.role}`,
+      '',
+      agent.description,
+      '',
+      'Diese Datei ist die zentrale Markdown-Grundlage fuer den Agenten.',
+      'Ergaenze hier Regeln, Zielbild, Stil und feste Leitplanken.',
+      '',
+    ].join('\n'),
+  );
+  ensureTextFile(
+    path.join(agentConfigRoot, 'memory', 'README.md'),
+    [
+      `# ${agent.name} Memory`,
+      '',
+      'Hier liegt dauerhafter Agent-Kontext.',
+      'Lege projektbezogene Notizen, Zusammenfassungen und wiederverwendbares Wissen ordnerweise ab.',
+      '',
+    ].join('\n'),
+  );
+  ensureJsonFile(path.join(agentConfigRoot, 'config', 'agent.json'), {
+    id: agent.id,
+    name: agent.name,
+    role: agent.role,
+    model: agent.model,
+    fallbacks: agent.fallbacks,
+    tools: agent.tools,
+    apiProviders: agent.apiProviders,
+    customerVisible: agent.customerVisible,
+    workspace: safeWorkspaceRoot,
+  });
+  ensureJsonFile(path.join(agentConfigRoot, 'config', 'skills.json'), {
+    skills: agent.skills,
+    cronJobs: agent.cronJobs,
+  });
+
+  ensureTextFile(
+    path.join(safeWorkspaceRoot, 'core', 'mission.md'),
+    [
+      `# ${agent.name} Mission`,
+      '',
+      agent.description,
+      '',
+      `Primärmodell: ${agent.model}`,
+      '',
+    ].join('\n'),
+  );
+  ensureTextFile(
+    path.join(safeWorkspaceRoot, 'memory', 'context.md'),
+    [
+      `# ${agent.name} Context`,
+      '',
+      'Hier werden laufender Kontext, Memory-Auszüge und Arbeitsnotizen des Agenten gespeichert.',
+      '',
+    ].join('\n'),
+  );
+  ensureJsonFile(path.join(safeWorkspaceRoot, 'config', 'workspace.json'), {
+    agentId: agent.id,
+    workspace: safeWorkspaceRoot,
+    folders: {
+      memory: path.join(safeWorkspaceRoot, 'memory'),
+      core: path.join(safeWorkspaceRoot, 'core'),
+      config: path.join(safeWorkspaceRoot, 'config'),
+    },
+  });
+}
+
 function ensureWorkspaceCatalog(workspaceConfigPath: string, workspaceHome: string): WorkspaceConfig {
   const config = readWorkspaceConfig(workspaceConfigPath) ?? { agents: { list: [] } };
   const defaultsWorkspace =
@@ -778,7 +874,7 @@ export function getAgents(instanceId?: string): AgentDefinition[] {
     for (const id of Object.keys(staticMeta)) ids.add(id);
   }
 
-  return sortAgentIds([...ids]).map((id) => {
+  const agents = sortAgentIds([...ids]).map((id) => {
     const configured = configuredById.get(id);
     const meta = staticMeta[id] ?? {};
 
@@ -834,6 +930,12 @@ export function getAgents(instanceId?: string): AgentDefinition[] {
       customerVisible,
     };
   });
+
+  for (const agent of agents) {
+    scaffoldAgentStorage(workspaceHome, agentsDir, agent);
+  }
+
+  return agents;
 }
 
 export function getAgentIds(instanceId?: string): string[] {

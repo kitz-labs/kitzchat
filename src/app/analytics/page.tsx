@@ -8,8 +8,6 @@ import {
   MousePointerClick,
   Users,
   Send,
-  Linkedin,
-  X,
   Monitor,
   Smartphone,
   Tablet,
@@ -17,6 +15,8 @@ import {
   FileText,
   UserPlus,
   UserCheck,
+  Compass,
+  LayoutTemplate,
 } from "lucide-react";
 import { useSmartPoll } from "@/hooks/use-smart-poll";
 import { useDashboard } from "@/store";
@@ -102,40 +102,6 @@ type WebsitePayload =
 interface AnalyticsPayload {
   days: number;
   website: WebsitePayload;
-  x: {
-    provider: "x";
-    configured: boolean;
-    summary?: {
-      username: string;
-      followers: number;
-      following?: number;
-      postsInRange: number;
-      likes: number;
-      replies: number;
-      reposts: number;
-      quotes: number;
-    };
-    series?: { date: string; posts: number; likes: number; replies: number; reposts: number; quotes: number }[];
-    error?: string;
-    health?: ProviderHealth;
-  };
-  linkedin: {
-    provider: "linkedin";
-    configured: boolean;
-    summary?: {
-      organizationUrn: string;
-      followers?: number;
-      impressions?: number;
-      clicks?: number;
-      likes?: number;
-      comments?: number;
-      shares?: number;
-      engagementRatePct?: number;
-    };
-    series?: { date: string; impressions: number; clicks: number; likes: number; comments: number; shares: number }[];
-    error?: string;
-    health?: ProviderHealth;
-  };
   social: {
     provider: "internal";
     configured: boolean;
@@ -172,13 +138,28 @@ export default function AnalyticsPage() {
           ? data.website.summary?.pageviews ?? 0
           : 0;
 
+    const sessions = data.website.provider === "ga4"
+      ? data.website.summary?.sessions ?? 0
+      : data.website.provider === "plausible"
+        ? data.website.summary?.visitors ?? 0
+        : 0;
+    const bounceRatePct = data.website.provider === "ga4"
+      ? data.website.summary?.bounceRatePct ?? 0
+      : data.website.provider === "plausible"
+        ? data.website.summary?.bounceRatePct ?? 0
+        : 0;
+    const pagesPerSession = sessions > 0 ? websitePageviews / sessions : 0;
+    const returningUsers = data.website.provider === "ga4"
+      ? data.website.newVsReturning?.find((segment) => segment.segment.toLowerCase() === "returning")?.activeUsers ?? 0
+      : 0;
+
     return {
       websiteUsers,
+      sessions,
       websitePageviews,
-      socialLeads: data.social.summary.leads,
-      socialEngagementRate: data.social.summary.engagementRatePct,
-      xFollowers: data.x.summary?.followers ?? 0,
-      linkedinImpressions: data.linkedin.summary?.impressions ?? 0,
+      pagesPerSession,
+      bounceRatePct,
+      returningUsers,
     };
   }, [data]);
 
@@ -216,21 +197,111 @@ export default function AnalyticsPage() {
       {executiveStats ? (
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
           <StatCard label="Website Users" value={executiveStats.websiteUsers} icon={Globe} color="var(--primary)" />
+          <StatCard label="Sessions" value={executiveStats.sessions} icon={Compass} color="var(--success)" />
           <StatCard label="Pageviews" value={executiveStats.websitePageviews} icon={FileText} color="var(--info)" />
-          <StatCard label="Social Leads" value={executiveStats.socialLeads} icon={Users} color="var(--success)" />
-          <StatCard label="Engagement Rate %" value={Number(executiveStats.socialEngagementRate.toFixed(2))} icon={MousePointerClick} color="var(--warning)" />
-          <StatCard label="X Followers" value={executiveStats.xFollowers} icon={X} color="var(--primary)" />
-          <StatCard label="LinkedIn Impressions" value={executiveStats.linkedinImpressions} icon={Linkedin} color="var(--info)" />
+          <StatCard label="Views / Session" value={Number(executiveStats.pagesPerSession.toFixed(2))} icon={LayoutTemplate} color="var(--warning)" />
+          <StatCard label="Bounce Rate %" value={Number(executiveStats.bounceRatePct.toFixed(1))} icon={Activity} color="var(--destructive)" />
+          <StatCard label="Returning Users" value={executiveStats.returningUsers} icon={Users} color="var(--primary)" />
         </div>
       ) : null}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <WebsitePanel website={data.website} />
-        <XPanel x={data.x} days={data.days} />
-        <LinkedInPanel linkedin={data.linkedin} days={data.days} />
+        <WebsiteAudiencePanel website={data.website} />
+        <WebsiteContentPanel website={data.website} />
       </div>
 
       <SocialPanel social={data.social} series={socialSeries} />
+    </div>
+  );
+}
+
+function WebsiteAudiencePanel({ website }: { website: WebsitePayload }) {
+  if (website.provider !== "ga4" || !website.configured) {
+    return (
+      <div className="panel">
+        <div className="panel-header">
+          <h3 className="section-title flex items-center gap-2">
+            <Users size={14} /> Audience
+          </h3>
+        </div>
+        <div className="panel-body text-sm text-muted-foreground">
+          Erweiterte Zielgruppenanalyse ist verfuegbar, sobald GA4-Dimensionen geladen werden.
+        </div>
+      </div>
+    );
+  }
+
+  const devices = website.deviceSplit ?? [];
+  const segments = website.newVsReturning ?? [];
+  const countries = website.countries ?? [];
+  const topCountry = countries[0];
+
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h3 className="section-title flex items-center gap-2">
+          <Users size={14} /> Audience
+        </h3>
+      </div>
+      <div className="panel-body space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="card p-4">
+            <div className="text-xs text-muted-foreground">Top Country</div>
+            <div className="mt-1 text-lg font-mono font-semibold">{topCountry?.country ?? '—'}</div>
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              {topCountry ? `${topCountry.activeUsers.toLocaleString()} aktive Nutzer · ${topCountry.sessions.toLocaleString()} Sitzungen` : 'Noch keine Laenderdaten verfuegbar.'}
+            </div>
+          </div>
+          <div className="card p-4">
+            <div className="text-xs text-muted-foreground">Ø Sitzungsdauer</div>
+            <div className="mt-1 text-lg font-mono font-semibold">{formatDurationSeconds(website.summary?.avgSessionDurationSeconds ?? 0)}</div>
+            <div className="mt-2 text-[11px] text-muted-foreground">Wie lange Besucher im Mittel aktiv bleiben.</div>
+          </div>
+        </div>
+
+        {devices.length > 0 && <DeviceSplitSection devices={devices} />}
+        {segments.length > 0 && <NewVsReturningSection segments={segments} />}
+        {countries.length > 0 && <CountriesSection countries={countries} />}
+      </div>
+    </div>
+  );
+}
+
+function WebsiteContentPanel({ website }: { website: WebsitePayload }) {
+  const topPages = website.provider === "ga4" ? website.topPages ?? [] : [];
+  const trafficSources = website.provider === "ga4" ? website.trafficSources ?? [] : [];
+  const topPage = topPages[0];
+  const topSource = trafficSources[0];
+
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h3 className="section-title flex items-center gap-2">
+          <FileText size={14} /> Website Analysen
+        </h3>
+      </div>
+      <div className="panel-body space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="card p-4">
+            <div className="text-xs text-muted-foreground">Top Page</div>
+            <div className="mt-1 text-sm font-semibold truncate">{topPage?.pagePath ?? '—'}</div>
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              {topPage ? `${topPage.pageviews.toLocaleString()} Views · ${topPage.activeUsers.toLocaleString()} aktive Nutzer` : 'Noch keine Seitenanalyse verfuegbar.'}
+            </div>
+          </div>
+          <div className="card p-4">
+            <div className="text-xs text-muted-foreground">Top Traffic Source</div>
+            <div className="mt-1 text-sm font-semibold truncate">{topSource?.channel ?? '—'}</div>
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              {topSource ? `${topSource.sessions.toLocaleString()} Sitzungen · ${topSource.activeUsers.toLocaleString()} aktive Nutzer` : 'Noch keine Kanalanalyse verfuegbar.'}
+            </div>
+          </div>
+        </div>
+
+        {trafficSources.length > 0 && <TrafficSourcesSection sources={trafficSources} />}
+        {topPages.length > 0 && <TopPagesSection pages={topPages} />}
+      </div>
     </div>
   );
 }
@@ -524,29 +595,6 @@ function WebsitePanel({ website }: { website: WebsitePayload }) {
               </div>
             )}
 
-            {/* ── Enhanced GA4 Breakdowns ── */}
-
-            {website.trafficSources && website.trafficSources.length > 0 && (
-              <TrafficSourcesSection sources={website.trafficSources} />
-            )}
-
-            {website.topPages && website.topPages.length > 0 && (
-              <TopPagesSection pages={website.topPages} />
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {website.deviceSplit && website.deviceSplit.length > 0 && (
-                <DeviceSplitSection devices={website.deviceSplit} />
-              )}
-              {website.newVsReturning && website.newVsReturning.length > 0 && (
-                <NewVsReturningSection segments={website.newVsReturning} />
-              )}
-            </div>
-
-            {website.countries && website.countries.length > 0 && (
-              <CountriesSection countries={website.countries} />
-            )}
-
             {"iframeUrl" in website && website.iframeUrl && (
               <AnalyticsEmbed title="Website analytics embed" src={website.iframeUrl} />
             )}
@@ -633,164 +681,6 @@ function WebsitePanel({ website }: { website: WebsitePayload }) {
   );
 }
 
-function XPanel({ x, days }: { x: AnalyticsPayload["x"]; days: number }) {
-  const series = Array.isArray(x.series) ? x.series : [];
-  const spark = series.map((p) => ({ value: p.likes + p.replies + p.reposts + p.quotes }));
-
-  return (
-    <div className="panel">
-      <div className="panel-header">
-        <h3 className="section-title flex items-center gap-2">
-          <X size={14} />
-          X
-          <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-            {x.configured ? `${days}d` : "OFF"}
-          </span>
-        </h3>
-        <ProviderHealthHint health={x.health} compact />
-      </div>
-      <div className="panel-body space-y-4">
-        {x.configured && x.summary ? (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <StatCard label="Followers" value={x.summary.followers} icon={Users} color="var(--primary)" />
-              <StatCard
-                label="Engagement"
-                value={x.summary.likes + x.summary.replies + x.summary.reposts + x.summary.quotes}
-                icon={MousePointerClick}
-                sparkline={spark}
-                color="var(--success)"
-              />
-            </div>
-            <div className="card p-4">
-              <div className="text-xs text-muted-foreground">@{x.summary.username}</div>
-              <div className="text-[11px] text-muted-foreground mt-2">
-                Posts <span className="font-mono text-foreground">{x.summary.postsInRange}</span>, likes{" "}
-                <span className="font-mono text-foreground">{x.summary.likes}</span>, replies{" "}
-                <span className="font-mono text-foreground">{x.summary.replies}</span>, reposts{" "}
-                <span className="font-mono text-foreground">{x.summary.reposts}</span>, quotes{" "}
-                <span className="font-mono text-foreground">{x.summary.quotes}</span>.
-              </div>
-            </div>
-            {series.length > 1 && (
-              <div className="panel bg-transparent border border-border/30">
-                <div className="panel-header">
-                  <h4 className="section-title">Engagement (daily)</h4>
-                </div>
-                <div className="panel-body">
-                  <TrendChart
-                    data={series as unknown as Record<string, unknown>[]}
-                    xKey="date"
-                    lines={[
-                      { key: "likes", color: "var(--success)", label: "Likes" },
-                      { key: "replies", color: "var(--info)", label: "Replies" },
-                      { key: "reposts", color: "var(--warning)", label: "Reposts" },
-                      { key: "quotes", color: "var(--primary)", label: "Quotes" },
-                    ]}
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">X native analytics not configured.</div>
-            {x.error && <div className="text-xs text-warning">{x.error}</div>}
-            <div className="text-xs text-muted-foreground">
-              Set:
-              <div className="mt-1 font-mono text-[11px]">X_BEARER_TOKEN</div>
-              <div className="mt-1 font-mono text-[11px]">X_USERNAME</div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function LinkedInPanel({
-  linkedin,
-  days,
-}: {
-  linkedin: AnalyticsPayload["linkedin"];
-  days: number;
-}) {
-  const s = linkedin.summary;
-  const series = Array.isArray(linkedin.series) ? linkedin.series : [];
-
-  return (
-    <div className="panel">
-      <div className="panel-header">
-        <h3 className="section-title flex items-center gap-2">
-          <Linkedin size={14} />
-          LinkedIn
-          <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-            {linkedin.configured ? `${days}d` : "OFF"}
-          </span>
-        </h3>
-        <ProviderHealthHint health={linkedin.health} compact />
-      </div>
-      <div className="panel-body space-y-4">
-        {linkedin.configured && s ? (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <StatCard label="Followers" value={s.followers ?? 0} icon={Users} color="var(--primary)" />
-              <StatCard
-                label="Impressions"
-                value={s.impressions ?? 0}
-                icon={Activity}
-                color="var(--info)"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <StatCard label="Clicks" value={s.clicks ?? 0} icon={MousePointerClick} color="var(--success)" />
-              <div className="card p-4">
-                <div className="text-xs text-muted-foreground">Engagement rate</div>
-                <div className="text-lg font-mono font-semibold mt-1">
-                  {(s.engagementRatePct ?? 0).toFixed(2)}%
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-2">
-                  Likes <span className="font-mono text-foreground">{s.likes ?? 0}</span>, comments{" "}
-                  <span className="font-mono text-foreground">{s.comments ?? 0}</span>, shares{" "}
-                  <span className="font-mono text-foreground">{s.shares ?? 0}</span>.
-                </div>
-              </div>
-            </div>
-
-            {series.length > 1 && (
-              <div className="panel bg-transparent border border-border/30">
-                <div className="panel-header">
-                  <h4 className="section-title">Impressions & Clicks (daily)</h4>
-                </div>
-                <div className="panel-body">
-                  <TrendChart
-                    data={series as unknown as Record<string, unknown>[]}
-                    xKey="date"
-                    lines={[
-                      { key: "impressions", color: "var(--info)", label: "Impressions" },
-                      { key: "clicks", color: "var(--success)", label: "Clicks" },
-                    ]}
-                  />
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">LinkedIn native analytics not configured.</div>
-            {linkedin.error && <div className="text-xs text-warning">{linkedin.error}</div>}
-            <div className="text-xs text-muted-foreground">
-              Set:
-              <div className="mt-1 font-mono text-[11px]">LINKEDIN_ACCESS_TOKEN</div>
-              <div className="mt-1 font-mono text-[11px]">LINKEDIN_ORGANIZATION_URN</div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function SocialPanel({
   social,
   series,
@@ -851,20 +741,17 @@ function SocialPanel({
               {social.summary.engagementRatePct.toFixed(2)}%
             </div>
             <div className="text-[11px] text-muted-foreground mt-2">
-              X posts <span className="font-mono text-foreground">{social.summary.xPosts}</span>, replies{" "}
-              <span className="font-mono text-foreground">{social.summary.xReplies}</span>, quotes{" "}
-              <span className="font-mono text-foreground">{social.summary.xQuoteTweets}</span>, follows{" "}
-              <span className="font-mono text-foreground">{social.summary.xFollows}</span>.
+              Zeigt, wie stark die internen Kampagnen-, Outreach- und Response-Aktivitaeten im gewaehlten Zeitraum reagieren.
             </div>
           </div>
           <div className="card p-4">
-            <div className="text-xs text-muted-foreground">LinkedIn</div>
+            <div className="text-xs text-muted-foreground">Pipeline Fokus</div>
             <div className="text-[11px] text-muted-foreground mt-2">
-              Comments{" "}
-              <span className="font-mono text-foreground">{social.summary.linkedinComments}</span>.
+              Leads <span className="font-mono text-foreground">{social.summary.leads}</span>, versendete Nachrichten{" "}
+              <span className="font-mono text-foreground">{social.summary.emailsSent}</span>.
             </div>
             <div className="text-[11px] text-muted-foreground mt-2">
-              (Internal rollups come from KitzChat activity, not platform analytics APIs.)
+              Diese Werte stammen aus den internen KitzChat-Rollups, nicht aus nativen Social-Plattform-APIs.
             </div>
           </div>
         </div>

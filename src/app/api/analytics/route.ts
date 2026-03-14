@@ -4,8 +4,6 @@ import { requireApiUser } from "@/lib/api-auth";
 import { clampDays, computeSocialAnalytics, isSafeExternalUrl } from "@/lib/analytics";
 import { fetchPlausibleWebsiteAnalytics } from "@/lib/plausible";
 import { fetchGa4WebsiteAnalytics } from "@/lib/ga4";
-import { fetchXAccountAnalytics } from "@/lib/x-api";
-import { fetchLinkedInOrgAnalytics } from "@/lib/linkedin";
 
 type ProviderState = {
   provider: string;
@@ -208,93 +206,9 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  // Social native connectors.
-  let x: ProviderState = { provider: "x", configured: false };
-  const xBearer = process.env.X_BEARER_TOKEN || process.env.X_API_BEARER_TOKEN || null;
-  const xUsername = process.env.X_USERNAME || null;
-  if (xBearer && xUsername) {
-    const xRun = await runProviderWithRetry(() => fetchXAccountAnalytics({ bearerToken: xBearer, username: xUsername, days }));
-    if (xRun.ok) {
-      const out = xRun.data;
-      x = {
-        provider: "x",
-        configured: true,
-        summary: out.summary,
-        series: out.series,
-        health: {
-          latency_ms: xRun.latencyMs,
-          attempts: xRun.attempts,
-          retry_count: xRun.retryCount,
-          last_success_at: xRun.lastSuccessAt,
-          stale_after_seconds: 10_800,
-          next_retry_after_seconds: 600,
-        },
-      };
-    } else {
-      x = {
-        provider: "x",
-        configured: false,
-        error: xRun.error,
-        health: {
-          latency_ms: xRun.latencyMs,
-          attempts: xRun.attempts,
-          retry_count: xRun.retryCount,
-          last_error_at: xRun.lastErrorAt,
-          stale_after_seconds: 10_800,
-          next_retry_after_seconds: 600,
-        },
-      };
-    }
-  }
-
-  let linkedin: ProviderState = { provider: "linkedin", configured: false };
-  const liToken = process.env.LINKEDIN_ACCESS_TOKEN || null;
-  const liOrgUrn = process.env.LINKEDIN_ORGANIZATION_URN || null;
-  const liVersion = process.env.LINKEDIN_VERSION || null;
-  if (liToken && liOrgUrn) {
-    const liRun = await runProviderWithRetry(() => fetchLinkedInOrgAnalytics({
-        accessToken: liToken,
-        organizationUrn: liOrgUrn,
-        version: liVersion || undefined,
-      }));
-    if (liRun.ok) {
-      const out = liRun.data;
-      linkedin = {
-        provider: "linkedin",
-        configured: true,
-        summary: out.summary,
-        series: out.series,
-        health: {
-          latency_ms: liRun.latencyMs,
-          attempts: liRun.attempts,
-          retry_count: liRun.retryCount,
-          last_success_at: liRun.lastSuccessAt,
-          stale_after_seconds: 10_800,
-          next_retry_after_seconds: 600,
-        },
-      };
-    } else {
-      linkedin = {
-        provider: "linkedin",
-        configured: false,
-        error: liRun.error,
-        health: {
-          latency_ms: liRun.latencyMs,
-          attempts: liRun.attempts,
-          retry_count: liRun.retryCount,
-          last_error_at: liRun.lastErrorAt,
-          stale_after_seconds: 10_800,
-          next_retry_after_seconds: 600,
-        },
-      };
-    }
-  }
-
   return NextResponse.json({
     days,
     website,
-    x,
-    linkedin,
     social: {
       provider: "internal",
       configured: true,

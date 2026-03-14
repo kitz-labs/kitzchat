@@ -75,9 +75,8 @@ function visibleAgentIds(): string[] {
 
 function normalizeEnabledAgentIds(value: string[] | null | undefined): string[] {
   const allowed = new Set(visibleAgentIds());
-  const requested = Array.isArray(value) ? value : visibleAgentIds();
-  const filtered = requested.filter((id) => allowed.has(id));
-  return filtered.length > 0 ? filtered : visibleAgentIds();
+  const active = visibleAgentIds().filter((id) => allowed.has(id));
+  return active.length > 0 ? active : Array.isArray(value) ? value : [];
 }
 
 function parseEnabledAgentIds(value: string | null): string[] {
