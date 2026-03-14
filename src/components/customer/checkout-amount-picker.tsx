@@ -1,6 +1,7 @@
 'use client';
 
-import { CHECKOUT_PRESET_OPTIONS, MIN_CUSTOM_TOPUP_CENTS, type CheckoutType } from '@/lib/billing';
+import type { CheckoutType } from '@/lib/billing';
+import { CHECKOUT_PRESET_OPTIONS, MIN_CUSTOM_TOPUP_CENTS } from '@/lib/checkout-options';
 
 type CheckoutPresetOption = {
   amountCents: number;
@@ -41,7 +42,8 @@ export function CheckoutAmountPicker({
 }: CheckoutAmountPickerProps) {
   const customAmountCents = parseAmountInput(customAmount);
   const discountedCustomAmountCents = Math.max(MIN_CUSTOM_TOPUP_CENTS, Math.round(customAmountCents * (100 - discountPercent) / 100));
-  const resolvedPresetOptions = (presetOptions?.length ? presetOptions : CHECKOUT_PRESET_OPTIONS.map((amountCents) => ({ amountCents }))).slice(0, 4);
+  const fallbackPresetOptions: CheckoutPresetOption[] = CHECKOUT_PRESET_OPTIONS.map((amountCents) => ({ amountCents }));
+  const resolvedPresetOptions = (presetOptions?.length ? presetOptions : fallbackPresetOptions).slice(0, 4);
 
   return (
     <div className="space-y-4">

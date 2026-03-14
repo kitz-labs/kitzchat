@@ -1,0 +1,2 @@
+export const CHECKOUT_PRESET_OPTIONS = [1000, 2000, 5000, 10000] as const;
+export const MIN_CUSTOM_TOPUP_CENTS = 1000;

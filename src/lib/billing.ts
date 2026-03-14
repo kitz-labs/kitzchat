@@ -1,13 +1,12 @@
 import Stripe from 'stripe';
 import { addUserWalletBalance, getUserById, incrementCompletedPayments, markUserPaid, setNextTopupDiscountPercent, updateStripeCustomer } from './auth';
+import { CHECKOUT_PRESET_OPTIONS, MIN_CUSTOM_TOPUP_CENTS } from './checkout-options';
 import { getDb } from './db';
 
 export const ACTIVATION_AMOUNT_CENTS = 2000;
-export const CHECKOUT_PRESET_OPTIONS = [1000, 2000, 5000, 10000] as const;
 export const TOP_UP_OPTIONS = CHECKOUT_PRESET_OPTIONS;
 export type CheckoutType = 'activation' | 'topup';
 export const FIRST_TOPUP_DISCOUNT_PERCENT = 30;
-export const MIN_CUSTOM_TOPUP_CENTS = 1000;
 const MAX_CUSTOM_TOPUP_CENTS = 100_000;
 
 export function ensureBillingTables(): void {

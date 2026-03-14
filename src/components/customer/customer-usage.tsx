@@ -7,7 +7,7 @@ import { CustomerOnboarding } from './customer-onboarding';
 import { CheckoutAmountPicker } from './checkout-amount-picker';
 import { useAudienceGuard } from '@/hooks/use-audience-guard';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
-import { CHECKOUT_PRESET_OPTIONS } from '@/lib/billing';
+import { CHECKOUT_PRESET_OPTIONS } from '@/lib/checkout-options';
 
 type UsagePayload = {
   totals: {
