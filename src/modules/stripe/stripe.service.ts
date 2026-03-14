@@ -1,125 +1,119 @@
 import Stripe from 'stripe';
-import { getStripeClient } from '@/config/stripe';
-import { env } from '@/config/env';
-import { queryPg } from '@/config/db';
-import { updateStripeCustomer } from '@/lib/auth';
-import { recordRefundBySession, recordSuccessfulPayment } from '@/modules/billing/billing.service';
+import { withPgClient } from '@/config/db';
 
-export async function ensureStripeCustomerForUser(params: {
-  userId: number;
-  username: string;
-  email?: string | null;
-  stripeCustomerId?: string | null;
-}): Promise<string | null> {
-  const stripe = getStripeClient();
-  if (!stripe) {
-    return null;
-  }
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const creditMultiplier = Number(process.env.CREDIT_MULTIPLIER || '1000');
+const apiBudgetRatio = Number(process.env.API_BUDGET_RATIO || '0.7');
+const reserveRatio = Number(process.env.RESERVE_RATIO || '0.3');
 
-  if (params.stripeCustomerId) {
-    await stripe.customers.update(params.stripeCustomerId, {
-      email: params.email ?? undefined,
-      name: params.username,
-      metadata: {
-        user_id: String(params.userId),
-        username: params.username,
-      },
-    }).catch(() => null);
-    return params.stripeCustomerId;
-  }
-
-  const customer = await stripe.customers.create({
-    email: params.email ?? undefined,
-    name: params.username,
-    metadata: {
-      user_id: String(params.userId),
-      username: params.username,
-    },
-  });
-
-  updateStripeCustomer(params.userId, customer.id, null);
-  return customer.id;
+function getStripe() {
+  if (!stripeKey) throw new Error('stripe_not_configured');
+  return new Stripe(stripeKey, { apiVersion: '2022-11-15' });
 }
 
-export function verifyStripeWebhook(payload: string, signature: string): Stripe.Event {
-  const stripe = getStripeClient();
-  if (!stripe || !env.STRIPE_WEBHOOK_SECRET) {
-    throw new Error('stripe_not_configured');
+export function verifyStripeWebhook(payload: string, signature: string) {
+  if (!webhookSecret) throw new Error('stripe_not_configured');
+  const stripe = getStripe();
+  try {
+    return stripe.webhooks.constructEvent(payload, signature, webhookSecret as string);
+  } catch (err) {
+    throw err as Error;
   }
-  return stripe.webhooks.constructEvent(payload, signature, env.STRIPE_WEBHOOK_SECRET);
 }
 
-export async function processStripeEvent(event: Stripe.Event): Promise<{ processed: boolean }> {
-  console.info('[stripe:service] processing event', { eventId: event.id, eventType: event.type });
-  const existing = await queryPg<{ processed: boolean }>('SELECT processed FROM webhook_events WHERE stripe_event_id = $1', [event.id]);
-  if (existing.rowCount && existing.rowCount > 0) {
-    console.info('[stripe:service] duplicate event skipped', { eventId: event.id, processed: existing.rows[0].processed });
-    return { processed: existing.rows[0].processed };
-  }
+export async function processStripeEvent(event: Stripe.Event) {
+  // Idempotent processing: record event and skip if already processed
+  const stripeEventId = event.id;
+  await withPgClient(async (client) => {
+    const existing = await client.query('SELECT id, processed FROM webhook_events WHERE stripe_event_id = $1', [stripeEventId]);
+    if (existing.rowCount > 0 && existing.rows[0].processed) return;
 
-  await queryPg(
-    `INSERT INTO webhook_events (stripe_event_id, event_type, processed, payload_json)
-     VALUES ($1, $2, FALSE, $3)`,
-    [event.id, event.type, JSON.stringify(event)],
-  );
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session;
-    console.info('[stripe:service] checkout session completed received', {
-      eventId: event.id,
-      sessionId: session.id,
-      paymentStatus: session.payment_status,
-      customerId: typeof session.customer === 'string' ? session.customer : null,
-    });
-    if (session.payment_status === 'paid') {
-      const metadata = session.metadata || {};
-      const credits = Number(metadata.credits || 0);
-      const grossAmount = (typeof session.amount_total === 'number' ? session.amount_total / 100 : 0) || Number(metadata.gross_amount || 0);
-      const userId = Number(metadata.user_id || 0);
-      console.info('[stripe:service] checkout metadata parsed', { eventId: event.id, userId, credits, grossAmount });
-      if (userId > 0 && credits > 0 && grossAmount > 0) {
-        await recordSuccessfulPayment({
-          userId,
-          sessionId: session.id,
-          paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
-          stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
-          grossAmountEur: grossAmount,
-          creditsIssued: credits,
-          source: 'stripe_webhook',
-        });
-        console.info('[stripe:service] payment recorded', { eventId: event.id, userId, sessionId: session.id });
-      } else {
-        console.warn('[stripe:service] checkout metadata incomplete, skipping payment record', {
-          eventId: event.id,
-          userId,
-          credits,
-          grossAmount,
-        });
-      }
-    }
-  }
-
-  if (event.type === 'charge.refunded') {
-    const charge = event.data.object as Stripe.Charge;
-    if (charge.payment_intent) {
-      const payment = await queryPg<{ stripe_session_id: string }>(
-        'SELECT stripe_session_id FROM payments WHERE stripe_payment_intent_id = $1 ORDER BY id DESC LIMIT 1',
-        [String(charge.payment_intent)],
+    // insert or upsert event row
+    if (existing.rowCount === 0) {
+      await client.query(
+        'INSERT INTO webhook_events (stripe_event_id, event_type, processed, payload_json) VALUES ($1, $2, $3, $4)',
+        [stripeEventId, event.type, false, JSON.stringify(event)],
       );
-      const sessionId = payment.rows[0]?.stripe_session_id;
-      if (sessionId) {
-        await recordRefundBySession(sessionId, 'Stripe refund');
-      }
+    } else {
+      await client.query('UPDATE webhook_events SET payload_json = $2, event_type = $3 WHERE stripe_event_id = $1', [stripeEventId, JSON.stringify(event), event.type]);
     }
-  }
 
-  await queryPg('UPDATE webhook_events SET processed = TRUE, processed_at = CURRENT_TIMESTAMP WHERE stripe_event_id = $1', [event.id]);
-  console.info('[stripe:service] event marked processed', { eventId: event.id, eventType: event.type });
-  return { processed: true };
+    // handle events
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const sessionId = session.id;
+      const paymentIntent = session.payment_intent as string | undefined;
+      const stripeCustomerId = typeof session.customer === 'string' ? session.customer : null;
+      const amountTotal = (session.amount_total ?? session.amount_subtotal) as number | undefined;
+      const grossEur = amountTotal ? Number(amountTotal) / 100.0 : 0;
+      const userId = session.metadata?.user_id ? Number(session.metadata.user_id) : null;
+
+      if (!userId) {
+        // cannot allocate without user id; mark event processed and return
+        await client.query('UPDATE webhook_events SET processed = true, processed_at = NOW() WHERE stripe_event_id = $1', [stripeEventId]);
+        return;
+      }
+
+      // insert payment record if not exists
+      const p = await client.query('SELECT id FROM payments WHERE stripe_session_id = $1', [sessionId]);
+      let paymentId: number;
+      if (p.rowCount === 0) {
+        const res = await client.query(
+          'INSERT INTO payments (user_id, stripe_session_id, stripe_payment_intent_id, stripe_customer_id, gross_amount_eur, currency, status, credits_issued) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+          [userId, sessionId, paymentIntent ?? null, stripeCustomerId, grossEur, session.currency ?? 'eur', 'completed', 0],
+        );
+        paymentId = Number(res.rows[0].id);
+      } else {
+        paymentId = Number(p.rows[0].id);
+      }
+
+      // compute credits and allocation
+      const credits = Math.floor(grossEur * creditMultiplier);
+      const apiBudgetEur = grossEur * apiBudgetRatio;
+      const reserveEur = grossEur * reserveRatio;
+
+      // ensure wallet exists
+      const w = await client.query('SELECT id, balance_credits FROM wallets WHERE user_id = $1', [userId]);
+      let walletId: number;
+      let balanceAfter = credits;
+      if (w.rowCount === 0) {
+        const wr = await client.query('INSERT INTO wallets (user_id, balance_credits) VALUES ($1,$2) RETURNING id, balance_credits', [userId, credits]);
+        walletId = Number(wr.rows[0].id);
+        balanceAfter = Number(wr.rows[0].balance_credits);
+      } else {
+        walletId = Number(w.rows[0].id);
+        const newBalance = Number(w.rows[0].balance_credits) + credits;
+        await client.query('UPDATE wallets SET balance_credits = $1, updated_at = NOW() WHERE id = $2', [newBalance, walletId]);
+        balanceAfter = newBalance;
+      }
+
+      // record wallet ledger
+      await client.query(
+        'INSERT INTO wallet_ledger (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [userId, walletId, 'topup', credits, balanceAfter, 'payment', String(paymentId), `Top-up via Stripe session ${sessionId}`],
+      );
+
+      // update payments with issued credits
+      await client.query('UPDATE payments SET credits_issued = $1 WHERE id = $2', [credits, paymentId]);
+
+      // allocate payment_allocations row
+      await client.query(
+        'INSERT INTO payment_allocations (payment_id, gross_amount_eur, api_budget_eur, reserve_eur, allocation_rule) VALUES ($1,$2,$3,$4,$5)',
+        [paymentId, grossEur, apiBudgetEur, reserveEur, 'default'],
+      );
+
+      // mark event processed
+      await client.query('UPDATE webhook_events SET processed = true, processed_at = NOW() WHERE stripe_event_id = $1', [stripeEventId]);
+      return;
+    }
+
+    // For other events, just mark processed
+    await client.query('UPDATE webhook_events SET processed = true, processed_at = NOW() WHERE stripe_event_id = $1', [stripeEventId]);
+  });
 }
 
-export async function confirmStripeSession(sessionId: string) {
-  const stripe = getStripeClient();
-  if (!stripe) throw new Error('stripe_not_configured');
-  return stripe.checkout.sessions.retrieve(sessionId);
-}
+export default {
+  verifyStripeWebhook,
+  processStripeEvent,
+};
