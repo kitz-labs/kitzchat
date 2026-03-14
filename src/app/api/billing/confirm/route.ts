@@ -32,12 +32,16 @@ export async function POST(request: NextRequest) {
       }
       if (!body.session_id) return NextResponse.json({ error: 'session_id is required' }, { status: 400 });
       const session = await confirmStripeSession(body.session_id);
+      const sessionUserId = Number(session.metadata?.user_id || 0);
+      if (sessionUserId > 0 && sessionUserId !== user.id && user.role !== 'admin' && user.role !== 'editor') {
+        return NextResponse.json({ error: 'Session gehoert zu einem anderen Kundenkonto' }, { status: 403 });
+      }
       if (session.payment_status === 'paid' || session.status === 'complete') {
         const metadata = session.metadata || {};
         const fallbackAmountEur = (typeof session.amount_total === 'number' ? session.amount_total / 100 : 0) || Number(metadata.gross_amount || 0) || (Number(metadata.amount_cents || 0) / 100);
         const fallbackCredits = Number(metadata.credits || 0) || Math.max(0, Math.round(Number(metadata.credit_amount_cents || metadata.amount_cents || 0) * 10));
         await recordSuccessfulPayment({
-          userId: Number(metadata.user_id || user.id),
+          userId: sessionUserId || user.id,
           sessionId: session.id,
           paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
           stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
@@ -69,6 +73,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 });
     }
     const session = await stripe.checkout.sessions.retrieve(body.session_id);
+    const sessionUserId = Number(session.metadata?.user_id || 0);
+    if (sessionUserId > 0 && sessionUserId !== user.id && user.role !== 'admin' && user.role !== 'editor') {
+      return NextResponse.json({ error: 'Session gehoert zu einem anderen Kundenkonto' }, { status: 403 });
+    }
     const paid = session.payment_status === 'paid' || session.status === 'complete';
     if (!paid) {
       return NextResponse.json({ ok: false, status: session.payment_status || session.status || 'pending' });

@@ -4,6 +4,7 @@ import { requireUser, userHasAgentAccess } from '@/lib/auth';
 import { calculateDiscountedAmount, formatEuro, getCheckoutCopy, getNextTopupDiscountPercent, isCheckoutType, normalizeCheckoutAmount } from '@/lib/billing';
 import { createCheckoutSession as createCreditCheckoutSession } from '@/modules/billing/billing.service';
 import { hasPostgresConfig } from '@/config/env';
+import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
 
 const PLAN_CURRENCY = 'eur';
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const creditAmountCents = normalizeCheckoutAmount(checkoutType, body.amountCents);
     const discountPercent = checkoutType === 'topup' ? getNextTopupDiscountPercent(user) : 0;
     const amountCents = checkoutType === 'topup' ? calculateDiscountedAmount(creditAmountCents, discountPercent) : creditAmountCents;
-    const returnPath = typeof body.returnPath === 'string' && body.returnPath.startsWith('/') ? body.returnPath : '/settings';
+    const returnPath = typeof body.returnPath === 'string' && body.returnPath.startsWith('/') ? body.returnPath : '/';
     if (user.role === 'admin' || user.role === 'editor') {
       return NextResponse.json({ error: 'Billing is not required for admin accounts' }, { status: 400 });
     }
@@ -34,13 +35,20 @@ export async function POST(request: Request) {
 
     if (hasPostgresConfig()) {
       const origin = request.headers.get('origin') || new URL(request.url).origin;
+      const stripeCustomerId = await ensureStripeCustomerForUser({
+        userId: user.id,
+        username: user.username,
+        email: user.email ?? null,
+        stripeCustomerId: user.stripe_customer_id ?? null,
+      });
       const result = await createCreditCheckoutSession({
         userId: user.id,
         email: user.email ?? null,
         name: user.username,
-        stripeCustomerId: user.stripe_customer_id ?? null,
+        stripeCustomerId,
         amountEur: amountCents / 100,
         creditAmountEur: creditAmountCents / 100,
+        checkoutType,
         returnUrlBase: `${origin}${returnPath}`,
       });
       return NextResponse.json({
@@ -56,6 +64,12 @@ export async function POST(request: Request) {
     const origin = request.headers.get('origin') || new URL(request.url).origin;
     const stripe = getStripe();
     const checkoutCopy = getCheckoutCopy(checkoutType, amountCents);
+    const stripeCustomerId = await ensureStripeCustomerForUser({
+      userId: user.id,
+      username: user.username,
+      email: user.email ?? null,
+      stripeCustomerId: user.stripe_customer_id ?? null,
+    });
 
     if (!stripe) {
       if (process.env.NODE_ENV === 'production') {
@@ -64,14 +78,14 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         status: 'paid',
-        redirect_url: `${origin}${returnPath}?payment=success&mode=dev&checkout_type=${checkoutType}&amount_cents=${amountCents}&credit_amount_cents=${creditAmountCents}&discount_percent=${discountPercent}`,
+        redirect_url: `${origin}${returnPath}?payment=success&mode=dev&checkout_type=${checkoutType}&amount_cents=${amountCents}&credit_amount_cents=${creditAmountCents}&discount_percent=${discountPercent}&return_path=${encodeURIComponent(returnPath)}`,
       });
     }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      success_url: `${origin}${returnPath}?payment=success&session_id={CHECKOUT_SESSION_ID}&checkout_type=${checkoutType}`,
-      cancel_url: `${origin}${returnPath}?payment=cancelled&checkout_type=${checkoutType}`,
+      success_url: `${origin}${returnPath}?payment=success&session_id={CHECKOUT_SESSION_ID}&checkout_type=${checkoutType}&return_path=${encodeURIComponent(returnPath)}`,
+      cancel_url: `${origin}${returnPath}?payment=cancelled&checkout_type=${checkoutType}&return_path=${encodeURIComponent(returnPath)}`,
       allow_promotion_codes: true,
       line_items: [
         {
@@ -86,7 +100,9 @@ export async function POST(request: Request) {
           },
         },
       ],
-      customer_email: user.email ?? undefined,
+      customer: stripeCustomerId ?? undefined,
+      customer_email: stripeCustomerId ? undefined : user.email ?? undefined,
+      customer_update: stripeCustomerId ? { address: 'auto', name: 'auto' } : undefined,
       metadata: {
         user_id: String(user.id),
         username: user.username,
@@ -94,6 +110,7 @@ export async function POST(request: Request) {
         amount_cents: String(amountCents),
         credit_amount_cents: String(creditAmountCents),
         discount_percent: String(discountPercent),
+        return_path: returnPath,
       },
     });
 

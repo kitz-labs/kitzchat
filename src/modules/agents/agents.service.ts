@@ -5,6 +5,7 @@ import { calculateCreditsForUsage } from './pricing.service';
 import { classifyTask, resolveModelRoute } from './model-routing.service';
 import { applyWalletDelta, ensureBillingUser, getWalletView } from '@/modules/wallet/wallet.service';
 import { queryPg } from '@/config/db';
+import { getAgent } from '@/lib/agent-config';
 
 export async function runAgentChat(params: {
   userId: number;
@@ -36,17 +37,30 @@ export async function runAgentChat(params: {
     promptSizeClass: classification.promptSizeClass,
     balanceRatio: wallet.balanceRatio,
   });
+  const agentConfig = getAgent(undefined, params.agentCode);
+  const preferredModel = wallet.balanceRatio <= 0.15 ? route.preferredModel : agentConfig?.model || route.preferredModel;
+  const fallbackModel = agentConfig?.fallbacks?.[0] || route.fallbackModel;
+  const runtimeUsage = agentConfig?.modelUsage;
 
   const requestId = randomUUID();
   await queryPg(
     `INSERT INTO usage_runs
       (user_id, agent_code, request_id, status, model_internal, model_display_mode, routing_reason)
      VALUES ($1, $2, $3, 'started', $4, $5, $6)`,
-    [params.userId, params.agentCode, requestId, route.preferredModel, route.displayMode, route.routingReason],
+    [params.userId, params.agentCode, requestId, preferredModel, route.displayMode, route.routingReason],
   );
 
   try {
-    const response = await requestOpenAiResponse(params.prompt, route.preferredModel);
+    let response;
+    try {
+      response = await requestOpenAiResponse(params.prompt, preferredModel, runtimeUsage);
+    } catch (error) {
+      if (fallbackModel && fallbackModel !== preferredModel) {
+        response = await requestOpenAiResponse(params.prompt, fallbackModel, runtimeUsage);
+      } else {
+        throw error;
+      }
+    }
     const creditsCharged = await calculateCreditsForUsage(params.agentCode, response.inputTokens, response.outputTokens);
     const walletChange = await applyWalletDelta(params.userId, {
       entry_type: 'usage',

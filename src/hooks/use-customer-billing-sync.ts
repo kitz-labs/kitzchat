@@ -12,6 +12,10 @@ export function useCustomerBillingSync({ enabled = true, onConfirmed }: SyncOpti
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const redirectTarget = (() => {
+    const raw = searchParams.get('return_path');
+    return raw && raw.startsWith('/') ? raw : pathname;
+  })();
 
   const clearParams = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -23,6 +27,7 @@ export function useCustomerBillingSync({ enabled = true, onConfirmed }: SyncOpti
     params.delete('credit_amount_cents');
     params.delete('discount_percent');
     params.delete('credits');
+    params.delete('return_path');
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
   }, [pathname, router, searchParams]);
@@ -59,9 +64,23 @@ export function useCustomerBillingSync({ enabled = true, onConfirmed }: SyncOpti
 
         if (!cancelled) {
           await onConfirmed?.();
+          const paymentPayload = JSON.stringify({ at: Date.now(), redirectTo: redirectTarget });
           try {
-            localStorage.setItem('kitzchat-payment-complete', JSON.stringify({ at: Date.now() }));
+            localStorage.setItem('kitzchat-payment-complete', paymentPayload);
           } catch {}
+
+          if (window.opener && window.opener !== window) {
+            try {
+              window.opener.postMessage({ type: 'kitzchat-payment-complete', redirectTo: redirectTarget }, window.location.origin);
+            } catch {}
+            window.close();
+            return;
+          }
+
+          if (redirectTarget !== pathname) {
+            router.replace(redirectTarget);
+            return;
+          }
         }
       } finally {
         if (!cancelled) {
@@ -73,5 +92,5 @@ export function useCustomerBillingSync({ enabled = true, onConfirmed }: SyncOpti
     return () => {
       cancelled = true;
     };
-  }, [clearParams, enabled, onConfirmed, searchParams]);
+  }, [clearParams, enabled, onConfirmed, pathname, redirectTarget, router, searchParams]);
 }

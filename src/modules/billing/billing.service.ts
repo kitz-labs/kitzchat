@@ -60,6 +60,7 @@ export async function createCheckoutSession(params: {
   preset?: string;
   amountEur?: number;
   creditAmountEur?: number;
+  checkoutType?: 'activation' | 'topup';
   returnUrlBase?: string;
 }) {
   await ensureBillingUser({ userId: params.userId, email: params.email, name: params.name, stripeCustomerId: params.stripeCustomerId, chatEnabled: false });
@@ -73,6 +74,7 @@ export async function createCheckoutSession(params: {
   const stripe = getStripeClient();
   const metadata = {
     user_id: String(params.userId),
+    checkout_type: params.checkoutType ?? 'topup',
     credits: String(totalCredits),
     gross_amount: amountEur.toFixed(2),
     credit_amount: creditAmountEur.toFixed(2),
@@ -81,14 +83,19 @@ export async function createCheckoutSession(params: {
     bonus_credits: String(bonusCredits),
   };
 
-  const successBase = params.returnUrlBase
-    ? new URL(params.returnUrlBase, env.STRIPE_SUCCESS_URL)
-    : new URL(env.STRIPE_SUCCESS_URL.replace('{CHECKOUT_SESSION_ID}', 'dev-session'));
+  const configuredSuccess = new URL(env.STRIPE_SUCCESS_URL.replace('{CHECKOUT_SESSION_ID}', 'dev-session'));
+  const configuredCancel = new URL(env.STRIPE_CANCEL_URL, configuredSuccess);
+  const successBase = params.returnUrlBase ? new URL(params.returnUrlBase, configuredSuccess) : configuredSuccess;
+  const cancelBase = params.returnUrlBase ? new URL(params.returnUrlBase, configuredSuccess) : configuredCancel;
 
-  if (params.returnUrlBase) {
-    successBase.searchParams.set('payment', 'success');
-    successBase.searchParams.set('session_id', 'dev-session');
-  }
+  successBase.searchParams.set('payment', 'success');
+  successBase.searchParams.set('session_id', 'dev-session');
+  successBase.searchParams.set('checkout_type', params.checkoutType ?? 'topup');
+  successBase.searchParams.set('return_path', successBase.pathname);
+
+  cancelBase.searchParams.set('payment', 'cancelled');
+  cancelBase.searchParams.set('checkout_type', params.checkoutType ?? 'topup');
+  cancelBase.searchParams.set('return_path', cancelBase.pathname);
 
   if (!stripe) {
     successBase.searchParams.set('mode', 'dev');
@@ -104,10 +111,11 @@ export async function createCheckoutSession(params: {
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
-    success_url: env.STRIPE_SUCCESS_URL,
-    cancel_url: env.STRIPE_CANCEL_URL,
+    success_url: successBase.toString().replace('dev-session', '{CHECKOUT_SESSION_ID}'),
+    cancel_url: cancelBase.toString(),
     allow_promotion_codes: true,
-    customer_email: params.email ?? undefined,
+    customer: params.stripeCustomerId ?? undefined,
+    customer_email: params.stripeCustomerId ? undefined : params.email ?? undefined,
     metadata,
     line_items: [
       {

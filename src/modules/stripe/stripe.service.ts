@@ -11,13 +11,21 @@ export async function ensureStripeCustomerForUser(params: {
   email?: string | null;
   stripeCustomerId?: string | null;
 }): Promise<string | null> {
-  if (params.stripeCustomerId) {
-    return params.stripeCustomerId;
-  }
-
   const stripe = getStripeClient();
   if (!stripe) {
     return null;
+  }
+
+  if (params.stripeCustomerId) {
+    await stripe.customers.update(params.stripeCustomerId, {
+      email: params.email ?? undefined,
+      name: params.username,
+      metadata: {
+        user_id: String(params.userId),
+        username: params.username,
+      },
+    }).catch(() => null);
+    return params.stripeCustomerId;
   }
 
   const customer = await stripe.customers.create({

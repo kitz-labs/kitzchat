@@ -1,4 +1,5 @@
 import { env, hasOpenAiConfig } from './env';
+import type { AgentModelUsage } from '@/lib/agent-config';
 
 export type OpenAiCreditBalance = {
   configured: boolean;
@@ -17,10 +18,23 @@ export type OpenAiResponse = {
 };
 
 const COST_PER_1K_TOKENS: Record<string, number> = {
+  'gpt-5.4': 0.012,
+  'gpt-5': 0.012,
+  'gpt-4.1': 0.006,
+  'gpt-4.1-mini': 0.0035,
+  'gpt-4o-mini': 0.0015,
   gpt_high: 0.012,
-  gpt_mid: 0.004,
+  gpt_mid: 0.0035,
   gpt_low: 0.0015,
 };
+
+function resolveApiModel(modelInternal: string): { apiModel: string; modelInternal: string } {
+  if (modelInternal === 'gpt_high') return { apiModel: 'gpt-5', modelInternal: 'gpt-5.4' };
+  if (modelInternal === 'gpt_mid') return { apiModel: 'gpt-4.1-mini', modelInternal: 'gpt-4.1-mini' };
+  if (modelInternal === 'gpt_low') return { apiModel: 'gpt-4o-mini', modelInternal: 'gpt-4o-mini' };
+  if (modelInternal === 'gpt-5.4') return { apiModel: 'gpt-5', modelInternal: 'gpt-5.4' };
+  return { apiModel: modelInternal, modelInternal };
+}
 
 function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
@@ -100,7 +114,8 @@ export async function fetchOpenAiCreditBalance(): Promise<OpenAiCreditBalance> {
   };
 }
 
-export async function requestOpenAiResponse(prompt: string, modelInternal: string): Promise<OpenAiResponse> {
+export async function requestOpenAiResponse(prompt: string, modelInternal: string, modelUsage?: Partial<AgentModelUsage>): Promise<OpenAiResponse> {
+  const resolvedModel = resolveApiModel(modelInternal);
   const inputTokens = estimateTokens(prompt);
 
   if (!hasOpenAiConfig()) {
@@ -110,14 +125,18 @@ export async function requestOpenAiResponse(prompt: string, modelInternal: strin
       answer,
       inputTokens,
       outputTokens,
-      openAiCostEur: estimateCostEur(modelInternal, inputTokens, outputTokens),
-      modelInternal,
+      openAiCostEur: estimateCostEur(resolvedModel.modelInternal, inputTokens, outputTokens),
+      modelInternal: resolvedModel.modelInternal,
     };
   }
 
   const payload = {
-    model: modelInternal === 'gpt_high' ? 'gpt-4.1' : modelInternal === 'gpt_low' ? 'gpt-4o-mini' : 'gpt-4.1-mini',
+    model: resolvedModel.apiModel,
     input: prompt,
+    reasoning: modelUsage?.reasoningEffort ? { effort: modelUsage.reasoningEffort } : undefined,
+    text: modelUsage?.maxOutputTokens ? { verbosity: modelUsage.reasoningEffort === 'high' ? 'high' : 'medium' } : undefined,
+    max_output_tokens: modelUsage?.maxOutputTokens,
+    temperature: typeof modelUsage?.temperature === 'number' ? modelUsage.temperature : undefined,
   };
 
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -146,7 +165,7 @@ export async function requestOpenAiResponse(prompt: string, modelInternal: strin
     answer,
     inputTokens: resolvedInputTokens,
     outputTokens,
-    openAiCostEur: estimateCostEur(modelInternal, resolvedInputTokens, outputTokens),
-    modelInternal,
+    openAiCostEur: estimateCostEur(resolvedModel.modelInternal, resolvedInputTokens, outputTokens),
+    modelInternal: resolvedModel.modelInternal,
   };
 }

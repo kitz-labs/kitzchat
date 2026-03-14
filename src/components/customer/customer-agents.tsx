@@ -27,7 +27,21 @@ type Preferences = {
   instagram_connected: boolean;
   docu_connected?: boolean;
   mail_connected?: boolean;
+  connected_integrations_count: number;
 };
+
+function getBlockedReason(agentId: string | undefined, preferences: Preferences): string | null {
+  if (agentId === 'insta-agent' && !preferences.instagram_connected) {
+    return 'Der Insta Agent wird erst aktiv, wenn alle Instagram-Zugangsdaten in den Einstellungen gespeichert sind';
+  }
+  if (agentId === 'docu-agent' && !preferences.docu_connected) {
+    return 'Der DocuAgent wird erst aktiv, wenn in den Einstellungen ein Speicherziel oder eine Cloud-Verbindung gespeichert ist';
+  }
+  if (agentId === 'mail-agent' && !preferences.mail_connected) {
+    return 'Der MailAgent wird erst aktiv, wenn ein Mail-Konto in den Einstellungen verbunden wurde';
+  }
+  return null;
+}
 
 const EXAMPLES: Record<string, string[]> = {
   main: ['Plane meinen heutigen Workflow.', 'Welcher Agent passt fuer meine Aufgabe am besten?'],
@@ -52,23 +66,10 @@ function modelLabel(model: string | undefined): string {
   return 'OpenAI Premium';
 }
 
-function getBlockedReason(agentId: string | undefined, preferences: Preferences): string | null {
-  if (agentId === 'insta-agent' && !preferences.instagram_connected) {
-    return 'Instagram-Einrichtung fehlt';
-  }
-  if (agentId === 'docu-agent' && !preferences.docu_connected) {
-    return 'Dokumentenablage fehlt';
-  }
-  if (agentId === 'mail-agent' && !preferences.mail_connected) {
-    return 'Mail-Verbindung fehlt';
-  }
-  return null;
-}
-
 export function CustomerAgents() {
   const [me, setMe] = useState<MeUser | null>(null);
   const [agents, setAgents] = useState<AgentItem[]>([]);
-  const [preferences, setPreferences] = useState<Preferences>({ enabled_agent_ids: [], instagram_connected: false });
+  const [preferences, setPreferences] = useState<Preferences>({ enabled_agent_ids: [], instagram_connected: false, connected_integrations_count: 0 });
   const [selectedId, setSelectedId] = useState('');
 
   useEffect(() => {
@@ -84,8 +85,8 @@ export function CustomerAgents() {
 
     fetch('/api/customer/preferences', { cache: 'no-store' })
       .then((response) => response.json())
-      .then((payload) => setPreferences(payload?.preferences || { enabled_agent_ids: [], instagram_connected: false }))
-      .catch(() => setPreferences({ enabled_agent_ids: [], instagram_connected: false }));
+      .then((payload) => setPreferences(payload?.preferences || { enabled_agent_ids: [], instagram_connected: false, connected_integrations_count: 0 }))
+      .catch(() => setPreferences({ enabled_agent_ids: [], instagram_connected: false, connected_integrations_count: 0 }));
   }, []);
 
   const hasAccess = Boolean(me?.has_agent_access);
@@ -187,6 +188,8 @@ export function CustomerAgents() {
                 <InfoBlock title="Datenquellen" content={(selectedAgent.apiProviders || []).length > 0 ? (selectedAgent.apiProviders || []).join(', ') : 'Keine externen Datenquellen hinterlegt.'} />
                 <InfoBlock title="Herkunft" content={`${selectedAgent.inspiredBy || 'Individuell'}${selectedAgent.sourceRepo ? ` · ${selectedAgent.sourceRepo}` : ''}`} />
               </div>
+
+              <InfoBlock title="Kunden-Integrationen" content={preferences.connected_integrations_count > 0 ? `${preferences.connected_integrations_count} gespeicherte Verbindungen werden fuer passende Agenten automatisch als Kontext beruecksichtigt.` : 'Noch keine zusaetzlichen Integrationen gespeichert.'} />
 
               {selectedBlockedReason ? (
                 <div className="rounded-2xl border border-warning/40 bg-warning/5 p-4 text-sm text-warning">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { ensureCustomerPreferences, updateCustomerPreferences } from '@/lib/customer-preferences';
+import type { CustomerIntegrationProfile } from '@/lib/integration-catalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +55,7 @@ export async function PATCH(request: Request) {
       instagram_user_access_token?: string;
       instagram_user_id?: string;
       facebook_page_id?: string;
+      integration_profiles?: CustomerIntegrationProfile[];
     };
 
     return NextResponse.json({ preferences: updateCustomerPreferences(user.id, body) });

@@ -241,6 +241,7 @@ function migrate(db: Database.Database) {
       instagram_user_access_token TEXT,
       instagram_user_id TEXT,
       facebook_page_id TEXT,
+      integration_profiles TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -337,4 +338,5 @@ function migrate(db: Database.Database) {
   try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_pop3_host TEXT'); } catch { /* column exists */ }
   try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_pop3_port INTEGER NOT NULL DEFAULT 995'); } catch { /* column exists */ }
   try { db.exec('ALTER TABLE customer_preferences ADD COLUMN mail_use_ssl INTEGER NOT NULL DEFAULT 1'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN integration_profiles TEXT'); } catch { /* column exists */ }
 }

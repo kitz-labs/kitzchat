@@ -14,7 +14,7 @@ export function PaymentCTA({
   label = 'Alle Agenten freischalten',
   checkoutType = 'activation',
   amountCents,
-  returnPath = '/settings',
+  returnPath = '/',
   className = '',
 }: PaymentCTAProps) {
   const [loading, setLoading] = useState(false);

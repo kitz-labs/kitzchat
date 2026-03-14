@@ -151,6 +151,11 @@ export function CustomerUsage() {
 
     function handleStorage(event: StorageEvent) {
       if (event.key !== 'kitzchat-payment-complete') return;
+      const payload = parsePaymentStorageValue(event.newValue);
+      if (payload?.redirectTo && payload.redirectTo !== window.location.pathname) {
+        window.location.href = payload.redirectTo;
+        return;
+      }
       setConfirmingPayment(true);
       Promise.all([loadUsage(), loadMe(), loadInvoices(), loadWallet(), loadLedger(), loadTopupOffers()])
         .catch(() => {})
@@ -222,7 +227,7 @@ export function CustomerUsage() {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkoutType, amountCents, returnPath: '/usage-token' }),
+        body: JSON.stringify({ checkoutType, amountCents, returnPath: '/' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -504,6 +509,16 @@ export function CustomerUsage() {
       </div>
     </div>
   );
+}
+
+function parsePaymentStorageValue(value: string | null): { redirectTo?: string } | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as { redirectTo?: unknown };
+    return typeof parsed.redirectTo === 'string' ? { redirectTo: parsed.redirectTo } : null;
+  } catch {
+    return null;
+  }
 }
 
 function MetricCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint: string }) {

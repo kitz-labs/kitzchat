@@ -7,7 +7,7 @@ import { requireApiChatUser, requireApiUser } from '@/lib/api-auth';
 import { getAgentIds } from '@/lib/agent-config';
 import { requireUser } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
-import { ensureCustomerPreferences } from '@/lib/customer-preferences';
+import { buildCustomerIntegrationContext, ensureCustomerPreferences, getCustomerAgentBlockReason } from '@/lib/customer-preferences';
 import { getAppStateDir } from '@/lib/app-state';
 import { normalizeConversationTitle } from '@/lib/chat-conversations';
 import { inspectPolicyContent, reportPolicyIncident } from '@/lib/policy-enforcement';
@@ -161,24 +161,11 @@ export async function POST(req: NextRequest) {
       if (to && !enabledAgents.has(to)) {
         return NextResponse.json({ error: 'Dieser Agent ist in deinen Einstellungen deaktiviert' }, { status: 400 });
       }
-      if (to === 'insta-agent') {
-        if (!preferences.instagram_connected) {
-          return NextResponse.json({ error: 'Der Insta Agent wird erst aktiv, wenn alle Instagram-Zugangsdaten in den Einstellungen gespeichert sind' }, { status: 400 });
-        }
-        integrationContext = `\n\nInstagram-Zugangsdaten:\n- Benutzername: ${preferences.instagram_username}\n- Graph API: ${preferences.instagram_graph_api}\n- User Access Token: ${preferences.instagram_user_access_token}\n- Instagram User ID: ${preferences.instagram_user_id}\n- Facebook Page ID: ${preferences.facebook_page_id}`;
+      const blockedReason = getCustomerAgentBlockReason(to || undefined, preferences);
+      if (blockedReason) {
+        return NextResponse.json({ error: blockedReason }, { status: 400 });
       }
-      if (to === 'docu-agent') {
-        if (!preferences.docu_connected) {
-          return NextResponse.json({ error: 'Der DocuAgent wird erst aktiv, wenn in den Einstellungen ein Speicherziel oder eine Cloud-Verbindung gespeichert ist' }, { status: 400 });
-        }
-        integrationContext = `\n\nDokumentenablage:\n- Anbieter: ${preferences.docu_provider || 'lokal'}\n- Zielpfad: ${preferences.docu_root_path || preferences.memory_storage_path || resolveCustomerMemoryPath(actor.id, actor.username, preferences.memory_storage_mode, preferences.memory_storage_path)}\n- Kontakt: ${preferences.docu_account_email || 'nicht gesetzt'}\n- Token hinterlegt: ${preferences.docu_access_token ? 'ja' : 'nein'}`;
-      }
-      if (to === 'mail-agent') {
-        if (!preferences.mail_connected) {
-          return NextResponse.json({ error: 'Der MailAgent wird erst aktiv, wenn ein Mail-Konto in den Einstellungen verbunden wurde' }, { status: 400 });
-        }
-        integrationContext = `\n\nMail-Verbindung:\n- Anbieter: ${preferences.mail_provider}\n- Anzeigename: ${preferences.mail_display_name || actor.username}\n- Adresse: ${preferences.mail_address}\n- IMAP: ${preferences.mail_imap_host || 'providerbasiert'}:${preferences.mail_imap_port}\n- SMTP: ${preferences.mail_smtp_host || 'providerbasiert'}:${preferences.mail_smtp_port}\n- POP3: ${preferences.mail_pop3_host || 'optional'}:${preferences.mail_pop3_port}\n- SSL: ${preferences.mail_use_ssl ? 'ja' : 'nein'}`;
-      }
+      integrationContext = buildCustomerIntegrationContext(preferences, to || undefined);
     }
 
     const metadata = attachments.length > 0 ? JSON.stringify({ attachments }) : null;

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Download, FileUp, Lock, PenSquare, Plus, Save, Send, Sparkles, X } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
+import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
 
 type MeUser = {
@@ -79,27 +80,54 @@ export function CustomerWebchat() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [wallet, setWallet] = useState<WalletSnapshot | null>(null);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetch('/api/auth/me', { cache: 'no-store' })
-      .then((response) => response.json())
-      .then((payload) => setMe(payload?.user || null))
-      .catch(() => setMe(null));
-
-    fetch('/api/customer/preferences', { cache: 'no-store' })
-      .then((response) => response.json())
-      .then((payload) => setPreferences(payload?.preferences || { enabled_agent_ids: [], instagram_connected: false }))
-      .catch(() => setPreferences({ enabled_agent_ids: [], instagram_connected: false }));
-
-    fetch('/api/wallet', { cache: 'no-store' })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => null);
-        return response.ok ? normalizeWalletPayload(payload) : null;
-      })
-      .then((payload) => setWallet(payload))
-      .catch(() => setWallet(null));
+  const loadMe = useCallback(async () => {
+    const payload = await fetch('/api/auth/me', { cache: 'no-store' }).then((response) => response.json());
+    setMe(payload?.user || null);
   }, []);
+
+  const loadPreferences = useCallback(async () => {
+    const payload = await fetch('/api/customer/preferences', { cache: 'no-store' }).then((response) => response.json());
+    setPreferences(payload?.preferences || { enabled_agent_ids: [], instagram_connected: false });
+  }, []);
+
+  const loadWallet = useCallback(async () => {
+    const payload = await fetch('/api/wallet', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        return response.ok ? normalizeWalletPayload(data) : null;
+      });
+    setWallet(payload);
+  }, []);
+
+  useEffect(() => {
+    loadMe().catch(() => setMe(null));
+    loadPreferences().catch(() => setPreferences({ enabled_agent_ids: [], instagram_connected: false }));
+    loadWallet().catch(() => setWallet(null));
+  }, [loadMe, loadPreferences, loadWallet]);
+
+  useCustomerBillingSync({
+    onConfirmed: async () => {
+      setConfirmingPayment(true);
+      await Promise.all([loadMe(), loadPreferences(), loadWallet()]);
+      setConfirmingPayment(false);
+    },
+  });
+
+  useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== 'kitzchat-payment-complete') return;
+      setConfirmingPayment(true);
+      Promise.all([loadMe(), loadPreferences(), loadWallet()])
+        .catch(() => {})
+        .finally(() => setConfirmingPayment(false));
+    }
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [loadMe, loadPreferences, loadWallet]);
 
   const { data: agents } = useSmartPoll<AgentItem[]>(
     () => fetch('/api/agents?real=true').then((response) => response.json()),
@@ -324,6 +352,12 @@ export function CustomerWebchat() {
             </div>
           </div>
         </div>
+
+        {confirmingPayment ? (
+          <div className="mx-6 mt-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-primary">
+            Zahlung erkannt. Dein Dashboard und der Webchat werden gerade freigeschaltet.
+          </div>
+        ) : null}
 
         {hasAccess && wallet ? (
           <div className={`mx-6 mt-4 rounded-2xl border px-4 py-3 text-sm ${wallet.lowBalanceWarning ? 'border-warning/40 bg-warning/5 text-warning' : 'border-border/60 bg-muted/10 text-foreground'}`}>

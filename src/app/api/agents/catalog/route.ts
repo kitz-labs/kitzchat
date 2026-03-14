@@ -35,6 +35,19 @@ export async function PATCH(request: Request) {
       inspiredBy?: string;
       sourceRepo?: string;
       customerVisible?: boolean;
+      systemPrompt?: string;
+      inputFormat?: string;
+      outputFormat?: string;
+      limits?: string[];
+      policies?: string[];
+      modelUsage?: {
+        reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
+        temperature?: number;
+        maxToolCalls?: number;
+        maxOutputTokens?: number;
+        maxContextMessages?: number;
+        escalationModel?: string;
+      };
     };
 
     if (!body.id || typeof body.id !== 'string') {
@@ -52,6 +65,12 @@ export async function PATCH(request: Request) {
       inspiredBy: body.inspiredBy,
       sourceRepo: body.sourceRepo,
       customerVisible: body.customerVisible,
+      systemPrompt: body.systemPrompt,
+      inputFormat: body.inputFormat,
+      outputFormat: body.outputFormat,
+      limits: body.limits,
+      policies: body.policies,
+      modelUsage: body.modelUsage,
     });
 
     if (!updated) {

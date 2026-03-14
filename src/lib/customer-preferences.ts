@@ -1,5 +1,11 @@
 import { getAgents } from './agent-config';
 import { getDb } from './db';
+import {
+  type CustomerIntegrationProfile,
+  getIntegrationProvider,
+  INTEGRATION_CATALOG,
+  sanitizeIntegrationProfile,
+} from './integration-catalog';
 
 export type CustomerPreferences = {
   enabled_agent_ids: string[];
@@ -33,6 +39,8 @@ export type CustomerPreferences = {
   instagram_user_id: string;
   facebook_page_id: string;
   instagram_connected: boolean;
+  integration_profiles: CustomerIntegrationProfile[];
+  connected_integrations_count: number;
 };
 
 type CustomerPreferencesRow = {
@@ -65,6 +73,7 @@ type CustomerPreferencesRow = {
   instagram_user_access_token: string | null;
   instagram_user_id: string | null;
   facebook_page_id: string | null;
+  integration_profiles: string | null;
 };
 
 function visibleAgentIds(): string[] {
@@ -75,8 +84,8 @@ function visibleAgentIds(): string[] {
 
 function normalizeEnabledAgentIds(value: string[] | null | undefined): string[] {
   const allowed = new Set(visibleAgentIds());
-  const active = visibleAgentIds().filter((id) => allowed.has(id));
-  return active.length > 0 ? active : Array.isArray(value) ? value : [];
+  const requested = Array.isArray(value) ? value.filter((id) => allowed.has(id)) : [];
+  return requested.length > 0 ? requested : visibleAgentIds();
 }
 
 function parseEnabledAgentIds(value: string | null): string[] {
@@ -101,6 +110,23 @@ function normalizePort(value: unknown, fallback: number): number {
   const numberValue = Math.round(Number(value));
   if (!Number.isFinite(numberValue) || numberValue <= 0) return fallback;
   return numberValue;
+}
+
+function parseIntegrationProfiles(value: string | null): CustomerIntegrationProfile[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item, index) => sanitizeIntegrationProfile(typeof item === 'object' && item !== null ? item as Partial<CustomerIntegrationProfile> : {}, index))
+      .filter((profile) => profile.provider);
+  } catch {
+    return [];
+  }
+}
+
+function countConnectedIntegrations(profiles: CustomerIntegrationProfile[]): number {
+  return profiles.filter((profile) => profile.connected).length;
 }
 
 export function isDocuAgentConnected(
@@ -128,7 +154,9 @@ export function isMailAgentConnected(
   return true;
 }
 
-export function isInstagramConnected(preferences: Pick<CustomerPreferences, 'instagram_username' | 'instagram_password' | 'instagram_graph_api' | 'instagram_user_access_token' | 'instagram_user_id' | 'facebook_page_id'>): boolean {
+export function isInstagramConnected(
+  preferences: Pick<CustomerPreferences, 'instagram_username' | 'instagram_password' | 'instagram_graph_api' | 'instagram_user_access_token' | 'instagram_user_id' | 'facebook_page_id'>,
+): boolean {
   return Boolean(
     preferences.instagram_username &&
       preferences.instagram_password &&
@@ -140,6 +168,7 @@ export function isInstagramConnected(preferences: Pick<CustomerPreferences, 'ins
 }
 
 function mapRow(row: CustomerPreferencesRow): CustomerPreferences {
+  const integrationProfiles = parseIntegrationProfiles(row.integration_profiles);
   const preferences: CustomerPreferences = {
     enabled_agent_ids: parseEnabledAgentIds(row.enabled_agent_ids),
     usage_alert_enabled: row.usage_alert_enabled === 1,
@@ -172,6 +201,8 @@ function mapRow(row: CustomerPreferencesRow): CustomerPreferences {
     instagram_user_id: row.instagram_user_id ?? '',
     facebook_page_id: row.facebook_page_id ?? '',
     instagram_connected: false,
+    integration_profiles: integrationProfiles,
+    connected_integrations_count: countConnectedIntegrations(integrationProfiles),
   };
   preferences.docu_connected = isDocuAgentConnected(preferences);
   preferences.mail_connected = isMailAgentConnected(preferences);
@@ -196,7 +227,8 @@ export function ensureCustomerPreferences(userId: number): CustomerPreferences {
               mail_provider, mail_display_name, mail_address, mail_password,
               mail_imap_host, mail_imap_port, mail_smtp_host, mail_smtp_port, mail_pop3_host, mail_pop3_port, mail_use_ssl,
               instagram_username, instagram_password, instagram_graph_api,
-              instagram_user_access_token, instagram_user_id, facebook_page_id
+              instagram_user_access_token, instagram_user_id, facebook_page_id,
+              integration_profiles
        FROM customer_preferences
        WHERE user_id = ?`,
     )
@@ -233,6 +265,7 @@ export function ensureCustomerPreferences(userId: number): CustomerPreferences {
       instagram_user_access_token: null,
       instagram_user_id: null,
       facebook_page_id: null,
+      integration_profiles: '[]',
     });
   }
 
@@ -247,6 +280,10 @@ export function ensureCustomerPreferences(userId: number): CustomerPreferences {
 
 export function updateCustomerPreferences(userId: number, updates: Partial<CustomerPreferences>): CustomerPreferences {
   const current = ensureCustomerPreferences(userId);
+  const integrationProfiles = Array.isArray(updates.integration_profiles)
+    ? updates.integration_profiles.map((profile, index) => sanitizeIntegrationProfile(profile, index)).filter((profile) => profile.provider)
+    : current.integration_profiles;
+
   const next: CustomerPreferences = {
     enabled_agent_ids: normalizeEnabledAgentIds(updates.enabled_agent_ids ?? current.enabled_agent_ids),
     usage_alert_enabled: typeof updates.usage_alert_enabled === 'boolean' ? updates.usage_alert_enabled : current.usage_alert_enabled,
@@ -279,6 +316,8 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
     instagram_user_id: normalizeText(updates.instagram_user_id ?? current.instagram_user_id),
     facebook_page_id: normalizeText(updates.facebook_page_id ?? current.facebook_page_id),
     instagram_connected: false,
+    integration_profiles: integrationProfiles,
+    connected_integrations_count: countConnectedIntegrations(integrationProfiles),
   };
   next.docu_connected = isDocuAgentConnected(next);
   next.mail_connected = isMailAgentConnected(next);
@@ -315,6 +354,7 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
            instagram_user_access_token = ?,
            instagram_user_id = ?,
            facebook_page_id = ?,
+           integration_profiles = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE user_id = ?`,
     )
@@ -347,8 +387,68 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
       next.instagram_user_access_token || null,
       next.instagram_user_id || null,
       next.facebook_page_id || null,
+      JSON.stringify(next.integration_profiles),
       userId,
     );
 
   return next;
+}
+
+export function getCustomerAgentBlockReason(agentId: string | undefined, preferences: CustomerPreferences): string | null {
+  if (agentId === 'insta-agent' && !preferences.instagram_connected) {
+    return 'Der Insta Agent wird erst aktiv, wenn alle Instagram-Zugangsdaten in den Einstellungen gespeichert sind';
+  }
+  if (agentId === 'docu-agent' && !preferences.docu_connected) {
+    return 'Der DocuAgent wird erst aktiv, wenn in den Einstellungen ein Speicherziel oder eine Cloud-Verbindung gespeichert ist';
+  }
+  if (agentId === 'mail-agent' && !preferences.mail_connected) {
+    return 'Der MailAgent wird erst aktiv, wenn ein Mail-Konto in den Einstellungen verbunden wurde';
+  }
+  return null;
+}
+
+function getRelevantIntegrationProfiles(preferences: CustomerPreferences, agentId?: string): CustomerIntegrationProfile[] {
+  const connected = preferences.integration_profiles.filter((profile) => profile.connected);
+  if (!agentId || agentId === 'main') {
+    return connected.slice(0, 8);
+  }
+
+  const relevantProviderIds = new Set(
+    INTEGRATION_CATALOG.filter((provider) => provider.agentIds.includes(agentId)).map((provider) => provider.id),
+  );
+  const relevant = connected.filter((profile) => relevantProviderIds.has(profile.provider));
+  return (relevant.length > 0 ? relevant : connected).slice(0, 6);
+}
+
+export function buildCustomerIntegrationContext(preferences: CustomerPreferences, agentId?: string): string {
+  const lines: string[] = [];
+
+  const profiles = getRelevantIntegrationProfiles(preferences, agentId);
+  for (const profile of profiles) {
+    const provider = getIntegrationProvider(profile.provider);
+    lines.push(
+      `- ${provider?.name || profile.provider}: ${profile.label || provider?.name || 'Verbindung'}; Konto: ${profile.accountIdentifier || profile.username || 'nicht gesetzt'}; Basis-URL: ${profile.baseUrl || 'standard'}; Zugangsdaten hinterlegt: ${profile.apiKey || profile.accessToken || profile.refreshToken || profile.password ? 'ja' : 'teilweise'}${profile.notes ? `; Hinweise: ${profile.notes}` : ''}`,
+    );
+  }
+
+  if (!agentId || agentId === 'docu-agent') {
+    if (preferences.docu_connected) {
+      lines.push(`- Dokumentenablage: ${preferences.docu_provider || 'lokal'}; Zielpfad: ${preferences.docu_root_path || preferences.memory_storage_path || 'lokaler Standardspeicher'}; Kontakt: ${preferences.docu_account_email || 'nicht gesetzt'}`);
+    }
+  }
+
+  if (!agentId || agentId === 'mail-agent') {
+    if (preferences.mail_connected) {
+      lines.push(`- Mailkonto: ${preferences.mail_provider || 'custom'}; Adresse: ${preferences.mail_address}; Anzeigename: ${preferences.mail_display_name || 'nicht gesetzt'}; IMAP/SMTP hinterlegt: ${preferences.mail_imap_host || preferences.mail_smtp_host ? 'ja' : 'providerbasiert'}`);
+    }
+  }
+
+  if (!agentId || agentId === 'insta-agent') {
+    if (preferences.instagram_connected) {
+      lines.push(`- Instagram: Benutzername ${preferences.instagram_username}; Graph API gesetzt: ${preferences.instagram_graph_api ? 'ja' : 'nein'}; IDs hinterlegt: ${preferences.instagram_user_id && preferences.facebook_page_id ? 'ja' : 'teilweise'}`);
+    }
+  }
+
+  if (lines.length === 0) return '';
+  return `\n\nVerfuegbare Kundenintegrationen:\n${lines.join('\n')}`;
 }

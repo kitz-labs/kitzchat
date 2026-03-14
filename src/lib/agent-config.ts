@@ -19,6 +19,17 @@ export interface CronJob {
   days?: string[]; // ['mon'] for monday-only, etc.
 }
 
+export type AgentReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+
+export interface AgentModelUsage {
+  reasoningEffort: AgentReasoningEffort;
+  temperature: number;
+  maxToolCalls: number;
+  maxOutputTokens: number;
+  maxContextMessages: number;
+  escalationModel?: string;
+}
+
 export interface AgentDefinition {
   id: string;
   name: string;
@@ -35,6 +46,12 @@ export interface AgentDefinition {
   sourceRepo?: string;
   apiProviders: string[];
   customerVisible: boolean;
+  systemPrompt: string;
+  inputFormat: string;
+  outputFormat: string;
+  limits: string[];
+  policies: string[];
+  modelUsage: AgentModelUsage;
 }
 
 interface WorkspaceAgentEntry {
@@ -57,6 +74,25 @@ interface WorkspaceAgentEntry {
   sourceRepo?: unknown;
   apiProviders?: unknown;
   customerVisible?: unknown;
+  prompt?: {
+    system?: unknown;
+  };
+  io?: {
+    inputFormat?: unknown;
+    outputFormat?: unknown;
+  };
+  policy?: {
+    limits?: unknown;
+    rules?: unknown;
+  };
+  modelUsage?: {
+    reasoningEffort?: unknown;
+    temperature?: unknown;
+    maxToolCalls?: unknown;
+    maxOutputTokens?: unknown;
+    maxContextMessages?: unknown;
+    escalationModel?: unknown;
+  };
 }
 
 interface WorkspaceModel {
@@ -98,6 +134,12 @@ type AgentStaticMeta = {
   sourceRepo?: string;
   apiProviders?: string[];
   customerVisible?: boolean;
+  systemPrompt?: string;
+  inputFormat?: string;
+  outputFormat?: string;
+  limits?: string[];
+  policies?: string[];
+  modelUsage?: Partial<AgentModelUsage>;
 };
 
 const DEFAULT_ORDER = [
@@ -396,6 +438,102 @@ const DEFAULT_STATIC_META: Record<string, AgentStaticMeta> = {
 const DEFAULT_MODEL_PRIMARY = 'gpt-5.4';
 const DEFAULT_MODEL_FALLBACKS = ['gpt-4.1', 'gpt-4o-mini'];
 const DEFAULT_TOOLS = ['chat', 'research', 'workspace'];
+const DEFAULT_LIMITS = [
+  'Maximal 2 Rueckfragen pro Turn, wenn Pflichtangaben fehlen.',
+  'Maximal 3 Tool-Schritte pro Antwort, ausser neue Informationen machen mehr notwendig.',
+  'Liefer immer einen konkreten naechsten Schritt oder eine klare Entscheidung.',
+];
+const DEFAULT_POLICIES = [
+  'Antworte faktennah und markiere Unsicherheit explizit statt zu raten.',
+  'Nutze vorhandene Kunden- und Integrationsdaten bevorzugt vor allgemeinem Hintergrundwissen.',
+  'Gib keine Zugangsdaten, Tokens oder Passwoerter im Klartext aus.',
+  'Bei Compliance-, Zahlungs- oder Rechtsrisiken eskalierst du an den Nutzer statt still zu improvisieren.',
+];
+
+const DEFAULT_AGENT_PROMPT_GUIDANCE: Record<string, string> = {
+  main: 'Plane, delegiere und fasse Entscheidungen so zusammen, dass ein Kunde direkt weiterarbeiten kann.',
+  marketing: 'Arbeite marktorientiert, schreibe klar, teste mehrere Hooks und vermeide generische Werbetexte.',
+  apollo: 'Priorisiere Conversion, naechste Aktionen, Einwaende und qualifizierte Follow-ups.',
+  athena: 'Arbeite quellensicher, bewerte Relevanz und trenne Beobachtung, Interpretation und offene Fragen sauber.',
+  metis: 'Verdichte Zahlen zu Trends, Risiken und Handlungsoptionen statt nur Rohdaten nachzuerzaehlen.',
+  'kb-manager': 'Extrahiere wiederverwendbares Wissen, verdichte Dubletten und halte Kontext konsistent.',
+  'browser-operator': 'Denke in reproduzierbaren Browser-Schritten, pruefe Preconditions und dokumentiere Ergebnisse knapp.',
+  codepilot: 'Arbeite wie ein technischer Lead: root cause, minimale Eingriffe, klare Risiken und saubere Umsetzung.',
+  'support-concierge': 'Antworte empathisch, loesungsorientiert und mit klaren Eskalations- oder Folgeaktionen.',
+  'campaign-studio': 'Kombiniere Botschaft, Kanal, Timing und Teststruktur zu einem operativen Rollout.',
+  'insta-agent': 'Fuehre den Nutzer sicher durch Setup, Readiness-Checks und konkrete Instagram-Workflows.',
+  'docu-agent': 'Denke in Dokumenttypen, Ablagezielen, Metadaten und sauberer Struktur fuer spaetere Wiederverwendung.',
+  'mail-agent': 'Arbeite inbox-orientiert: triagieren, priorisieren, entwerfen und klare Antwortoptionen liefern.',
+};
+
+const DEFAULT_MODEL_USAGE_BY_AGENT: Record<string, Partial<AgentModelUsage>> = {
+  main: { reasoningEffort: 'high', maxToolCalls: 4, maxOutputTokens: 1800, maxContextMessages: 18, escalationModel: 'gpt-5.4' },
+  athena: { reasoningEffort: 'high', maxToolCalls: 4, maxOutputTokens: 2200, maxContextMessages: 20, escalationModel: 'gpt-5.4' },
+  codepilot: { reasoningEffort: 'high', maxToolCalls: 4, maxOutputTokens: 2000, maxContextMessages: 18, escalationModel: 'gpt-5.4' },
+  marketing: { reasoningEffort: 'medium', temperature: 0.45, maxToolCalls: 3, maxOutputTokens: 1600, maxContextMessages: 16 },
+  'campaign-studio': { reasoningEffort: 'medium', temperature: 0.4, maxToolCalls: 3, maxOutputTokens: 1700, maxContextMessages: 16 },
+  apollo: { reasoningEffort: 'medium', temperature: 0.25, maxToolCalls: 3, maxOutputTokens: 1400, maxContextMessages: 14 },
+  'support-concierge': { reasoningEffort: 'medium', temperature: 0.2, maxToolCalls: 2, maxOutputTokens: 1200, maxContextMessages: 14 },
+  metis: { reasoningEffort: 'minimal', temperature: 0.1, maxToolCalls: 2, maxOutputTokens: 1200, maxContextMessages: 18 },
+  'kb-manager': { reasoningEffort: 'minimal', temperature: 0.1, maxToolCalls: 2, maxOutputTokens: 1100, maxContextMessages: 20 },
+  'browser-operator': { reasoningEffort: 'low', temperature: 0.15, maxToolCalls: 3, maxOutputTokens: 1200, maxContextMessages: 12 },
+  'insta-agent': { reasoningEffort: 'low', temperature: 0.15, maxToolCalls: 2, maxOutputTokens: 1100, maxContextMessages: 10 },
+  'docu-agent': { reasoningEffort: 'medium', temperature: 0.15, maxToolCalls: 3, maxOutputTokens: 1400, maxContextMessages: 16 },
+  'mail-agent': { reasoningEffort: 'low', temperature: 0.15, maxToolCalls: 2, maxOutputTokens: 1200, maxContextMessages: 14 },
+};
+
+function clampTemperature(value: unknown, fallback = 0.2): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(1, Math.max(0, Number(parsed.toFixed(2))));
+}
+
+function clampPositiveInteger(value: unknown, fallback: number): number {
+  const parsed = Math.round(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isReasoningEffort(value: unknown): value is AgentReasoningEffort {
+  return value === 'minimal' || value === 'low' || value === 'medium' || value === 'high';
+}
+
+function buildDefaultSystemPrompt(agentId: string, meta: AgentStaticMeta): string {
+  return [
+    `Du bist ${meta.name ?? toTitleCase(agentId)}, der KitzChat-Spezialist fuer ${meta.role ?? 'operative Aufgaben'}.`,
+    meta.description ?? 'Arbeite strukturiert, belastbar und direkt umsetzbar.',
+    DEFAULT_AGENT_PROMPT_GUIDANCE[agentId] ?? 'Arbeite praezise, konkret und mit klarer Priorisierung.',
+    'Wenn Angaben fehlen, frage nur nach den minimal notwendigen Details.',
+    'Wenn Tools verfuegbar sind, nutze sie gezielt statt denselben Schritt textlich zu simulieren.',
+  ].join(' ');
+}
+
+function buildDefaultInputFormat(agentId: string): string {
+  if (agentId === 'metis') return 'Erwarte Ziele, Kennzahlen, Zeitraum, Vergleichsbasis und moegliche Datenquellen oder Dateien.';
+  if (agentId === 'codepilot') return 'Erwarte Problem, technisches Ziel, vorhandenen Code- oder API-Kontext, Restriktionen und Erfolgskriterien.';
+  if (agentId === 'athena') return 'Erwarte Frage, Recherchekontext, Zielgruppe, Zeithorizont und Prioritaet der Quellen.';
+  if (agentId === 'support-concierge') return 'Erwarte Kundenanliegen, Dringlichkeit, vorhandene Historie und gewuenschten Antwortstil.';
+  return 'Erwarte Ziel, relevanten Kontext, vorhandene Integrationen oder Daten und das gewuenschte Ergebnis.';
+}
+
+function buildDefaultOutputFormat(agentId: string): string {
+  if (agentId === 'main') return 'Gib Antwort in 3 Blöcken: Einordnung, priorisierte Schritte, naechster empfohlener Zug.';
+  if (agentId === 'athena') return 'Gib Antwort mit Kernaussagen, Quellen-/Beleglage, offenen Fragen und Empfehlung.';
+  if (agentId === 'metis') return 'Gib Antwort mit Trends, Auffaelligkeiten, Risiken und 3 konkreten Massnahmen.';
+  if (agentId === 'codepilot') return 'Gib Antwort mit Diagnose, Loesungsvorschlag, Risiken und optionalem Implementierungsskelett.';
+  return 'Gib Antwort strukturiert, knapp lesbar und mit klaren Handlungsempfehlungen am Ende.';
+}
+
+function buildDefaultModelUsage(agentId: string, meta: AgentStaticMeta): AgentModelUsage {
+  const override = DEFAULT_MODEL_USAGE_BY_AGENT[agentId] ?? {};
+  return {
+    reasoningEffort: override.reasoningEffort ?? (meta.model?.includes('5') ? 'high' : 'medium'),
+    temperature: clampTemperature(override.temperature, meta.model?.includes('mini') ? 0.15 : 0.2),
+    maxToolCalls: clampPositiveInteger(override.maxToolCalls, 3),
+    maxOutputTokens: clampPositiveInteger(override.maxOutputTokens, 1400),
+    maxContextMessages: clampPositiveInteger(override.maxContextMessages, 14),
+    escalationModel: typeof override.escalationModel === 'string' ? override.escalationModel : meta.fallbacks?.[0],
+  };
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -483,6 +621,22 @@ function parseModelRouting(value: unknown): { primary: string; fallbacks: string
 
   if (!primary) return null;
   return { primary, fallbacks };
+}
+
+function parseModelUsage(value: unknown, fallback: AgentModelUsage): AgentModelUsage {
+  if (!isRecord(value)) return fallback;
+
+  return {
+    reasoningEffort: isReasoningEffort(value.reasoningEffort) ? value.reasoningEffort : fallback.reasoningEffort,
+    temperature: clampTemperature(value.temperature, fallback.temperature),
+    maxToolCalls: clampPositiveInteger(value.maxToolCalls, fallback.maxToolCalls),
+    maxOutputTokens: clampPositiveInteger(value.maxOutputTokens, fallback.maxOutputTokens),
+    maxContextMessages: clampPositiveInteger(value.maxContextMessages, fallback.maxContextMessages),
+    escalationModel:
+      typeof value.escalationModel === 'string' && value.escalationModel.trim()
+        ? value.escalationModel.trim()
+        : fallback.escalationModel,
+  };
 }
 
 function normalizeAgentId(id: string): string {
@@ -598,6 +752,21 @@ function buildSeededAgentEntry(
     sourceRepo: meta.sourceRepo ?? null,
     apiProviders: meta.apiProviders ?? [],
     customerVisible: meta.customerVisible ?? true,
+    prompt: {
+      system: meta.systemPrompt ?? buildDefaultSystemPrompt(agentId, meta),
+    },
+    io: {
+      inputFormat: meta.inputFormat ?? buildDefaultInputFormat(agentId),
+      outputFormat: meta.outputFormat ?? buildDefaultOutputFormat(agentId),
+    },
+    policy: {
+      limits: meta.limits ?? DEFAULT_LIMITS,
+      rules: meta.policies ?? DEFAULT_POLICIES,
+    },
+    modelUsage: {
+      ...buildDefaultModelUsage(agentId, meta),
+      ...meta.modelUsage,
+    },
   };
 }
 
@@ -665,6 +834,12 @@ function scaffoldAgentStorage(workspaceHome: string, agentsDir: string, agent: A
     apiProviders: agent.apiProviders,
     customerVisible: agent.customerVisible,
     workspace: safeWorkspaceRoot,
+    systemPrompt: agent.systemPrompt,
+    inputFormat: agent.inputFormat,
+    outputFormat: agent.outputFormat,
+    limits: agent.limits,
+    policies: agent.policies,
+    modelUsage: agent.modelUsage,
   });
   ensureJsonFile(path.join(agentConfigRoot, 'config', 'skills.json'), {
     skills: agent.skills,
@@ -780,6 +955,25 @@ function serializeAgentForWorkspace(agent: AgentDefinition, existing?: Workspace
     sourceRepo: agent.sourceRepo ?? null,
     apiProviders: agent.apiProviders,
     customerVisible: agent.customerVisible,
+    prompt: {
+      system: agent.systemPrompt,
+    },
+    io: {
+      inputFormat: agent.inputFormat,
+      outputFormat: agent.outputFormat,
+    },
+    policy: {
+      limits: agent.limits,
+      rules: agent.policies,
+    },
+    modelUsage: {
+      reasoningEffort: agent.modelUsage.reasoningEffort,
+      temperature: agent.modelUsage.temperature,
+      maxToolCalls: agent.modelUsage.maxToolCalls,
+      maxOutputTokens: agent.modelUsage.maxOutputTokens,
+      maxContextMessages: agent.modelUsage.maxContextMessages,
+      escalationModel: agent.modelUsage.escalationModel ?? null,
+    },
   };
 }
 
@@ -790,7 +984,9 @@ export function loadAgentCatalog(instanceId?: string): AgentDefinition[] {
 export function updateAgentCatalogEntry(
   instanceId: string | undefined,
   agentId: string,
-  updates: Partial<Pick<AgentDefinition, 'name' | 'role' | 'description' | 'model' | 'fallbacks' | 'tools' | 'apiProviders' | 'customerVisible' | 'inspiredBy' | 'sourceRepo'>>,
+  updates: Partial<Pick<AgentDefinition, 'name' | 'role' | 'description' | 'model' | 'fallbacks' | 'tools' | 'apiProviders' | 'customerVisible' | 'inspiredBy' | 'sourceRepo' | 'systemPrompt' | 'inputFormat' | 'outputFormat' | 'limits' | 'policies'>> & {
+    modelUsage?: Partial<AgentModelUsage>;
+  },
 ): AgentDefinition | null {
   const instance = getInstance(instanceId);
   const { workspaceHome, workspaceConfigPath } = resolveWorkspacePaths(instance);
@@ -823,6 +1019,23 @@ export function updateAgentCatalogEntry(
       typeof updates.sourceRepo === 'string' && updates.sourceRepo.trim()
         ? updates.sourceRepo.trim()
         : current.sourceRepo,
+    systemPrompt:
+      typeof updates.systemPrompt === 'string' && updates.systemPrompt.trim()
+        ? updates.systemPrompt.trim()
+        : current.systemPrompt,
+    inputFormat:
+      typeof updates.inputFormat === 'string' && updates.inputFormat.trim()
+        ? updates.inputFormat.trim()
+        : current.inputFormat,
+    outputFormat:
+      typeof updates.outputFormat === 'string' && updates.outputFormat.trim()
+        ? updates.outputFormat.trim()
+        : current.outputFormat,
+    limits: Array.isArray(updates.limits) ? toStringArray(updates.limits) : current.limits,
+    policies: Array.isArray(updates.policies) ? toStringArray(updates.policies) : current.policies,
+    modelUsage: updates.modelUsage
+      ? parseModelUsage(updates.modelUsage as unknown, current.modelUsage)
+      : current.modelUsage,
   };
 
   const currentList = Array.isArray(config.agents?.list) ? config.agents.list : [];
@@ -909,13 +1122,19 @@ export function getAgents(instanceId?: string): AgentDefinition[] {
     const workspace =
       (typeof configured?.workspace === 'string' && configured.workspace.trim()) ||
       defaultWorkspaceFor(workspaceHome, id, defaultsWorkspace || undefined);
+    const defaultModelUsage = buildDefaultModelUsage(id, meta);
+    const defaultLimits = meta.limits ?? DEFAULT_LIMITS;
+    const defaultPolicies = meta.policies ?? DEFAULT_POLICIES;
 
     return {
       id,
       name,
       emoji: meta.emoji || identityEmoji || '\u{1F916}',
       role,
-      description: meta.description || `${name} Agent.`,
+      description:
+        (typeof configured?.description === 'string' && configured.description.trim()) ||
+        meta.description ||
+        `${name} Agent.`,
       model: modelRouting?.primary || 'unknown',
       fallbacks: modelRouting?.fallbacks ?? [],
       tools: allowedTools,
@@ -928,6 +1147,33 @@ export function getAgents(instanceId?: string): AgentDefinition[] {
         (typeof configured?.sourceRepo === 'string' && configured.sourceRepo.trim()) || meta.sourceRepo,
       apiProviders: apiProviders.length > 0 ? apiProviders : meta.apiProviders ?? [],
       customerVisible,
+      systemPrompt:
+        (typeof configured?.prompt?.system === 'string' && configured.prompt.system.trim()) ||
+        meta.systemPrompt ||
+        buildDefaultSystemPrompt(id, meta),
+      inputFormat:
+        (typeof configured?.io?.inputFormat === 'string' && configured.io.inputFormat.trim()) ||
+        meta.inputFormat ||
+        buildDefaultInputFormat(id),
+      outputFormat:
+        (typeof configured?.io?.outputFormat === 'string' && configured.io.outputFormat.trim()) ||
+        meta.outputFormat ||
+        buildDefaultOutputFormat(id),
+      limits:
+        toStringArray(configured?.policy?.limits).length > 0
+          ? toStringArray(configured?.policy?.limits)
+          : defaultLimits,
+      policies:
+        toStringArray(configured?.policy?.rules).length > 0
+          ? toStringArray(configured?.policy?.rules)
+          : defaultPolicies,
+      modelUsage: parseModelUsage(
+        configured?.modelUsage,
+        {
+          ...defaultModelUsage,
+          ...meta.modelUsage,
+        },
+      ),
     };
   });
 

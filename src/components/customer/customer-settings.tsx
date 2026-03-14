@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CreditCard, LogOut, Save, ShieldCheck } from 'lucide-react';
+import { CreditCard, LogOut, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
 import { PaymentCTA } from './payment-cta';
 import { CustomerSupportPanel } from './customer-support-panel';
 import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
+import { INTEGRATION_CATALOG, sanitizeIntegrationProfile, type CustomerIntegrationProfile } from '@/lib/integration-catalog';
+import type { CustomerPreferences } from '@/lib/customer-preferences';
 
 type MeUser = {
   id: number;
@@ -26,39 +28,7 @@ type AgentItem = {
   customerVisible?: boolean;
 };
 
-type Preferences = {
-  enabled_agent_ids: string[];
-  usage_alert_enabled: boolean;
-  usage_alert_daily_tokens: number;
-  memory_storage_mode: 'state' | 'custom';
-  memory_storage_path: string;
-  docu_provider: string;
-  docu_root_path: string;
-  docu_account_email: string;
-  docu_app_password: string;
-  docu_api_key: string;
-  docu_access_token: string;
-  docu_connected: boolean;
-  mail_provider: string;
-  mail_display_name: string;
-  mail_address: string;
-  mail_password: string;
-  mail_imap_host: string;
-  mail_imap_port: number;
-  mail_smtp_host: string;
-  mail_smtp_port: number;
-  mail_pop3_host: string;
-  mail_pop3_port: number;
-  mail_use_ssl: boolean;
-  mail_connected: boolean;
-  instagram_username: string;
-  instagram_password: string;
-  instagram_graph_api: string;
-  instagram_user_access_token: string;
-  instagram_user_id: string;
-  facebook_page_id: string;
-  instagram_connected: boolean;
-};
+type Preferences = CustomerPreferences;
 
 const EMPTY_PREFERENCES: Preferences = {
   enabled_agent_ids: [],
@@ -92,6 +62,8 @@ const EMPTY_PREFERENCES: Preferences = {
   instagram_user_id: '',
   facebook_page_id: '',
   instagram_connected: false,
+  integration_profiles: [],
+  connected_integrations_count: 0,
 };
 
 export function CustomerSettings() {
@@ -138,6 +110,11 @@ export function CustomerSettings() {
   useEffect(() => {
     function handleStorage(event: StorageEvent) {
       if (event.key !== 'kitzchat-payment-complete') return;
+      const payload = parsePaymentStorageValue(event.newValue);
+      if (payload?.redirectTo && payload.redirectTo !== window.location.pathname) {
+        window.location.href = payload.redirectTo;
+        return;
+      }
       setConfirming(true);
       loadMe()
         .catch(() => setMe(null))
@@ -148,12 +125,55 @@ export function CustomerSettings() {
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadMe]);
 
+  function addIntegration(providerId: string) {
+    setPreferences((current) => {
+      const nextProfile = sanitizeIntegrationProfile(
+        {
+          id: `integration-${Date.now()}`,
+          provider: providerId,
+          label: INTEGRATION_CATALOG.find((item) => item.id === providerId)?.name || 'Neue Integration',
+        },
+        current.integration_profiles.length,
+      );
+      const nextProfiles = [...current.integration_profiles, nextProfile];
+      return {
+        ...current,
+        integration_profiles: nextProfiles,
+        connected_integrations_count: nextProfiles.filter((profile) => profile.connected).length,
+      };
+    });
+  }
+
+  function updateIntegration(id: string, patch: Partial<CustomerIntegrationProfile>) {
+    setPreferences((current) => ({
+      ...current,
+      integration_profiles: current.integration_profiles.map((profile, index) =>
+        profile.id === id ? sanitizeIntegrationProfile({ ...profile, ...patch }, index) : profile,
+      ),
+      connected_integrations_count: current.integration_profiles
+        .map((profile, index) => (profile.id === id ? sanitizeIntegrationProfile({ ...profile, ...patch }, index) : profile))
+        .filter((profile) => profile.connected).length,
+    }));
+  }
+
+  function removeIntegration(id: string) {
+    setPreferences((current) => ({
+      ...current,
+      integration_profiles: current.integration_profiles.filter((profile) => profile.id !== id),
+      connected_integrations_count: current.integration_profiles.filter((profile) => profile.id !== id && profile.connected).length,
+    }));
+  }
+
   const paymentLabel = useMemo(() => {
     if (me?.payment_status === 'paid') return 'Bezahlt';
     if (me?.payment_status === 'pending') return 'Zahlung ausstehend';
     return 'Nicht erforderlich';
   }, [me?.payment_status]);
   const isActivated = me?.payment_status === 'paid';
+  const integrationOptions = useMemo(
+    () => INTEGRATION_CATALOG.filter((provider) => provider.popular).concat(INTEGRATION_CATALOG.filter((provider) => !provider.popular)),
+    [],
+  );
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -262,7 +282,7 @@ export function CustomerSettings() {
             {!isActivated ? (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">Dein Onboarding ist davon getrennt. Wenn du alle Agenten freischalten willst, kannst du die Aktivierung hier oder spaeter auf der Guthaben-Seite starten.</p>
-                <PaymentCTA label="Aktivierung mit Stripe starten" returnPath="/settings" />
+                <PaymentCTA label="Aktivierung mit Stripe starten" returnPath="/" />
               </div>
             ) : (
               <div className="text-xs text-muted-foreground">Dein Zugang ist aktiv. Weitere Einzahlungen startest du jederzeit direkt auf der Seite Guthaben.</div>
@@ -469,6 +489,90 @@ export function CustomerSettings() {
         </div>
       </div>
 
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="text-sm font-medium">Eigene APIs und Integrationen</h2>
+            <p className="text-xs text-muted-foreground">Fuege haeufig genutzte Services als Dropdown-Auswahl hinzu. Passende Agenten sehen diese Verbindungen danach automatisch als verfuegbaren Arbeitskontext.</p>
+          </div>
+        </div>
+        <div className="panel-body space-y-4">
+          <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
+            {preferences.integration_profiles.length > 0
+              ? `${preferences.integration_profiles.filter((profile) => profile.connected).length} von ${preferences.integration_profiles.length} Integrationen sind einsatzbereit.`
+              : 'Noch keine zusaetzlichen Integrationen gespeichert.'}
+          </div>
+
+          <label className="space-y-1.5 text-sm">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Integration hinzufuegen</div>
+            <div className="flex gap-2">
+              <select
+                defaultValue=""
+                onChange={(event) => {
+                  if (!event.target.value) return;
+                  addIntegration(event.target.value);
+                  event.target.value = '';
+                }}
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Provider auswaehlen...</option>
+                {integrationOptions.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} · {provider.description}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="btn btn-ghost text-sm inline-flex items-center gap-2" onClick={() => addIntegration('notion')}>
+                <Plus size={14} /> Schnellstart
+              </button>
+            </div>
+          </label>
+
+          <div className="space-y-4">
+            {preferences.integration_profiles.map((profile) => {
+              const provider = INTEGRATION_CATALOG.find((item) => item.id === profile.provider);
+              return (
+                <div key={profile.id} className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="text-sm font-medium">{provider?.name || profile.label || 'Integration'}</div>
+                      <div className="text-xs text-muted-foreground">{provider?.description || 'Benutzerdefinierte Verbindung'} · {provider?.credentialHint || 'API-Zugang oder Login'}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs font-medium ${profile.connected ? 'bg-success/15 text-success' : 'bg-warning/10 text-warning'}`}>
+                        {profile.connected ? 'Verbunden' : 'Unvollstaendig'}
+                      </span>
+                      <button type="button" onClick={() => removeIntegration(profile.id)} className="btn btn-ghost text-sm inline-flex items-center gap-2">
+                        <Trash2 size={14} /> Entfernen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <PrefInput label="Label" value={profile.label} onChange={(value) => updateIntegration(profile.id, { label: value })} />
+                    <PrefInput label="Konto / Workspace" value={profile.accountIdentifier} onChange={(value) => updateIntegration(profile.id, { accountIdentifier: value })} />
+                    <PrefInput label="Basis-URL" value={profile.baseUrl} onChange={(value) => updateIntegration(profile.id, { baseUrl: value })} />
+                    <PrefInput label="API-Key" type="password" value={profile.apiKey} onChange={(value) => updateIntegration(profile.id, { apiKey: value })} />
+                    <PrefInput label="Access-Token" type="password" value={profile.accessToken} onChange={(value) => updateIntegration(profile.id, { accessToken: value })} />
+                    <PrefInput label="Refresh-Token" type="password" value={profile.refreshToken} onChange={(value) => updateIntegration(profile.id, { refreshToken: value })} />
+                    <PrefInput label="Benutzername" value={profile.username} onChange={(value) => updateIntegration(profile.id, { username: value })} />
+                    <PrefInput label="Passwort / Secret" type="password" value={profile.password} onChange={(value) => updateIntegration(profile.id, { password: value })} />
+                    <label className="space-y-1.5 text-sm md:col-span-2 xl:col-span-3">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Notizen fuer Agenten</div>
+                      <textarea value={profile.notes} onChange={(event) => updateIntegration(profile.id, { notes: event.target.value })} className="min-h-24 w-full rounded-2xl border border-border/60 bg-background px-3 py-2 text-sm" />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
+            <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'Integrationen speichern'}
+          </button>
+        </div>
+      </div>
+
       <div id="support" className="scroll-mt-24">
         <CustomerSupportPanel compact />
       </div>
@@ -486,6 +590,16 @@ export function CustomerSettings() {
       </div>
     </div>
   );
+}
+
+function parsePaymentStorageValue(value: string | null): { redirectTo?: string } | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as { redirectTo?: unknown };
+    return typeof parsed.redirectTo === 'string' ? { redirectTo: parsed.redirectTo } : null;
+  } catch {
+    return null;
+  }
 }
 
 function AccountField({ label, value, readOnly = false }: { label: string; value: string; readOnly?: boolean }) {
