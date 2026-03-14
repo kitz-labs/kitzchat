@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin, requireUser, userHasAgentAccess } from '@/lib/auth';
+import { requireAdmin, requireUser, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
 import { roleHasCapability, type Capability } from '@/lib/rbac';
 
 export function requireApiUser(request: Request): NextResponse | null {
@@ -62,7 +62,7 @@ export function requireApiCapability(request: Request, capability: Capability): 
 export function requireApiChatUser(request: Request): NextResponse | null {
   try {
     const user = requireUser(request);
-    if (user.role === 'admin' || user.role === 'editor' || userHasAgentAccess(user)) {
+    if (user.role === 'admin' || user.role === 'editor' || userHasAgentAccess(user) || userHasFreeCustomerAccess(user)) {
       return null;
     }
     return NextResponse.json({ error: 'Payment required to use chat' }, { status: 402 });

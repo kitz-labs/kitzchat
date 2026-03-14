@@ -2,7 +2,36 @@ import Stripe from 'stripe';
 import { getStripeClient } from '@/config/stripe';
 import { env } from '@/config/env';
 import { queryPg } from '@/config/db';
+import { updateStripeCustomer } from '@/lib/auth';
 import { recordRefundBySession, recordSuccessfulPayment } from '@/modules/billing/billing.service';
+
+export async function ensureStripeCustomerForUser(params: {
+  userId: number;
+  username: string;
+  email?: string | null;
+  stripeCustomerId?: string | null;
+}): Promise<string | null> {
+  if (params.stripeCustomerId) {
+    return params.stripeCustomerId;
+  }
+
+  const stripe = getStripeClient();
+  if (!stripe) {
+    return null;
+  }
+
+  const customer = await stripe.customers.create({
+    email: params.email ?? undefined,
+    name: params.username,
+    metadata: {
+      user_id: String(params.userId),
+      username: params.username,
+    },
+  });
+
+  updateStripeCustomer(params.userId, customer.id, null);
+  return customer.id;
+}
 
 export function verifyStripeWebhook(payload: string, signature: string): Stripe.Event {
   const stripe = getStripeClient();

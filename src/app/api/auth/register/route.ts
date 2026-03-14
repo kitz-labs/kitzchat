@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createCustomerUser, createSession, seedAdmin, userHasAgentAccess } from '@/lib/auth';
+import { createCustomerUserWithEmail, createSession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
 import { getAudienceFromAccountType } from '@/lib/app-audience';
+import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
 
 const SESSION_COOKIE = 'kitzchat-session';
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
@@ -19,11 +20,21 @@ function shouldUseSecureCookies(request: Request): boolean {
 export async function POST(request: Request) {
   try {
     seedAdmin();
-    const body = (await request.json()) as { username?: string; password?: string; acceptedTerms?: boolean };
+    const body = (await request.json()) as { username?: string; password?: string; acceptedTerms?: boolean; email?: string };
     if (!body.username || !body.password) {
       return NextResponse.json({ error: 'Username and password required' }, { status: 400 });
     }
-    const user = createCustomerUser(body.username, body.password, body.acceptedTerms === true);
+    const user = createCustomerUserWithEmail(body.username, body.password, {
+      acceptedTerms: body.acceptedTerms === true,
+      email: typeof body.email === 'string' ? body.email : null,
+    });
+    const stripeCustomerId = await ensureStripeCustomerForUser({
+      userId: user.id,
+      username: user.username,
+      email: user.email ?? null,
+      stripeCustomerId: user.stripe_customer_id ?? null,
+    });
+    const freeMessages = getCustomerFreeMessageUsage(user.id, user.username);
     const token = createSession(user.id);
     const response = NextResponse.json({
       app_audience: getAudienceFromAccountType(user.account_type),
@@ -33,14 +44,18 @@ export async function POST(request: Request) {
         role: user.role,
         account_type: user.account_type,
         payment_status: user.payment_status,
-        has_agent_access: userHasAgentAccess(user),
+        has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user),
         email: user.email ?? null,
+        stripe_customer_id: stripeCustomerId ?? user.stripe_customer_id ?? null,
         plan_amount_cents: user.plan_amount_cents ?? 0,
         wallet_balance_cents: user.wallet_balance_cents ?? 0,
         onboarding_completed_at: user.onboarding_completed_at ?? null,
         next_topup_discount_percent: user.next_topup_discount_percent ?? 0,
         completed_payments_count: user.completed_payments_count ?? 0,
         accepted_terms_at: user.accepted_terms_at ?? null,
+        free_messages_limit: freeMessages.limit,
+        free_messages_used: freeMessages.used,
+        free_messages_remaining: freeMessages.remaining,
       },
     }, { status: 201 });
     response.cookies.set(SESSION_COOKIE, token, {

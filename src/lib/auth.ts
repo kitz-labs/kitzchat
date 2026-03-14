@@ -5,6 +5,7 @@ const SALT_LENGTH = 16;
 const KEY_LENGTH = 32;
 const SCRYPT_COST = 16384;
 const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days
+export const FREE_CUSTOMER_MESSAGE_LIMIT = 5;
 
 export interface User {
   id: number;
@@ -372,6 +373,14 @@ export function createUser(username: string, password: string, role: UserRoleInp
 }
 
 export function createCustomerUser(username: string, password: string, acceptedTerms = false): User {
+  return createCustomerUserWithEmail(username, password, { acceptedTerms });
+}
+
+export function createCustomerUserWithEmail(
+  username: string,
+  password: string,
+  options: { acceptedTerms?: boolean; email?: string | null } = {},
+): User {
   ensureAuthTables();
   const db = getDb();
   const normalized = username.trim().toLowerCase();
@@ -379,11 +388,13 @@ export function createCustomerUser(username: string, password: string, acceptedT
     throw new Error('Username must be at least 3 characters');
   }
   assertPasswordLength(password);
+  const acceptedTerms = options.acceptedTerms === true;
+  const normalizedEmail = options.email && options.email.trim() ? options.email.trim().toLowerCase() : null;
   db.prepare(
     acceptedTerms
-      ? 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, accepted_terms_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
-      : 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(normalized, hashPassword(password), 'viewer', 'customer', 'pending', 2000);
+      ? 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, email, accepted_terms_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
+      : 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, email) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(normalized, hashPassword(password), 'viewer', 'customer', 'pending', 2000, normalizedEmail);
   const row = db
     .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE username = ?`)
     .get(normalized) as User;
@@ -614,6 +625,14 @@ export function addUserWalletBalance(userId: number, amountCents: number, checko
   db.prepare("UPDATE users SET payment_status = CASE WHEN payment_status = 'not_required' THEN payment_status ELSE 'paid' END, stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), wallet_balance_cents = wallet_balance_cents + ? WHERE id = ?").run(checkoutSessionId ?? null, amountCents, userId);
 }
 
+export function grantUserWalletBalance(userId: number, amountCents: number): void {
+  const normalizedAmount = Math.max(0, Math.round(amountCents));
+  if (normalizedAmount <= 0) return;
+  getDb()
+    .prepare('UPDATE users SET wallet_balance_cents = wallet_balance_cents + ? WHERE id = ?')
+    .run(normalizedAmount, userId);
+}
+
 export function activateCustomerPaymentAccess(userId: number, checkoutSessionId?: string | null, stripeCustomerId?: string | null, planAmountCents?: number): void {
   const db = getDb();
   const normalizedPlanAmount = Math.max(0, Math.round(planAmountCents ?? 0));
@@ -637,6 +656,19 @@ export function updateUserEmail(userId: number, email: string | null): void {
     throw new Error('Bitte gib eine gueltige E-Mail-Adresse ein');
   }
   getDb().prepare('UPDATE users SET email = ? WHERE id = ?').run(normalized, userId);
+}
+
+export function updateUsername(userId: number, username: string): void {
+  const normalized = username.trim().toLowerCase();
+  if (!normalized || normalized.length < 3) {
+    throw new Error('Username must be at least 3 characters');
+  }
+  getDb().prepare('UPDATE users SET username = ? WHERE id = ?').run(normalized, userId);
+}
+
+export function updateCustomerPaymentStatus(userId: number, paymentStatus: PaymentStatus): void {
+  const normalized = normalizePaymentStatus(paymentStatus, 'pending');
+  getDb().prepare('UPDATE users SET payment_status = ? WHERE id = ?').run(normalized, userId);
 }
 
 export function changeUserPassword(userId: number, currentPassword: string, nextPassword: string): void {
@@ -664,6 +696,38 @@ export function getUserById(userId: number): User | null {
     .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE id = ?`)
     .get(userId) as User | undefined;
   return mapUser(row);
+}
+
+export function getCustomerFreeMessageUsage(userId: number, username?: string | null): { limit: number; used: number; remaining: number } {
+  const db = getDb();
+  const normalizedUsername = username?.trim().toLowerCase();
+  const row = normalizedUsername
+    ? db
+        .prepare(
+          `SELECT COUNT(*) AS used
+           FROM messages
+           WHERE owner_user_id = ? AND from_agent = ? AND message_type = 'text'`,
+        )
+        .get(userId, normalizedUsername)
+    : db
+        .prepare(
+          `SELECT COUNT(*) AS used
+           FROM messages
+           WHERE owner_user_id = ? AND message_type = 'text'`,
+        )
+        .get(userId);
+  const used = Math.max(0, Number((row as { used?: number } | undefined)?.used ?? 0));
+  return {
+    limit: FREE_CUSTOMER_MESSAGE_LIMIT,
+    used,
+    remaining: Math.max(0, FREE_CUSTOMER_MESSAGE_LIMIT - used),
+  };
+}
+
+export function userHasFreeCustomerAccess(user: Pick<User, 'id' | 'username' | 'role' | 'account_type' | 'payment_status'>): boolean {
+  if (user.role === 'admin' || user.role === 'editor') return true;
+  if (user.account_type !== 'customer' || user.payment_status === 'paid') return false;
+  return getCustomerFreeMessageUsage(user.id, user.username).remaining > 0;
 }
 
 export function userHasAgentAccess(user: Pick<User, 'role' | 'account_type' | 'payment_status'>): boolean {

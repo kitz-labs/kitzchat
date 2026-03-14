@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getAgent, getAgents } from '@/lib/agent-config';
-import { getUserById, requireAdmin } from '@/lib/auth';
+import {
+  addUserWalletBalance,
+  getCustomerFreeMessageUsage,
+  getUserById,
+  grantUserWalletBalance,
+  requireAdmin,
+  updateCustomerPaymentStatus,
+  updateUserEmail,
+  updateUsername,
+  setNextTopupDiscountPercent,
+} from '@/lib/auth';
+import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +91,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     return NextResponse.json({
       customer,
+      free_messages: getCustomerFreeMessageUsage(customer.id, customer.username),
       summary: usageSummary,
       agents,
     });
@@ -92,5 +104,80 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to load customer detail' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    requireAdmin(request);
+    const { id } = await context.params;
+    const userId = Number(id);
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return NextResponse.json({ error: 'Invalid customer id' }, { status: 400 });
+    }
+
+    const customer = getUserById(userId);
+    if (!customer || customer.account_type !== 'customer') {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      username?: string;
+      email?: string | null;
+      payment_status?: 'pending' | 'paid';
+      next_topup_discount_percent?: number;
+      add_credits_cents?: number;
+      mark_paid_with_credits_cents?: number;
+      ensure_stripe_customer?: boolean;
+    };
+
+    if (typeof body.username === 'string' && body.username.trim()) {
+      updateUsername(userId, body.username);
+    }
+
+    if (body.email !== undefined) {
+      updateUserEmail(userId, body.email ?? null);
+    }
+
+    if (body.payment_status === 'pending' || body.payment_status === 'paid') {
+      updateCustomerPaymentStatus(userId, body.payment_status);
+    }
+
+    if (typeof body.next_topup_discount_percent === 'number') {
+      setNextTopupDiscountPercent(userId, body.next_topup_discount_percent);
+    }
+
+    if (typeof body.add_credits_cents === 'number' && Number.isFinite(body.add_credits_cents)) {
+      grantUserWalletBalance(userId, body.add_credits_cents);
+    }
+
+    if (typeof body.mark_paid_with_credits_cents === 'number' && Number.isFinite(body.mark_paid_with_credits_cents) && body.mark_paid_with_credits_cents > 0) {
+      addUserWalletBalance(userId, Math.round(body.mark_paid_with_credits_cents));
+    }
+
+    let stripeCustomerId = customer.stripe_customer_id ?? null;
+    if (body.ensure_stripe_customer === true) {
+      const refreshed = getUserById(userId);
+      stripeCustomerId = await ensureStripeCustomerForUser({
+        userId,
+        username: refreshed?.username ?? customer.username,
+        email: refreshed?.email ?? customer.email ?? null,
+        stripeCustomerId: refreshed?.stripe_customer_id ?? customer.stripe_customer_id ?? null,
+      });
+    }
+
+    return NextResponse.json({ customer: { ...getUserById(userId), stripe_customer_id: stripeCustomerId ?? getUserById(userId)?.stripe_customer_id ?? null } });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to update customer';
+    if (msg === 'unauthorized') return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (msg === 'forbidden') return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (msg.includes('Username') || msg.includes('gueltige E-Mail-Adresse')) {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    if (msg.includes('UNIQUE')) {
+      return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+    }
+    return NextResponse.json({ error: 'Failed to update customer' }, { status: 500 });
   }
 }

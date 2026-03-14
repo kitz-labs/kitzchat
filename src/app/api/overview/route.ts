@@ -76,7 +76,11 @@ interface AdminSummaryCompliance {
 
 interface AdminSummaryOpenAi {
   configured: boolean;
+  tracked_tokens_today: number;
+  tracked_tokens_week: number;
   tracked_tokens_30d: number;
+  tracked_cost_today: number;
+  tracked_cost_week: number;
   tracked_cost_30d: number;
   credits_remaining: number | null;
   credits_used: number | null;
@@ -240,7 +244,11 @@ async function getAdminSummary(): Promise<AdminSummary> {
     },
     openai: {
       configured: openAiBalance.configured,
+      tracked_tokens_today: usageTotals.tokens_today ?? 0,
+      tracked_tokens_week: usageTotals.tokens_week ?? 0,
       tracked_tokens_30d: usageTotals.tokens_30d ?? 0,
+      tracked_cost_today: usageTotals.cost_today ?? 0,
+      tracked_cost_week: usageTotals.cost_week ?? 0,
       tracked_cost_30d: usageTotals.cost_30d ?? 0,
       credits_remaining: openAiBalance.creditsRemainingUsd,
       credits_used: openAiBalance.creditsUsedUsd,

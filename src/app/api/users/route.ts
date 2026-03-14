@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createUser, deleteUser, listUsers, requireAdmin, resetUserPassword, updateUserRole } from '@/lib/auth';
+import { createCustomerUserWithEmail, createUser, deleteUser, listUsers, requireAdmin, resetUserPassword, updateUserRole } from '@/lib/auth';
 import { getDb } from '@/lib/db';
+import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,10 +42,25 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     requireAdmin(request);
-    const body = (await request.json()) as { username?: string; password?: string; role?: string };
+    const body = (await request.json()) as { username?: string; password?: string; role?: string; accountType?: 'staff' | 'customer'; email?: string | null };
     if (!body.username || !body.password) {
       return NextResponse.json({ error: 'username and password required' }, { status: 400 });
     }
+
+    if (body.accountType === 'customer') {
+      const user = createCustomerUserWithEmail(body.username, body.password, {
+        acceptedTerms: false,
+        email: typeof body.email === 'string' ? body.email : null,
+      });
+      const stripeCustomerId = await ensureStripeCustomerForUser({
+        userId: user.id,
+        username: user.username,
+        email: user.email ?? null,
+        stripeCustomerId: user.stripe_customer_id ?? null,
+      });
+      return NextResponse.json({ user: { ...user, stripe_customer_id: stripeCustomerId ?? user.stripe_customer_id ?? null } });
+    }
+
     const role: Role = normalizeRole(body.role) ?? 'editor';
     const user = createUser(body.username, body.password, role);
     return NextResponse.json({ user });

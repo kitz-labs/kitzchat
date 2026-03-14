@@ -156,6 +156,31 @@ export default function AnalyticsPage() {
   );
 
   const socialSeries = useMemo(() => data?.social?.series ?? [], [data]);
+  const executiveStats = useMemo(() => {
+    if (!data) return null;
+
+    const websiteUsers =
+      data.website.provider === "ga4"
+        ? data.website.summary?.activeUsers ?? 0
+        : data.website.provider === "plausible"
+          ? data.website.summary?.visitors ?? 0
+          : 0;
+    const websitePageviews =
+      data.website.provider === "ga4"
+        ? data.website.summary?.pageviews ?? 0
+        : data.website.provider === "plausible"
+          ? data.website.summary?.pageviews ?? 0
+          : 0;
+
+    return {
+      websiteUsers,
+      websitePageviews,
+      socialLeads: data.social.summary.leads,
+      socialEngagementRate: data.social.summary.engagementRatePct,
+      xFollowers: data.x.summary?.followers ?? 0,
+      linkedinImpressions: data.linkedin.summary?.impressions ?? 0,
+    };
+  }, [data]);
 
   if (!data || loading) {
     return (
@@ -187,6 +212,17 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {executiveStats ? (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <StatCard label="Website Users" value={executiveStats.websiteUsers} icon={Globe} color="var(--primary)" />
+          <StatCard label="Pageviews" value={executiveStats.websitePageviews} icon={FileText} color="var(--info)" />
+          <StatCard label="Social Leads" value={executiveStats.socialLeads} icon={Users} color="var(--success)" />
+          <StatCard label="Engagement Rate %" value={Number(executiveStats.socialEngagementRate.toFixed(2))} icon={MousePointerClick} color="var(--warning)" />
+          <StatCard label="X Followers" value={executiveStats.xFollowers} icon={X} color="var(--primary)" />
+          <StatCard label="LinkedIn Impressions" value={executiveStats.linkedinImpressions} icon={Linkedin} color="var(--info)" />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <WebsitePanel website={data.website} />

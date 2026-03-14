@@ -19,6 +19,16 @@ type UserRecord = {
 export default function CustomersPage() {
   const { ready } = useAudienceGuard({ redirectCustomerTo: '/' });
   const [users, setUsers] = useState<UserRecord[]>([]);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  async function loadUsers() {
+    const payload = await fetch('/api/users', { cache: 'no-store' }).then((response) => response.json());
+    setUsers(Array.isArray(payload?.users) ? payload.users : []);
+  }
 
   useEffect(() => {
     if (!ready) return;
@@ -45,6 +55,34 @@ export default function CustomersPage() {
   const paidCustomers = customers.filter((user) => user.payment_status === 'paid');
   const pendingCustomers = customers.filter((user) => user.payment_status === 'pending');
 
+  async function createCustomer() {
+    if (!username.trim() || !password.trim()) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+          email: email || null,
+          accountType: 'customer',
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(payload?.error || 'Kunde konnte nicht erstellt werden'));
+      setUsername('');
+      setEmail('');
+      setPassword('');
+      await loadUsers();
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : 'Kunde konnte nicht erstellt werden');
+    } finally {
+      setCreating(false);
+    }
+  }
+
   if (!ready) {
     return <div className="min-h-[40vh] animate-pulse rounded-3xl bg-muted/20" />;
   }
@@ -63,6 +101,28 @@ export default function CustomersPage() {
             <h1 className="text-xl font-semibold">Kunden</h1>
             <p className="text-xs text-muted-foreground">Admin-Uebersicht aller registrierten Kundenkonten und ihres Zahlungsstatus.</p>
           </div>
+        </div>
+        <div className="panel-body border-b border-border/50 space-y-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <label className="space-y-1.5 text-sm">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Benutzername</div>
+              <input value={username} onChange={(event) => setUsername(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+            </label>
+            <label className="space-y-1.5 text-sm">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">E-Mail</div>
+              <input value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+            </label>
+            <label className="space-y-1.5 text-sm">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Passwort</div>
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+            </label>
+            <div className="flex items-end">
+              <button type="button" onClick={createCustomer} disabled={creating} className="btn btn-primary w-full text-sm">
+                {creating ? 'Erstelle...' : 'Kunden erstellen'}
+              </button>
+            </div>
+          </div>
+          {createError ? <div className="text-sm text-destructive">{createError}</div> : null}
         </div>
         <div className="panel-body">
           <div className="overflow-x-auto">

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticate, createSession, destroySession, seedAdmin, userHasAgentAccess } from '@/lib/auth';
+import { authenticate, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
 import { getAudienceFromAccountType } from '@/lib/app-audience';
 
 const SESSION_COOKIE = 'kitzchat-session';
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
+  const freeMessages = getCustomerFreeMessageUsage(user.id, user.username);
 
   // Invalidate any previously presented session token to reduce session fixation risk.
   const cookie = request.headers.get('cookie') || '';
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
       role: user.role,
       account_type: user.account_type,
       payment_status: user.payment_status,
-      has_agent_access: userHasAgentAccess(user),
+      has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user),
       email: user.email ?? null,
       plan_amount_cents: user.plan_amount_cents ?? 0,
       wallet_balance_cents: user.wallet_balance_cents ?? 0,
@@ -66,6 +67,9 @@ export async function POST(request: Request) {
       next_topup_discount_percent: user.next_topup_discount_percent ?? 0,
       completed_payments_count: user.completed_payments_count ?? 0,
       accepted_terms_at: user.accepted_terms_at ?? null,
+      free_messages_limit: freeMessages.limit,
+      free_messages_used: freeMessages.used,
+      free_messages_remaining: freeMessages.remaining,
     },
   });
   const secure = shouldUseSecureCookies(request);
