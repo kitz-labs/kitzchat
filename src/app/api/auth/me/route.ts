@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authenticate, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
+import { authenticate, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess, getUserFromRequest } from '@/lib/auth';
 import { getAudienceFromAccountType } from '@/lib/app-audience';
 import { ensureBillingUser, getWalletView } from '@/modules/wallet/wallet.service';
 
