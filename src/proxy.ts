@@ -69,12 +69,31 @@ export function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Public assets (PWA/brand/public images) must be accessible without session.
+  if (pathname === '/manifest.webmanifest' || pathname === '/robots.txt' || pathname === '/sitemap.xml') {
+    return NextResponse.next();
+  }
+  if (/\.(png|jpg|jpeg|webp|svg|ico|webmanifest)$/i.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // Third-party webhook providers must be able to call webhook routes without a user session.
   if (pathname === '/api/billing/webhook' || pathname === '/api/stripe/webhook' || pathname === '/api/openai/webhook') {
     return NextResponse.next();
   }
 
-  if (pathname === '/login' || pathname === '/register' || pathname.startsWith('/api/auth/')) {
+  if (
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/auth/github/callback' ||
+    pathname.startsWith('/api/auth/') ||
+    pathname === '/email-assets' ||
+    pathname.startsWith('/email-assets/') ||
+    pathname === '/brand/logo.png' ||
+    pathname === '/brand/favicon.png' ||
+    pathname === '/brand/icon.png' ||
+    pathname === '/favicon.ico'
+  ) {
     return NextResponse.next();
   }
 
@@ -87,7 +106,13 @@ export function proxy(request: NextRequest) {
     const referer = request.headers.get('referer');
     const originOk = origin ? allowedOrigins.includes(origin.replace(/\/$/, '')) : true;
     const refererOk = referer ? allowedOrigins.some((allowedOrigin) => referer.startsWith(allowedOrigin)) : true;
-    if (!originOk || !refererOk || (!origin && !referer)) {
+    // Some clients (notably certain Safari setups) may omit both Origin and Referer on same-origin requests.
+    // We already use `SameSite: strict` session cookies, so a cross-site request won't carry the session cookie
+    // and will be blocked by the session gate below. Therefore we only block when headers are present but invalid.
+    if (!originOk || !refererOk) {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       return new NextResponse('Forbidden', { status: 403 });
     }
   }

@@ -113,7 +113,12 @@ export async function DELETE(request: Request) {
     const body = (await request.json()) as { id?: number };
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     // respect runtime setting to prevent accidental deletions
-    if (!getAllowUserDeletion()) return NextResponse.json({ error: 'User deletion is disabled in settings' }, { status: 403 });
+    const superAdmins = new Set(['ceo', 'widauer']);
+    const superAdminEmails = new Set(['ceo@aikitz.at']);
+    const username = (admin.username || '').trim().toLowerCase();
+    const email = (admin.email || '').trim().toLowerCase();
+    const isSuperAdmin = admin.account_type === 'staff' && (superAdmins.has(username) || (email && superAdminEmails.has(email)));
+    if (!getAllowUserDeletion() && !isSuperAdmin) return NextResponse.json({ error: 'User deletion is disabled in settings' }, { status: 403 });
     if (admin.id === body.id) {
       ensureAnotherAdminExists(admin.id);
     }

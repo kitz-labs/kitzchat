@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { getDb } from './db';
 
 const SALT_LENGTH = 16;
@@ -10,9 +10,13 @@ export const FREE_CUSTOMER_MESSAGE_LIMIT = 5;
 export interface User {
   id: number;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  company?: string | null;
   role: string;
   created_at: string;
   email?: string | null;
+  email_verified_at?: string | null;
   auth_provider?: string | null;
   account_type?: AccountType;
   payment_status?: PaymentStatus;
@@ -24,6 +28,9 @@ export interface User {
   next_topup_discount_percent?: number | null;
   completed_payments_count?: number | null;
   accepted_terms_at?: string | null;
+  disabled_at?: string | null;
+  banned_at?: string | null;
+  deleted_at?: string | null;
 }
 
 export interface UserRecord extends User {
@@ -31,12 +38,12 @@ export interface UserRecord extends User {
 }
 
 export type UserRole = 'admin' | 'editor' | 'viewer';
-export type AuthProvider = 'local' | 'google';
+export type AuthProvider = 'local' | 'google' | 'github';
 export type LoginRequestStatus = 'pending' | 'approved' | 'denied';
 export type AccountType = 'staff' | 'customer';
 export type PaymentStatus = 'not_required' | 'pending' | 'paid';
 
-const USER_SELECT_COLUMNS = 'id, username, role, created_at, email, auth_provider, account_type, payment_status, stripe_customer_id, stripe_checkout_session_id, plan_amount_cents, wallet_balance_cents, onboarding_completed_at, next_topup_discount_percent, completed_payments_count, accepted_terms_at';
+const USER_SELECT_COLUMNS = 'id, username, first_name, last_name, company, role, created_at, email, email_verified_at, auth_provider, account_type, payment_status, stripe_customer_id, stripe_checkout_session_id, plan_amount_cents, wallet_balance_cents, onboarding_completed_at, next_topup_discount_percent, completed_payments_count, accepted_terms_at, disabled_at, banned_at, deleted_at';
 
 export interface GoogleLoginRequest {
   id: number;
@@ -96,7 +103,11 @@ function assertPasswordLength(password: string): void {
 function mapUser(row: UserRecord | User | undefined | null): User | null {
   if (!row) return null;
   const enriched = row as UserRecord & {
+    first_name?: string | null;
+    last_name?: string | null;
+    company?: string | null;
     email?: string | null;
+    email_verified_at?: string | null;
     auth_provider?: string | null;
     account_type?: AccountType | null;
     payment_status?: PaymentStatus | null;
@@ -108,13 +119,20 @@ function mapUser(row: UserRecord | User | undefined | null): User | null {
     next_topup_discount_percent?: number | null;
     completed_payments_count?: number | null;
     accepted_terms_at?: string | null;
+    disabled_at?: string | null;
+    banned_at?: string | null;
+    deleted_at?: string | null;
   };
   return {
     id: row.id,
     username: row.username,
+    first_name: enriched.first_name ?? null,
+    last_name: enriched.last_name ?? null,
+    company: enriched.company ?? null,
     role: normalizeRole(row.role),
     created_at: row.created_at,
     email: enriched.email ?? null,
+    email_verified_at: enriched.email_verified_at ?? null,
     auth_provider: enriched.auth_provider ?? 'local',
     account_type: normalizeAccountType(enriched.account_type, row.role === 'admin' || row.role === 'editor' ? 'staff' : 'customer'),
     payment_status: normalizePaymentStatus(enriched.payment_status, row.role === 'admin' || row.role === 'editor' ? 'not_required' : 'pending'),
@@ -126,6 +144,9 @@ function mapUser(row: UserRecord | User | undefined | null): User | null {
     next_topup_discount_percent: enriched.next_topup_discount_percent ?? 0,
     completed_payments_count: enriched.completed_payments_count ?? 0,
     accepted_terms_at: enriched.accepted_terms_at ?? null,
+    disabled_at: enriched.disabled_at ?? null,
+    banned_at: enriched.banned_at ?? null,
+    deleted_at: enriched.deleted_at ?? null,
   };
 }
 
@@ -155,6 +176,55 @@ function verifyPassword(password: string, stored: string): boolean {
   const storedBuf = Buffer.from(hash, 'hex');
   if (derived.length !== storedBuf.length) return false;
   return timingSafeEqual(derived, storedBuf);
+}
+
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function recordAuthEvent(params: {
+  userId: number | null;
+  eventType: string;
+  ip?: string | null;
+  userAgent?: string | null;
+  detail?: Record<string, unknown>;
+}): void {
+  try {
+    const db = getDb();
+    db.prepare(
+      'INSERT INTO auth_events (user_id, event_type, ip, user_agent, detail_json) VALUES (?, ?, ?, ?, ?)',
+    ).run(
+      params.userId ?? null,
+      params.eventType,
+      params.ip ?? null,
+      params.userAgent ?? null,
+      params.detail ? JSON.stringify(params.detail) : null,
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function getLockoutSettings(): { maxFailed: number; lockSeconds: number } {
+  const maxFailed = Math.max(1, Math.round(Number(process.env.AUTH_MAX_FAILED_LOGINS ?? '8')));
+  const lockSeconds = Math.max(10, Math.round(Number(process.env.AUTH_LOCKOUT_SECONDS ?? String(15 * 60))));
+  return { maxFailed, lockSeconds };
+}
+
+function normalizeEmail(email: unknown): string | null {
+  if (typeof email !== 'string') return null;
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return null;
+  return normalized;
 }
 
 export function ensureAuthTables(): void {
@@ -189,6 +259,40 @@ export function ensureAuthTables(): void {
       reviewed_at DATETIME
     );
     CREATE INDEX IF NOT EXISTS idx_google_login_requests_status ON google_login_requests(status);
+
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      email TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at INTEGER NOT NULL,
+      used_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires ON email_verification_tokens(expires_at);
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at INTEGER NOT NULL,
+      used_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires ON password_reset_tokens(expires_at);
+
+    CREATE TABLE IF NOT EXISTS auth_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      event_type TEXT NOT NULL,
+      ip TEXT,
+      user_agent TEXT,
+      detail_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_auth_events_user_created ON auth_events(user_id, created_at);
   `);
 
   // Safe column migrations for auth-provider support.
@@ -196,10 +300,28 @@ export function ensureAuthTables(): void {
     db.exec("ALTER TABLE users ADD COLUMN email TEXT");
   } catch { /* column exists */ }
   try {
+    db.exec('ALTER TABLE users ADD COLUMN first_name TEXT');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN last_name TEXT');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN company TEXT');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN email_verified_at DATETIME');
+  } catch { /* column exists */ }
+  try {
     db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local'");
   } catch { /* column exists */ }
   try {
     db.exec("ALTER TABLE users ADD COLUMN google_sub TEXT");
+  } catch { /* column exists */ }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN github_id TEXT");
+  } catch { /* column exists */ }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN github_login TEXT");
   } catch { /* column exists */ }
   try {
     db.exec("ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'staff'");
@@ -231,7 +353,35 @@ export function ensureAuthTables(): void {
   try {
     db.exec('ALTER TABLE users ADD COLUMN accepted_terms_at DATETIME');
   } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN disabled_at DATETIME');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN banned_at DATETIME');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN deleted_at DATETIME');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN login_failed_count INTEGER NOT NULL DEFAULT 0');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN login_locked_until INTEGER NOT NULL DEFAULT 0');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN last_login_at DATETIME');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN last_login_ip TEXT');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN last_failed_login_at DATETIME');
+  } catch { /* column exists */ }
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN last_failed_login_ip TEXT');
+  } catch { /* column exists */ }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id)');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)');
   db.exec("UPDATE users SET role = 'editor' WHERE role = 'operator'");
   db.exec("UPDATE google_login_requests SET requested_role = 'editor' WHERE requested_role = 'operator'");
@@ -272,10 +422,17 @@ function seedLocalTestCustomer(): void {
   ).run('test', hashPassword('test'), 'viewer', 'customer', 'paid', 2000, 2000, 30, 1);
 }
 
+function shouldSeedLocalTestCustomer(): boolean {
+  const forced = (process.env.KITZCHAT_SEED_TEST_CUSTOMER || '').trim() === '1';
+  if (forced) return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
 export function seedAdmin(): void {
   ensureAuthTables();
   const db = getDb();
   const configuredUsername = process.env.AUTH_USER?.trim().toLowerCase();
+  const seedTestCustomer = shouldSeedLocalTestCustomer();
 
   if (configuredUsername) {
     if (configuredUsername.length < 3) {
@@ -283,28 +440,150 @@ export function seedAdmin(): void {
     }
     const configuredUser = db.prepare('SELECT id FROM users WHERE username = ?').get(configuredUsername) as { id?: number } | undefined;
     if (configuredUser?.id) {
-      seedLocalTestCustomer();
+      if (seedTestCustomer) seedLocalTestCustomer();
       return;
     }
   }
 
   const existingUser = db.prepare('SELECT id FROM users LIMIT 1').get() as { id?: number } | undefined;
   if (existingUser?.id) {
-    seedLocalTestCustomer();
+    if (seedTestCustomer) seedLocalTestCustomer();
     return;
   }
 
   const username = requireEnv('AUTH_USER').toLowerCase();
   const password = requireEnv('AUTH_PASS');
   seedStaffUser(username, password, 'admin');
-  seedLocalTestCustomer();
+  if (seedTestCustomer) seedLocalTestCustomer();
 }
 
 export function authenticate(username: string, password: string): User | null {
   const db = getDb();
-  const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim().toLowerCase()) as UserRecord | undefined;
+  const identifier = username.trim().toLowerCase();
+  const row =
+    (db.prepare('SELECT * FROM users WHERE username = ?').get(identifier) as UserRecord | undefined) ||
+    (db.prepare('SELECT * FROM users WHERE email = ?').get(identifier) as UserRecord | undefined);
   if (!row || !verifyPassword(password, row.password_hash)) return null;
   return mapUser(row);
+}
+
+export function authenticateForLogin(params: {
+  identifier: string;
+  password: string;
+  ip?: string | null;
+  userAgent?: string | null;
+}): User {
+  ensureAuthTables();
+  const db = getDb();
+  const identifier = params.identifier.trim().toLowerCase();
+  const { maxFailed, lockSeconds } = getLockoutSettings();
+
+  const row =
+    (db.prepare('SELECT * FROM users WHERE username = ?').get(identifier) as (UserRecord & {
+      login_failed_count?: number;
+      login_locked_until?: number;
+      disabled_at?: string | null;
+      banned_at?: string | null;
+      deleted_at?: string | null;
+      email_verified_at?: string | null;
+      account_type?: AccountType | null;
+      auth_provider?: AuthProvider | null;
+      email?: string | null;
+    }) | undefined) ||
+    (db.prepare('SELECT * FROM users WHERE email = ?').get(identifier) as (UserRecord & {
+      login_failed_count?: number;
+      login_locked_until?: number;
+      disabled_at?: string | null;
+      banned_at?: string | null;
+      deleted_at?: string | null;
+      email_verified_at?: string | null;
+      account_type?: AccountType | null;
+      auth_provider?: AuthProvider | null;
+      email?: string | null;
+    }) | undefined);
+
+  const now = nowSeconds();
+  const lockedUntil = Math.max(0, Number(row?.login_locked_until ?? 0));
+  if (row && lockedUntil > now) {
+    recordAuthEvent({
+      userId: row.id,
+      eventType: 'login_locked',
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
+      detail: { locked_until: lockedUntil, now },
+    });
+    throw new Error('login_locked');
+  }
+
+  if (!row || !verifyPassword(params.password, row.password_hash)) {
+    if (row) {
+      const failedCount = Math.max(0, Number(row.login_failed_count ?? 0)) + 1;
+      const shouldLock = failedCount >= maxFailed;
+      const nextLockUntil = shouldLock ? now + lockSeconds : 0;
+      db.prepare(
+        `UPDATE users
+         SET login_failed_count = ?,
+             login_locked_until = CASE WHEN ? > 0 THEN ? ELSE login_locked_until END,
+             last_failed_login_at = CURRENT_TIMESTAMP,
+             last_failed_login_ip = ?
+         WHERE id = ?`,
+      ).run(failedCount, nextLockUntil, nextLockUntil, params.ip ?? null, row.id);
+    }
+    recordAuthEvent({
+      userId: row?.id ?? null,
+      eventType: 'login_failed',
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
+    });
+    throw new Error('invalid_credentials');
+  }
+
+  if (row.deleted_at) {
+    recordAuthEvent({ userId: row.id, eventType: 'login_deleted', ip: params.ip ?? null, userAgent: params.userAgent ?? null });
+    throw new Error('account_deleted');
+  }
+  if (row.disabled_at) {
+    recordAuthEvent({ userId: row.id, eventType: 'login_disabled', ip: params.ip ?? null, userAgent: params.userAgent ?? null });
+    throw new Error('account_disabled');
+  }
+  if (row.banned_at) {
+    recordAuthEvent({ userId: row.id, eventType: 'login_banned', ip: params.ip ?? null, userAgent: params.userAgent ?? null });
+    throw new Error('account_banned');
+  }
+
+  const user = mapUser(row);
+  if (!user) throw new Error('invalid_credentials');
+
+  const isCustomer = user.account_type === 'customer';
+  const needsEmailVerification = isCustomer && (user.auth_provider ?? 'local') === 'local' && Boolean(user.email);
+  if (needsEmailVerification && !user.email_verified_at) {
+    recordAuthEvent({
+      userId: user.id,
+      eventType: 'login_email_unverified',
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
+      detail: { email: user.email ?? null },
+    });
+    throw new Error('email_not_verified');
+  }
+
+  db.prepare(
+    `UPDATE users
+     SET login_failed_count = 0,
+         login_locked_until = 0,
+         last_login_at = CURRENT_TIMESTAMP,
+         last_login_ip = ?
+     WHERE id = ?`,
+  ).run(params.ip ?? null, user.id);
+
+  recordAuthEvent({
+    userId: user.id,
+    eventType: 'login_success',
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
+  });
+
+  return user;
 }
 
 export function createSession(userId: number): string {
@@ -322,10 +601,11 @@ export function validateSession(token: string): User | null {
   const now = Math.floor(Date.now() / 1000);
   const row = db
     .prepare(
-      `SELECT u.id, u.username, u.role, u.created_at, u.email, u.auth_provider,
+      `SELECT u.id, u.username, u.role, u.created_at, u.email, u.email_verified_at, u.auth_provider,
               u.account_type, u.payment_status, u.stripe_customer_id, u.stripe_checkout_session_id,
               u.plan_amount_cents, u.wallet_balance_cents, u.onboarding_completed_at,
-              u.next_topup_discount_percent, u.completed_payments_count
+              u.next_topup_discount_percent, u.completed_payments_count, u.accepted_terms_at,
+              u.disabled_at, u.banned_at, u.deleted_at
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token = ? AND s.expires_at > ?`,
     )
@@ -379,7 +659,7 @@ export function createCustomerUser(username: string, password: string, acceptedT
 export function createCustomerUserWithEmail(
   username: string,
   password: string,
-  options: { acceptedTerms?: boolean; email?: string | null } = {},
+  options: { acceptedTerms?: boolean; email?: string | null; firstName?: string | null; lastName?: string | null; company?: string | null } = {},
 ): User {
   ensureAuthTables();
   const db = getDb();
@@ -389,16 +669,140 @@ export function createCustomerUserWithEmail(
   }
   assertPasswordLength(password);
   const acceptedTerms = options.acceptedTerms === true;
-  const normalizedEmail = options.email && options.email.trim() ? options.email.trim().toLowerCase() : null;
+  const normalizedEmail = normalizeEmail(options.email);
+  if (options.email && !normalizedEmail) {
+    throw new Error('Bitte gib eine gueltige E-Mail-Adresse ein');
+  }
+  const firstName = typeof options.firstName === 'string' ? options.firstName.trim() : '';
+  const lastName = typeof options.lastName === 'string' ? options.lastName.trim() : '';
+  const company = typeof options.company === 'string' ? options.company.trim() : '';
   db.prepare(
     acceptedTerms
-      ? 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, email, accepted_terms_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
-      : 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, email) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).run(normalized, hashPassword(password), 'viewer', 'customer', 'pending', 2000, normalizedEmail);
+      ? 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, email, first_name, last_name, company, accepted_terms_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
+      : 'INSERT INTO users (username, password_hash, role, account_type, payment_status, plan_amount_cents, email, first_name, last_name, company) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).run(normalized, hashPassword(password), 'viewer', 'customer', 'pending', 2000, normalizedEmail, firstName || null, lastName || null, company || null);
   const row = db
     .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE username = ?`)
     .get(normalized) as User;
   return mapUser(row)!;
+}
+
+function getTokenTtls(): { verifySeconds: number; resetSeconds: number } {
+  const verifySeconds = Math.max(300, Math.round(Number(process.env.AUTH_EMAIL_VERIFY_TTL_SECONDS ?? String(48 * 60 * 60))));
+  const resetSeconds = Math.max(300, Math.round(Number(process.env.AUTH_PASSWORD_RESET_TTL_SECONDS ?? String(60 * 60))));
+  return { verifySeconds, resetSeconds };
+}
+
+export function createEmailVerificationToken(params: { userId: number; email: string }): { token: string; expires_at: number } {
+  ensureAuthTables();
+  const db = getDb();
+  const email = normalizeEmail(params.email);
+  if (!email) throw new Error('email_invalid');
+  const { verifySeconds } = getTokenTtls();
+  const token = randomBytes(32).toString('hex');
+  const tokenHash = sha256Hex(token);
+  const expiresAt = nowSeconds() + verifySeconds;
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ? AND used_at IS NULL').run(params.userId);
+    db.prepare('INSERT INTO email_verification_tokens (user_id, email, token_hash, expires_at) VALUES (?, ?, ?, ?)').run(
+      params.userId,
+      email,
+      tokenHash,
+      expiresAt,
+    );
+  })();
+
+  return { token, expires_at: expiresAt };
+}
+
+export function verifyEmailWithToken(params: { token: string; ip?: string | null; userAgent?: string | null }): { userId: number; email: string } {
+  ensureAuthTables();
+  const db = getDb();
+  const token = params.token?.trim();
+  if (!token) throw new Error('token_required');
+  const tokenHash = sha256Hex(token);
+  const now = nowSeconds();
+
+  const row = db
+    .prepare(
+      `SELECT id, user_id, email, expires_at, used_at
+       FROM email_verification_tokens
+       WHERE token_hash = ? LIMIT 1`,
+    )
+    .get(tokenHash) as { id: number; user_id: number; email: string; expires_at: number; used_at: string | null } | undefined;
+
+  if (!row) throw new Error('token_invalid');
+  if (row.used_at) throw new Error('token_used');
+  if (Number(row.expires_at) <= now) throw new Error('token_expired');
+
+  db.transaction(() => {
+    db.prepare('UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(row.id);
+    db.prepare('UPDATE users SET email = ?, email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP) WHERE id = ?').run(row.email, row.user_id);
+  })();
+
+  recordAuthEvent({
+    userId: row.user_id,
+    eventType: 'email_verified',
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
+    detail: { email: row.email, verified_at: nowIso() },
+  });
+
+  return { userId: row.user_id, email: row.email };
+}
+
+export function createPasswordResetToken(params: { userId: number }): { token: string; expires_at: number } {
+  ensureAuthTables();
+  const db = getDb();
+  const { resetSeconds } = getTokenTtls();
+  const token = randomBytes(32).toString('hex');
+  const tokenHash = sha256Hex(token);
+  const expiresAt = nowSeconds() + resetSeconds;
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL').run(params.userId);
+    db.prepare('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)').run(params.userId, tokenHash, expiresAt);
+  })();
+
+  return { token, expires_at: expiresAt };
+}
+
+export function resetPasswordWithToken(params: { token: string; newPassword: string; ip?: string | null; userAgent?: string | null }): { userId: number } {
+  ensureAuthTables();
+  const db = getDb();
+  const token = params.token?.trim();
+  if (!token) throw new Error('token_required');
+  assertPasswordLength(params.newPassword);
+
+  const tokenHash = sha256Hex(token);
+  const now = nowSeconds();
+  const row = db
+    .prepare(
+      `SELECT id, user_id, expires_at, used_at
+       FROM password_reset_tokens
+       WHERE token_hash = ? LIMIT 1`,
+    )
+    .get(tokenHash) as { id: number; user_id: number; expires_at: number; used_at: string | null } | undefined;
+
+  if (!row) throw new Error('token_invalid');
+  if (row.used_at) throw new Error('token_used');
+  if (Number(row.expires_at) <= now) throw new Error('token_expired');
+
+  db.transaction(() => {
+    db.prepare('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(row.id);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(params.newPassword), row.user_id);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
+  })();
+
+  recordAuthEvent({
+    userId: row.user_id,
+    eventType: 'password_reset',
+    ip: params.ip ?? null,
+    userAgent: params.userAgent ?? null,
+  });
+
+  return { userId: row.user_id };
 }
 
 function parseAllowedList(value: string | undefined): string[] {
@@ -505,6 +909,50 @@ export function upsertGoogleUser(googleSub: string, email: string): User {
   db.prepare(
     "INSERT INTO users (username, password_hash, role, email, auth_provider, google_sub) VALUES (?, ?, ?, ?, 'google', ?)",
   ).run(username, hashPassword(pseudoPassword), role, normalizedEmail, googleSub);
+
+  const row = db
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE username = ?`)
+    .get(username) as User;
+  return mapUser(row)!;
+}
+
+export function upsertGithubUser(githubId: string, email: string, login: string | null): User {
+  ensureAuthTables();
+  if (!githubId?.trim()) throw new Error('Missing GitHub user id');
+  if (!email?.trim()) throw new Error('Missing GitHub email');
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedLogin = (login || '').trim() || null;
+  const db = getDb();
+
+  const byGithub = db
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE github_id = ?`)
+    .get(githubId) as User | undefined;
+  if (byGithub) return mapUser(byGithub)!;
+
+  const byEmail = db
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE email = ?`)
+    .get(normalizedEmail) as User | undefined;
+  if (byEmail) {
+    db.prepare(
+      "UPDATE users SET github_id = ?, github_login = COALESCE(?, github_login), auth_provider = 'github', email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP) WHERE id = ?",
+    ).run(githubId, normalizedLogin, byEmail.id);
+    const row = db
+      .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE id = ?`)
+      .get(byEmail.id) as User;
+    return mapUser(row)!;
+  }
+
+  const baseUsername = normalizedLogin || makeUsernameFromEmail(normalizedEmail);
+  const username = uniqueUsername(baseUsername);
+  const pseudoPassword = randomBytes(24).toString('hex');
+
+  db.prepare(
+    `INSERT INTO users
+      (username, password_hash, role, account_type, payment_status, plan_amount_cents, wallet_balance_cents, completed_payments_count, next_topup_discount_percent, email, email_verified_at, auth_provider, github_id, github_login)
+     VALUES
+      (?, ?, 'viewer', 'customer', 'pending', 0, 0, 0, 0, ?, CURRENT_TIMESTAMP, 'github', ?, ?)`,
+  ).run(username, hashPassword(pseudoPassword), normalizedEmail, githubId, normalizedLogin);
 
   const row = db
     .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE username = ?`)
@@ -625,6 +1073,12 @@ export function addUserWalletBalance(userId: number, amountCents: number, checko
   db.prepare("UPDATE users SET payment_status = CASE WHEN payment_status = 'not_required' THEN payment_status ELSE 'paid' END, stripe_checkout_session_id = COALESCE(?, stripe_checkout_session_id), wallet_balance_cents = wallet_balance_cents + ? WHERE id = ?").run(checkoutSessionId ?? null, amountCents, userId);
 }
 
+export function setUserWalletBalanceCents(userId: number, walletBalanceCents: number): void {
+  const db = getDb();
+  const normalized = Math.max(0, Math.round(Number(walletBalanceCents) || 0));
+  db.prepare('UPDATE users SET wallet_balance_cents = ? WHERE id = ?').run(normalized, userId);
+}
+
 export function grantUserWalletBalance(userId: number, amountCents: number): void {
   const normalizedAmount = Math.max(0, Math.round(amountCents));
   if (normalizedAmount <= 0) return;
@@ -695,6 +1149,16 @@ export function getUserById(userId: number): User | null {
   const row = getDb()
     .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE id = ?`)
     .get(userId) as User | undefined;
+  return mapUser(row);
+}
+
+export function getUserByEmail(email: string): User | null {
+  ensureAuthTables();
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  const row = getDb()
+    .prepare(`SELECT ${USER_SELECT_COLUMNS} FROM users WHERE email = ? LIMIT 1`)
+    .get(normalized) as User | undefined;
   return mapUser(row);
 }
 
@@ -771,7 +1235,13 @@ export function requireUser(request: Request): User {
 
 export function requireAdmin(request: Request): User {
   const user = requireUser(request);
-  if (user.role !== 'admin') {
+  // Superadmin allowlist (staff-only): enables CEO operators to use admin endpoints even if role was mis-set.
+  const superAdmins = new Set(['ceo', 'widauer']);
+  const superAdminEmails = new Set(['ceo@aikitz.at']);
+  const username = (user.username || '').trim().toLowerCase();
+  const email = (user.email || '').trim().toLowerCase();
+  const isSuperAdmin = user.account_type === 'staff' && (superAdmins.has(username) || (email && superAdminEmails.has(email)));
+  if (user.role !== 'admin' && !isSuperAdmin) {
     throw new Error('forbidden');
   }
   return user;
