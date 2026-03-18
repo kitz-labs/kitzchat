@@ -106,6 +106,10 @@ export function CustomerSettings() {
   const mailPasswordRef = useRef<HTMLInputElement | null>(null);
   const cloudPasswordRef = useRef<HTMLInputElement | null>(null);
 
+  const [cloudTesting, setCloudTesting] = useState(false);
+  const [cloudTestResult, setCloudTestResult] = useState<string | null>(null);
+  const [cloudTestError, setCloudTestError] = useState<string | null>(null);
+
   const loadMe = useCallback(async () => {
     const res = await fetch('/api/auth/me', { cache: 'no-store' });
     const payload = await res.json();
@@ -408,6 +412,24 @@ export function CustomerSettings() {
     }
   }
 
+  async function testCloudConnection() {
+    setCloudTesting(true);
+    setCloudTestError(null);
+    setCloudTestResult(null);
+    try {
+      const response = await fetch('/api/customer/cloud/test', { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(String(payload?.error || 'Cloud Test fehlgeschlagen'));
+      const status = payload?.result?.status;
+      const url = payload?.result?.url;
+      setCloudTestResult(`Cloud OK${typeof status === 'number' ? ` (HTTP ${status})` : ''}${url ? ` · ${url}` : ''}`);
+    } catch (error) {
+      setCloudTestError(error instanceof Error ? error.message : 'Cloud Test fehlgeschlagen');
+    } finally {
+      setCloudTesting(false);
+    }
+  }
+
   async function deleteAccount() {
     if (deleting || !deleteConfirm) return;
     setDeleting(true);
@@ -621,6 +643,15 @@ export function CustomerSettings() {
                   ? 'Cloud-Zugangsdaten werden als Agenten-Kontext genutzt. Memory bleibt bis zur WebDAV-Synchronisation im Nexora-State gespeichert.'
                   : 'Neue Chat- und Agentenbeitraege werden automatisch im Nexora-State unter customer-memory abgelegt.'}
             </div>
+            {preferences.memory_storage_mode === 'cloud' ? (
+              <>
+                {cloudTestResult ? <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">{cloudTestResult}</div> : null}
+                {cloudTestError ? <div className="rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-warning">{cloudTestError}</div> : null}
+                <button type="button" onClick={testCloudConnection} disabled={cloudTesting} className="btn btn-ghost text-sm">
+                  {cloudTesting ? 'Teste...' : 'Cloud testen'}
+                </button>
+              </>
+            ) : null}
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'Memory-Speicher speichern'}
             </button>
@@ -666,6 +697,15 @@ export function CustomerSettings() {
                 </>
               )}
             </div>
+            {preferences.docu_provider === 'cloud' || preferences.docu_provider === 'owncloud' ? (
+              <>
+                {cloudTestResult ? <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">{cloudTestResult}</div> : null}
+                {cloudTestError ? <div className="rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-warning">{cloudTestError}</div> : null}
+                <button type="button" onClick={testCloudConnection} disabled={cloudTesting} className="btn btn-ghost text-sm">
+                  {cloudTesting ? 'Teste...' : 'Cloud testen'}
+                </button>
+              </>
+            ) : null}
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'DocuAgent speichern'}
             </button>
