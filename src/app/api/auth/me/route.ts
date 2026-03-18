@@ -87,6 +87,7 @@ export async function POST(request: Request) {
   }
 
   const token = createSession(user.id);
+  const walletHasBalance = Math.max(0, Number(walletBalanceCredits ?? 0)) > 0 || Math.max(0, Math.round(walletBalanceCentsFromBilling ?? (user.wallet_balance_cents ?? 0))) > 0;
   const response = NextResponse.json({
     app_audience: getAudienceFromAccountType(user.account_type),
     user: {
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
       role: user.role,
       account_type: user.account_type,
       payment_status: user.payment_status,
-      has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user),
+      has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user) || (user.account_type === 'customer' && walletHasBalance),
       email: user.email ?? null,
       plan_amount_cents: user.plan_amount_cents ?? 0,
       wallet_balance_cents: walletBalanceCentsFromBilling ?? (user.wallet_balance_cents ?? 0),
@@ -165,6 +166,7 @@ export async function GET(request: Request) {
       walletBalanceCredits = 0;
     }
 
+    const walletHasBalance = Math.max(0, Number(walletBalanceCredits ?? 0)) > 0 || Math.max(0, Math.round(walletBalanceCentsFromBilling ?? (user.wallet_balance_cents ?? 0))) > 0;
     const response = NextResponse.json({
       app_audience: getAudienceFromAccountType(user.account_type),
       user: {
@@ -173,7 +175,7 @@ export async function GET(request: Request) {
         role: user.role,
         account_type: user.account_type,
         payment_status: user.payment_status,
-        has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user),
+        has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user) || (user.account_type === 'customer' && walletHasBalance),
         email: user.email ?? null,
         plan_amount_cents: user.plan_amount_cents ?? 0,
         wallet_balance_cents: walletBalanceCentsFromBilling ?? (user.wallet_balance_cents ?? 0),
