@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CreditCard, LogOut, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
 import { PaymentCTA } from './payment-cta';
 import { CustomerSupportPanel } from './customer-support-panel';
@@ -93,6 +93,9 @@ export function CustomerSettings() {
   const [integrationTestError, setIntegrationTestError] = useState<string | null>(null);
   const [integrationDisconnecting, setIntegrationDisconnecting] = useState<string | null>(null);
   const [integrationRefreshing, setIntegrationRefreshing] = useState<string | null>(null);
+
+  const mailAddressRef = useRef<HTMLInputElement | null>(null);
+  const mailPasswordRef = useRef<HTMLInputElement | null>(null);
 
   const loadMe = useCallback(async () => {
     const res = await fetch('/api/auth/me', { cache: 'no-store' });
@@ -322,16 +325,25 @@ export function CustomerSettings() {
     setPreferencesError(null);
     setPreferencesSuccess(null);
     try {
+      // Password managers sometimes fill inputs without triggering React onChange.
+      // Prefer DOM values for these critical fields to avoid saving empty secrets.
+      const payload = {
+        ...preferences,
+        mail_address: mailAddressRef.current?.value ?? preferences.mail_address,
+        mail_password: mailPasswordRef.current?.value ?? preferences.mail_password,
+      };
       const res = await fetch('/api/customer/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preferences),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(String(data?.error || 'Einstellungen konnten nicht gespeichert werden'));
       }
-      setPreferences(data?.preferences || preferences);
+      setPreferences(data?.preferences || payload);
+      // Ensure we re-hydrate derived flags (mail_connected, docu_connected, etc.) from the server.
+      await loadPreferences();
       setPreferencesSuccess('Einstellungen wurden gespeichert.');
     } catch (error) {
       setPreferencesError(error instanceof Error ? error.message : 'Einstellungen konnten nicht gespeichert werden');
@@ -642,8 +654,8 @@ export function CustomerSettings() {
               </select>
             </label>
             <PrefInput label="Anzeigename" value={preferences.mail_display_name} onChange={(value) => setPreferences((current) => ({ ...current, mail_display_name: value }))} />
-            <PrefInput label="E-Mail-Adresse" value={preferences.mail_address} onChange={(value) => setPreferences((current) => ({ ...current, mail_address: value }))} />
-            <PrefInput label="Passwort / App-Passwort" type="password" value={preferences.mail_password} onChange={(value) => setPreferences((current) => ({ ...current, mail_password: value }))} />
+            <PrefInput inputRef={mailAddressRef} label="E-Mail-Adresse" value={preferences.mail_address} onChange={(value) => setPreferences((current) => ({ ...current, mail_address: value }))} />
+            <PrefInput inputRef={mailPasswordRef} label="Passwort / App-Passwort" type="password" value={preferences.mail_password} onChange={(value) => setPreferences((current) => ({ ...current, mail_password: value }))} />
             <PrefInput label="IMAP-Host" value={preferences.mail_imap_host} onChange={(value) => setPreferences((current) => ({ ...current, mail_imap_host: value }))} />
             <PrefNumberInput label="IMAP-Port" value={preferences.mail_imap_port} onChange={(value) => setPreferences((current) => ({ ...current, mail_imap_port: value }))} />
             <PrefInput label="SMTP-Host" value={preferences.mail_smtp_host} onChange={(value) => setPreferences((current) => ({ ...current, mail_smtp_host: value }))} />
@@ -966,11 +978,13 @@ function AccountField({ label, value, readOnly = false }: { label: string; value
   );
 }
 
-function PrefInput({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+function PrefInput(
+  { label, value, onChange, type = 'text', inputRef }: { label: string; value: string; onChange: (value: string) => void; type?: string; inputRef?: React.RefObject<HTMLInputElement | null> },
+) {
   return (
     <label className="space-y-1.5 text-sm">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <input value={value} type={type} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+      <input ref={inputRef} value={value} type={type} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
     </label>
   );
 }
