@@ -44,6 +44,8 @@ function getEntitlementInsertSql(mode: 'defaults' | 'enable' | 'set') {
 }
 
 export async function ensureDefaultEntitlements(userId: number): Promise<void> {
+  const userCheck = await queryPg<{ exists: number }>('SELECT 1 AS exists FROM users WHERE id = $1', [userId]);
+  if (userCheck.rowCount === 0) return;
   const flags = await queryPg<{ feature_code: string; default_enabled: boolean }>(
     'SELECT feature_code, default_enabled FROM feature_flags',
   );

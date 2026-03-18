@@ -129,6 +129,10 @@ export async function getWalletView(userId: number): Promise<WalletView> {
 }
 
 export async function applyWalletDelta(userId: number, entry: WalletLedgerEntry): Promise<{ balanceAfter: number; walletId: number }> {
+  const creditsDelta = Number(entry.credits_delta ?? 0);
+  if (!Number.isFinite(creditsDelta)) {
+    throw new Error('invalid_credits_delta');
+  }
   return withPgClient(async (client) => {
     await client.beginTransaction?.();
     try {
@@ -141,7 +145,7 @@ export async function applyWalletDelta(userId: number, entry: WalletLedgerEntry)
            WHERE user_id = $2
              AND balance_credits + $1 >= 0
            RETURNING id, balance_credits`,
-          [entry.credits_delta, userId],
+          [creditsDelta, userId],
         );
 
         if (updated.rowCount === 0) {
@@ -155,7 +159,7 @@ export async function applyWalletDelta(userId: number, entry: WalletLedgerEntry)
           `INSERT INTO wallet_ledger
             (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [userId, walletId, entry.entry_type, entry.credits_delta, balanceAfter, entry.reference_type, entry.reference_id, entry.note],
+          [userId, walletId, entry.entry_type, creditsDelta, balanceAfter, entry.reference_type, entry.reference_id, entry.note],
         );
         await client.commit?.();
         return { balanceAfter, walletId };
@@ -168,7 +172,7 @@ export async function applyWalletDelta(userId: number, entry: WalletLedgerEntry)
       if (walletRow.rowCount === 0) throw new Error('wallet_not_found');
       const walletId = Number(walletRow.rows[0].id);
       const prior = Number(walletRow.rows[0].balance_credits ?? 0);
-      const balanceAfter = prior + entry.credits_delta;
+      const balanceAfter = prior + creditsDelta;
       if (balanceAfter < 0) throw new Error('insufficient_credits');
 
       await client.query('UPDATE wallets SET balance_credits = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [balanceAfter, walletId]);
@@ -176,7 +180,7 @@ export async function applyWalletDelta(userId: number, entry: WalletLedgerEntry)
         `INSERT INTO wallet_ledger
           (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [userId, walletId, entry.entry_type, entry.credits_delta, balanceAfter, entry.reference_type, entry.reference_id, entry.note],
+        [userId, walletId, entry.entry_type, creditsDelta, balanceAfter, entry.reference_type, entry.reference_id, entry.note],
       );
       await client.commit?.();
       return { balanceAfter, walletId };
