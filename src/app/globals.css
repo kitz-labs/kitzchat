@@ -26,6 +26,9 @@
   --nav-width: 220px;
   --header-height: 48px;
   --radius: 0.625rem;
+  --app-bg: radial-gradient(1000px 700px at 40% 0%, rgba(47,107,255,0.10), transparent 55%),
+            radial-gradient(900px 520px at 85% 18%, rgba(22,163,74,0.08), transparent 60%),
+            linear-gradient(180deg, #fbfbfe 0%, #f2f4fb 60%, #ffffff 100%);
 
   /* Light mode (default for :root, overridden by .dark) */
   --background: #ffffff;
@@ -75,6 +78,9 @@
   --surface-1: color-mix(in srgb, #0c0f16 90%, transparent);
   --surface-2: color-mix(in srgb, #101522 92%, transparent);
   --surface-3: color-mix(in srgb, #151c2c 94%, transparent);
+  --app-bg: radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.06), transparent 60%),
+            radial-gradient(900px 520px at 20% 18%, rgba(255,255,255,0.035), transparent 60%),
+            linear-gradient(180deg, #040406 0%, #000000 72%, #040406 100%);
 }
 
 /* ─── Base ─────────────────────────────────────────────── */
@@ -86,9 +92,7 @@ html.dark {
 }
 
 body {
-  background: radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.06), transparent 60%),
-              radial-gradient(900px 520px at 20% 18%, rgba(255,255,255,0.035), transparent 60%),
-              linear-gradient(180deg, #040406 0%, #000000 72%, #040406 100%);
+  background: var(--app-bg);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   font-feature-settings: "rlig" 1, "calt" 1;
@@ -96,6 +100,37 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
   overscroll-behavior-y: contain;
+}
+
+/* ─── Customer Dashboard Polish ────────────────────────── */
+.customer-shell .panel,
+.customer-shell .card {
+  box-shadow: 0 10px 35px color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+.customer-shell .panel-header {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--primary) 10%, transparent),
+    transparent 55%,
+    color-mix(in srgb, var(--info) 8%, transparent)
+  );
+}
+
+.customer-shell .btn-primary {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary) 92%, #ffffff 8%),
+    color-mix(in srgb, #7c3aed 40%, var(--primary) 60%)
+  );
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.customer-shell .btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.customer-shell .btn {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, background 0.15s ease-out, border-color 0.15s ease-out;
 }
 
 /* ─── Space Background (stars + shooting stars) ─────────── */

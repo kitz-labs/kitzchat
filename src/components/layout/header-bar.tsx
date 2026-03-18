@@ -41,9 +41,16 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
   if (customerView) {
     return (
       <header className="fixed top-0 left-0 right-0 header-height bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center gap-3 px-3 sm:px-4 z-50">
-        <div className="md:hidden shrink-0">
-          <BrandLogo compact />
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 md:hidden">
+            <BrandLogo compact />
+          </div>
+          <div className="hidden md:flex items-baseline gap-2 min-w-0">
+            <span className="text-sm font-semibold tracking-tight text-foreground">Nexora</span>
+            <span className="truncate text-xs text-muted-foreground">ein Chat Assistent den du lieben wirst.</span>
+          </div>
         </div>
+
         <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3">
           <CustomerHeaderMeta walletBalanceCents={Math.max(0, Math.round(currentUser?.wallet_balance_cents ?? 0))} />
           <CustomerSupportInboxButton />
