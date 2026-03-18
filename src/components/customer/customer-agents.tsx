@@ -34,6 +34,7 @@ type AgentItem = {
 type MeUser = {
   payment_status?: 'not_required' | 'pending' | 'paid';
   has_agent_access?: boolean;
+  wallet_balance_cents?: number;
 };
 
 type Preferences = {
