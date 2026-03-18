@@ -268,6 +268,9 @@ export default function SettingsPage() {
   useEffect(() => {
     let alive = true;
 
+    if (!meResolved) return () => { alive = false; };
+    if (appAudience === 'customer') return () => { alive = false; };
+
     (async () => {
       fetch('/api/settings').then(r => r.json()).then(setSyncInfo).catch(() => {});
       fetch('/api/billing/config').then(r => r.json()).then(setBillingConfig).catch(() => {});
@@ -326,9 +329,11 @@ export default function SettingsPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [meResolved, appAudience]);
 
   useEffect(() => {
+    if (!meResolved) return;
+    if (appAudience === 'customer') return;
     // load admin runtime settings
     (async () => {
       try {
@@ -337,7 +342,7 @@ export default function SettingsPage() {
         setAppSettings(data?.settings || null);
       } catch {}
     })();
-  }, []);
+  }, [meResolved, appAudience]);
 
   useEffect(() => {
     fetch('/api/auth/me')
