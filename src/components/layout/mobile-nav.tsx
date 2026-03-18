@@ -89,12 +89,12 @@ const CUSTOMER_PRIORITY_ITEMS: NavItem[] = [
   { href: '/', label: 'Chat', icon: MessageCircle, priority: true },
   { href: '/agents', label: 'Agenten', icon: Bot, priority: true },
   { href: '/usage-token', label: 'Guthaben', icon: CreditCard, priority: true },
-  { href: '/support-chat', label: 'Support', icon: LifeBuoy, priority: true },
+  { href: '/settings', label: 'Settings', icon: Settings, priority: true },
 ];
 
 const CUSTOMER_SHEET_ITEMS: NavItem[] = [
+  { href: '/support-chat', label: 'Support', icon: LifeBuoy },
   { href: '/downloads', label: 'Downloads', icon: Download },
-  { href: '/settings', label: 'Einstellungen', icon: Settings },
   { href: '/hilfe', label: 'Hilfe', icon: Search },
 ];
 

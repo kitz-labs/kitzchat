@@ -114,6 +114,22 @@ function normalizePort(value: unknown, fallback: number): number {
   return numberValue;
 }
 
+function applyMailProviderDefaults(preferences: CustomerPreferences): CustomerPreferences {
+  const provider = preferences.mail_provider.trim().toLowerCase();
+  if (provider !== 'gmail') return preferences;
+
+  return {
+    ...preferences,
+    mail_imap_host: preferences.mail_imap_host || 'imap.gmail.com',
+    mail_imap_port: normalizePort(preferences.mail_imap_port, 993),
+    mail_smtp_host: preferences.mail_smtp_host || 'smtp.gmail.com',
+    mail_smtp_port: normalizePort(preferences.mail_smtp_port, 465),
+    mail_pop3_host: preferences.mail_pop3_host || 'pop.gmail.com',
+    mail_pop3_port: normalizePort(preferences.mail_pop3_port, 995),
+    mail_use_ssl: true,
+  };
+}
+
 function decryptStoredText(value: string | null): string {
   if (!value) return '';
   try {
@@ -383,9 +399,10 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
     integration_profiles: integrationProfiles,
     connected_integrations_count: countConnectedIntegrations(integrationProfiles),
   };
-  next.docu_connected = isDocuAgentConnected(next);
-  next.mail_connected = isMailAgentConnected(next);
-  next.instagram_connected = isInstagramConnected(next);
+  const normalizedNext = applyMailProviderDefaults(next);
+  normalizedNext.docu_connected = isDocuAgentConnected(normalizedNext);
+  normalizedNext.mail_connected = isMailAgentConnected(normalizedNext);
+  normalizedNext.instagram_connected = isInstagramConnected(normalizedNext);
 
   getDb()
     .prepare(
@@ -423,39 +440,39 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
        WHERE user_id = ?`,
     )
     .run(
-      JSON.stringify(next.enabled_agent_ids),
-      next.usage_alert_enabled ? 1 : 0,
-      next.usage_alert_daily_tokens,
-      next.memory_storage_mode,
-      next.memory_storage_path || null,
-      next.docu_provider || null,
-      next.docu_root_path || null,
-      next.docu_account_email || null,
-      encryptStoredText(next.docu_app_password),
-      encryptStoredText(next.docu_api_key),
-      encryptStoredText(next.docu_access_token),
-      next.mail_provider || null,
-      next.mail_display_name || null,
-      next.mail_address || null,
-      encryptStoredText(next.mail_password),
-      next.mail_imap_host || null,
-      next.mail_imap_port,
-      next.mail_smtp_host || null,
-      next.mail_smtp_port,
-      next.mail_pop3_host || null,
-      next.mail_pop3_port,
-      next.mail_use_ssl ? 1 : 0,
-      next.instagram_username || null,
-      encryptStoredText(next.instagram_password),
-      next.instagram_graph_api || null,
-      encryptStoredText(next.instagram_user_access_token),
-      next.instagram_user_id || null,
-      next.facebook_page_id || null,
-      encryptStoredText(JSON.stringify(next.integration_profiles)),
+      JSON.stringify(normalizedNext.enabled_agent_ids),
+      normalizedNext.usage_alert_enabled ? 1 : 0,
+      normalizedNext.usage_alert_daily_tokens,
+      normalizedNext.memory_storage_mode,
+      normalizedNext.memory_storage_path || null,
+      normalizedNext.docu_provider || null,
+      normalizedNext.docu_root_path || null,
+      normalizedNext.docu_account_email || null,
+      encryptStoredText(normalizedNext.docu_app_password),
+      encryptStoredText(normalizedNext.docu_api_key),
+      encryptStoredText(normalizedNext.docu_access_token),
+      normalizedNext.mail_provider || null,
+      normalizedNext.mail_display_name || null,
+      normalizedNext.mail_address || null,
+      encryptStoredText(normalizedNext.mail_password),
+      normalizedNext.mail_imap_host || null,
+      normalizedNext.mail_imap_port,
+      normalizedNext.mail_smtp_host || null,
+      normalizedNext.mail_smtp_port,
+      normalizedNext.mail_pop3_host || null,
+      normalizedNext.mail_pop3_port,
+      normalizedNext.mail_use_ssl ? 1 : 0,
+      normalizedNext.instagram_username || null,
+      encryptStoredText(normalizedNext.instagram_password),
+      normalizedNext.instagram_graph_api || null,
+      encryptStoredText(normalizedNext.instagram_user_access_token),
+      normalizedNext.instagram_user_id || null,
+      normalizedNext.facebook_page_id || null,
+      encryptStoredText(JSON.stringify(normalizedNext.integration_profiles)),
       userId,
     );
 
-  return next;
+  return normalizedNext;
 }
 
 export function upsertCustomerIntegrationProfile(

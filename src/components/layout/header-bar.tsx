@@ -51,8 +51,25 @@ export function HeaderBar({ currentUser, appAudience, navCollapsed = false, onTo
           </div>
         </div>
 
+        <CustomerTopNav />
+
         <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3">
           <CustomerHeaderMeta walletBalanceCents={Math.max(0, Math.round(currentUser?.wallet_balance_cents ?? 0))} />
+          <a
+            href="/settings"
+            className="hidden sm:inline-flex h-9 items-center gap-2 rounded-md border border-border/60 px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+            title="Einstellungen"
+          >
+            <Sparkles size={14} />
+            <span>Einstellungen</span>
+          </a>
+          <a
+            href="/settings"
+            className="sm:hidden relative flex h-9 w-9 items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            title="Einstellungen"
+          >
+            <Sparkles size={15} />
+          </a>
           <CustomerSupportInboxButton />
           <ThemeToggle />
           <LogoutButton label="Abmelden" compact={false} />
@@ -101,6 +118,27 @@ export function HeaderBar({ currentUser, appAudience, navCollapsed = false, onTo
         <LogoutButton />
       </div>
     </header>
+  );
+}
+
+function CustomerTopNav() {
+  return (
+    <nav className="ml-2 hidden lg:flex items-center gap-2">
+      {[
+        { href: '/', label: 'Chat' },
+        { href: '/agents', label: 'Agenten' },
+        { href: '/usage-token', label: 'Guthaben' },
+        { href: '/settings', label: 'Einstellungen' },
+      ].map((item) => (
+        <a
+          key={item.href}
+          href={item.href}
+          className="rounded-full border border-border/60 bg-background/55 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+        >
+          {item.label}
+        </a>
+      ))}
+    </nav>
   );
 }
 

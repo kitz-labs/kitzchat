@@ -75,10 +75,13 @@ export function CustomerSettings() {
   const [preferences, setPreferences] = useState<Preferences>(EMPTY_PREFERENCES);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [accountSaving, setAccountSaving] = useState(false);
+  const [accountSuccess, setAccountSuccess] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [preferencesSuccess, setPreferencesSuccess] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -132,6 +135,27 @@ export function CustomerSettings() {
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadMe]);
+
+  function applyMailProviderDefaults(provider: string) {
+    setPreferences((current) => {
+      const normalized = provider.trim().toLowerCase();
+      if (normalized !== 'gmail') {
+        return { ...current, mail_provider: provider };
+      }
+
+      return {
+        ...current,
+        mail_provider: provider,
+        mail_imap_host: current.mail_imap_host || 'imap.gmail.com',
+        mail_imap_port: current.mail_imap_port || 993,
+        mail_smtp_host: current.mail_smtp_host || 'smtp.gmail.com',
+        mail_smtp_port: current.mail_smtp_port || 465,
+        mail_pop3_host: current.mail_pop3_host || 'pop.gmail.com',
+        mail_pop3_port: current.mail_pop3_port || 995,
+        mail_use_ssl: true,
+      };
+    });
+  }
 
   function addIntegration(providerId: string) {
     setPreferences((current) => {
@@ -196,6 +220,7 @@ export function CustomerSettings() {
   async function saveAccount() {
     setAccountSaving(true);
     setAccountError(null);
+    setAccountSuccess(null);
     try {
       const res = await fetch('/api/customer/account', {
         method: 'PATCH',
@@ -213,6 +238,7 @@ export function CustomerSettings() {
       setCurrentPassword('');
       setNewPassword('');
       await loadMe();
+      setAccountSuccess('Kontodaten wurden gespeichert.');
     } catch (error) {
       setAccountError(error instanceof Error ? error.message : 'Konto konnte nicht gespeichert werden');
     } finally {
@@ -222,6 +248,8 @@ export function CustomerSettings() {
 
   async function savePreferences() {
     setPreferencesSaving(true);
+    setPreferencesError(null);
+    setPreferencesSuccess(null);
     try {
       const res = await fetch('/api/customer/preferences', {
         method: 'PATCH',
@@ -233,6 +261,9 @@ export function CustomerSettings() {
         throw new Error(String(data?.error || 'Einstellungen konnten nicht gespeichert werden'));
       }
       setPreferences(data?.preferences || preferences);
+      setPreferencesSuccess('Einstellungen wurden gespeichert.');
+    } catch (error) {
+      setPreferencesError(error instanceof Error ? error.message : 'Einstellungen konnten nicht gespeichert werden');
     } finally {
       setPreferencesSaving(false);
     }
@@ -283,8 +314,15 @@ export function CustomerSettings() {
         <p className="text-xs text-muted-foreground">Verwalte hier Konto, Agenten, Alerts, Integrationen und Support.</p>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <a href="#account" className="btn btn-ghost text-sm">Konto</a>
+        <a href="#mail-settings" className="btn btn-ghost text-sm">Mail</a>
+        <a href="#integrations" className="btn btn-ghost text-sm">Integrationen</a>
+        <a href="#support" className="btn btn-ghost text-sm">Support</a>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="panel">
+        <div className="panel" id="account">
           <div className="panel-header">
             <h2 className="text-sm font-medium">Konto</h2>
           </div>
@@ -310,6 +348,7 @@ export function CustomerSettings() {
                 <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
               </label>
             </div>
+            {accountSuccess ? <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">{accountSuccess}</div> : null}
             {accountError ? <div className="text-sm text-destructive">{accountError}</div> : null}
             <button type="button" onClick={saveAccount} disabled={accountSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {accountSaving ? 'Wird gespeichert...' : 'Konto speichern'}
@@ -490,7 +529,7 @@ export function CustomerSettings() {
         </div>
       </div>
 
-      <div id="integrations" className="panel">
+      <div id="mail-settings" className="panel">
         <div className="panel-header">
           <div>
             <h2 className="text-sm font-medium">MailAgent: Postfach verbinden</h2>
@@ -498,6 +537,16 @@ export function CustomerSettings() {
           </div>
         </div>
         <div className="panel-body space-y-4">
+          {preferencesSuccess ? (
+            <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">
+              {preferencesSuccess}
+            </div>
+          ) : null}
+          {preferencesError ? (
+            <div className="rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {preferencesError}
+            </div>
+          ) : null}
           <div className={`rounded-2xl border px-4 py-3 text-sm ${preferences.mail_connected ? 'border-success/40 bg-success/5 text-success' : 'border-warning/40 bg-warning/5 text-warning'}`}>
             {preferences.mail_connected ? 'MailAgent ist verbunden und kann mit deinem Postfach arbeiten.' : 'Es fehlen noch Mail-Zugangsdaten oder Serverangaben fuer den MailAgent.'}
           </div>
@@ -514,7 +563,7 @@ export function CustomerSettings() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Provider</div>
-              <select value={preferences.mail_provider} onChange={(event) => setPreferences((current) => ({ ...current, mail_provider: event.target.value }))} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm">
+              <select value={preferences.mail_provider} onChange={(event) => applyMailProviderDefaults(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm">
                 <option value="gmail">Gmail</option>
                 <option value="outlook">Outlook</option>
                 <option value="smtp-imap">SMTP / IMAP</option>
@@ -538,6 +587,11 @@ export function CustomerSettings() {
             </div>
             <input type="checkbox" checked={preferences.mail_use_ssl} onChange={(event) => setPreferences((current) => ({ ...current, mail_use_ssl: event.target.checked }))} />
           </label>
+          {preferences.mail_provider === 'gmail' ? (
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-muted-foreground">
+              Gmail setzt die Standard-Hosts jetzt automatisch. Fuer Outlook oder eigene Server bitte die Host-Felder manuell pruefen.
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'MailAgent speichern'}
@@ -576,7 +630,7 @@ export function CustomerSettings() {
         </div>
       </div>
 
-      <div className="panel">
+      <div id="integrations" className="panel">
         <div className="panel-header">
           <div>
             <h2 className="text-sm font-medium">Eigene APIs und Integrationen</h2>

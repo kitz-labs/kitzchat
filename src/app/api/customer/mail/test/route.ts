@@ -20,11 +20,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Mail-Zugangsdaten fehlen.' }, { status: 400 });
     }
 
-    const useSsl = Boolean(preferences.mail_use_ssl);
+    const provider = preferences.mail_provider?.trim().toLowerCase();
+    const imapHost = preferences.mail_imap_host || (provider === 'gmail' ? 'imap.gmail.com' : '');
+    const smtpHost = preferences.mail_smtp_host || (provider === 'gmail' ? 'smtp.gmail.com' : '');
+    const useSsl = provider === 'gmail' ? true : Boolean(preferences.mail_use_ssl);
 
-    if (preferences.mail_imap_host) {
+    if (imapHost) {
       const client = new ImapFlow({
-        host: preferences.mail_imap_host,
+        host: imapHost,
         port: Number(preferences.mail_imap_port || 993),
         secure: useSsl,
         auth: { user: mailAddress, pass: mailPassword },
@@ -49,9 +52,9 @@ export async function POST(request: Request) {
       }
     }
 
-    if (preferences.mail_smtp_host) {
+    if (smtpHost) {
       const transporter = nodemailer.createTransport({
-        host: preferences.mail_smtp_host,
+        host: smtpHost,
         port: Number(preferences.mail_smtp_port || 465),
         secure: useSsl,
         auth: { user: mailAddress, pass: mailPassword },
