@@ -210,6 +210,7 @@ export async function createCheckoutSession(opts: {
     line_items: lineItems as any,
     success_url: successRedirect,
     cancel_url: cancelRedirect,
+    allow_promotion_codes: true,
     customer: ensuredCustomerId ?? undefined,
     customer_email: ensuredCustomerId ? undefined : opts.email ?? undefined,
     client_reference_id: String(userId),
@@ -528,6 +529,7 @@ export async function recordSuccessfulPayment(params: {
   const amountLine = `€${(effectiveCreditCents / 100).toFixed(2)}`;
   const grossLine = grossAmountCents > 0 ? `€${(grossAmountCents / 100).toFixed(2)}` : amountLine;
   const kindLabel = checkoutType === 'activation' ? 'Aktivierung' : 'Top-up';
+  const balanceLine = `€${(creditsToCents(finalBalanceCredits) / 100).toFixed(2)}`;
   const telegramMessage = [
     `Stripe Zahlung bestaetigt ✅`,
     ``,
@@ -536,6 +538,8 @@ export async function recordSuccessfulPayment(params: {
     refreshed?.company ? `Firma: ${refreshed.company}` : null,
     refreshed?.email ? `E-Mail: ${refreshed.email}` : null,
     `Gutschrift: ${amountLine}`,
+    `Credits freigeschaltet: ${amountLine}`,
+    `Wallet neu: ${balanceLine}`,
     `Zahlung: ${grossLine}`,
     refreshed?.stripe_customer_id ? `Stripe Customer: ${refreshed.stripe_customer_id}` : null,
     `Session: ${params.sessionId}`,
@@ -545,6 +549,15 @@ export async function recordSuccessfulPayment(params: {
 
   if (firstLocalProcessing) {
     sendTelegramAlert(telegramMessage).catch(() => {});
+    const creditsMessage = [
+      'Credits freigeschaltet ✅',
+      '',
+      `Kunde: ${displayName} (@${refreshed?.username || user.username})`,
+      `Betrag: ${amountLine}`,
+      `Wallet neu: ${balanceLine}`,
+      `Session: ${params.sessionId}`,
+    ].filter(Boolean).join('\n');
+    sendTelegramAlert(creditsMessage).catch(() => {});
   }
 }
 

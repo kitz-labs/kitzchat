@@ -3,6 +3,7 @@ import { createCustomerUserWithEmail, createUser, deleteUser, listUsers, require
 import { getAllowUserDeletion } from '@/lib/settings';
 import { getDb } from '@/lib/db';
 import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
+import { sendTelegramAlert } from '@/lib/alerts';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,17 @@ export async function POST(request: Request) {
         email: user.email ?? null,
         stripeCustomerId: user.stripe_customer_id ?? null,
       });
+
+      const telegramMessage = [
+        'Neuer Kunde angelegt (Admin) ✅',
+        '',
+        `Kunde: @${user.username}`,
+        user.email ? `E-Mail: ${user.email}` : null,
+        '',
+        `Dashboard: /customers/${user.id}`,
+      ].filter(Boolean).join('\n');
+      sendTelegramAlert(telegramMessage).catch(() => {});
+
       return NextResponse.json({ user: { ...user, stripe_customer_id: stripeCustomerId ?? user.stripe_customer_id ?? null } });
     }
 

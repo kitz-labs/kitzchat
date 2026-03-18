@@ -14,17 +14,40 @@ import { buildCustomerAgentProfileSnippet } from '@/lib/customer-agent-profiles'
 function buildAgentRuntimePrompt(
   agent: AgentDefinition | undefined,
   userPrompt: string,
-  opts: { memorySnippet: string; customerProfileSnippet: string },
+  opts: { memorySnippet: string; customerProfileSnippet: string; plainConversation?: boolean },
 ): string {
   if (!agent) return userPrompt;
 
   const policies = (agent.policies ?? []).map((p) => `- ${p}`).join('\n');
   const limits = (agent.limits ?? []).map((l) => `- ${l}`).join('\n');
   const tools = (agent.tools ?? []).map((t) => `- ${t}`).join('\n');
+  const plainConversation = Boolean(opts.plainConversation);
+
+  const ioSection = plainConversation
+    ? [
+        `# STYLE`,
+        'Antworte immer als normale, menschliche Konversation.',
+        'Keine Output-Format-Labels (A/B/C), keine Tabellen oder Checklisten, ausser der Nutzer fordert das explizit.',
+        'Schreibe klar, freundlich und direkt.',
+        '',
+      ]
+    : [
+        `# IO`,
+        `Input Format:\n${agent.inputFormat || ''}`.trim(),
+        '',
+        `Output Format:\n${agent.outputFormat || ''}`.trim(),
+        '',
+      ];
 
   return [
     `# SYSTEM`,
     agent.systemPrompt?.trim() || `Du bist ${agent.name}.`,
+    ...(plainConversation
+      ? [
+          '',
+          'WICHTIG: Ignoriere alle Output-Format-Vorgaben aus dem Agentenprofil. Antworte natuerlich wie im Chat.',
+        ]
+      : []),
     '',
     `# AGENT`,
     `id: ${agent.id}`,
@@ -33,11 +56,7 @@ function buildAgentRuntimePrompt(
     '',
     ...(opts.customerProfileSnippet ? [opts.customerProfileSnippet.trim(), ''] : []),
     ...(opts.memorySnippet ? [opts.memorySnippet.trim(), ''] : []),
-    `# IO`,
-    `Input Format:\n${agent.inputFormat || ''}`.trim(),
-    '',
-    `Output Format:\n${agent.outputFormat || ''}`.trim(),
-    '',
+    ...ioSection,
     `# TOOLS (allowed)`,
     tools || '- (none)',
     '',
@@ -109,7 +128,11 @@ export async function runAgentChat(params: {
   const customerProfileSnippet = appUser?.account_type === 'customer'
     ? buildCustomerAgentProfileSnippet(params.userId, params.agentCode)
     : '';
-  const runtimePrompt = buildAgentRuntimePrompt(agentConfig, params.prompt, { memorySnippet, customerProfileSnippet });
+  const runtimePrompt = buildAgentRuntimePrompt(agentConfig, params.prompt, {
+    memorySnippet,
+    customerProfileSnippet,
+    plainConversation: appUser?.account_type === 'customer',
+  });
 
   const requestId = randomUUID();
   await queryPg(

@@ -78,6 +78,9 @@ export function CustomerSettings() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
     const res = await fetch('/api/auth/me', { cache: 'no-store' });
@@ -223,6 +226,24 @@ export function CustomerSettings() {
       setPreferences(data?.preferences || preferences);
     } finally {
       setPreferencesSaving(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (deleting || !deleteConfirm) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch('/api/customer/account', { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(String(data?.error || 'Konto konnte nicht geloescht werden'));
+      }
+      window.location.href = '/login?deleted=1';
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Konto konnte nicht geloescht werden');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -591,6 +612,31 @@ export function CustomerSettings() {
 
       <div id="support" className="scroll-mt-24">
         <CustomerSupportPanel compact />
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="text-sm font-medium">Konto loeschen</h2>
+            <p className="text-xs text-muted-foreground">Dein Konto wird dauerhaft entfernt. Verbleibende Credits werden dem Admin gutgeschrieben.</p>
+          </div>
+        </div>
+        <div className="panel-body space-y-3">
+          <div className="rounded-2xl border border-warning/40 bg-warning/5 p-4 text-sm text-warning">
+            Diese Aktion ist endgueltig. Deine Chats und Einstellungen werden geloescht, dein Restguthaben wird intern auf das Admin-Konto uebertragen.
+          </div>
+          <label className="flex items-center justify-between rounded-2xl border border-border/60 bg-muted/10 px-4 py-3 text-sm">
+            <div>
+              <div className="font-medium">Ich verstehe die Folgen</div>
+              <div className="text-xs text-muted-foreground">Kein Passwort erforderlich, der Account wird sofort entfernt.</div>
+            </div>
+            <input type="checkbox" checked={deleteConfirm} onChange={(event) => setDeleteConfirm(event.target.checked)} />
+          </label>
+          {deleteError ? <div className="text-sm text-destructive">{deleteError}</div> : null}
+          <button type="button" onClick={deleteAccount} disabled={!deleteConfirm || deleting} className="btn btn-destructive text-sm inline-flex items-center gap-2">
+            <Trash2 size={14} /> {deleting ? 'Wird geloescht...' : 'Konto endgueltig loeschen'}
+          </button>
+        </div>
       </div>
 
       <div className="panel">

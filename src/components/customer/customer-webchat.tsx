@@ -354,8 +354,8 @@ export function CustomerWebchat() {
   }
 
   return (
-    <div className="h-full flex flex-col animate-in">
-      <section className="panel flex-1 min-h-0 flex flex-col">
+    <div className="h-full min-h-0 flex flex-col animate-in">
+      <section className="panel flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="panel-header flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold">Chat</h1>
@@ -424,7 +424,7 @@ export function CustomerWebchat() {
           </div>
         ) : (
           <div className="grid flex-1 min-h-0 gap-0 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="border-b border-border/50 xl:border-b-0 xl:border-r xl:border-border/50 flex flex-col min-h-0">
+            <aside className="border-b border-border/50 xl:border-b-0 xl:border-r xl:border-border/50 flex flex-col min-h-0 bg-muted/5">
               <div className="flex items-center justify-between gap-2 border-b border-border/50 px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold">Gespeicherte Chats</div>
@@ -434,7 +434,7 @@ export function CustomerWebchat() {
                   <Plus size={14} /> {creatingConversation ? '...' : 'Neu'}
                 </button>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-3">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3">
                 {filteredConversations.length === 0 ? (
                   <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
                     Noch kein gespeicherter Chat fuer diesen Agenten. Starte rechts einen neuen Chat.
@@ -461,135 +461,137 @@ export function CustomerWebchat() {
               </div>
             </aside>
 
-            <div className="flex min-h-0 flex-col">
-              <div className="border-b border-border/50 px-4 py-3">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="flex-1">
-                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Chatspeicherung</div>
-                    <div className="mt-1 flex gap-2">
-                      <div className="relative flex-1">
-                        <PenSquare size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input
-                          value={conversationTitle}
-                          onChange={(event) => setConversationTitle(event.target.value)}
-                          placeholder="Name des Chats eingeben"
-                          className="w-full rounded-xl border border-border/60 bg-background py-2 pl-9 pr-3 text-sm"
-                        />
+            <div className="flex min-h-0 flex-col p-3 xl:p-4">
+              <div className="flex min-h-0 flex-col rounded-2xl border border-border/60 bg-muted/10 overflow-hidden">
+                <div className="border-b border-border/50 px-4 py-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="flex-1">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Chatspeicherung</div>
+                      <div className="mt-1 flex gap-2">
+                        <div className="relative flex-1">
+                          <PenSquare size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            value={conversationTitle}
+                            onChange={(event) => setConversationTitle(event.target.value)}
+                            placeholder="Name des Chats eingeben"
+                            className="w-full rounded-xl border border-border/60 bg-background py-2 pl-9 pr-3 text-sm"
+                          />
+                        </div>
+                        <button type="button" onClick={saveConversationTitle} disabled={savingTitle || !activeConversationId || !conversationTitle.trim()} className="btn btn-ghost btn-sm">
+                          <Save size={14} /> {savingTitle ? '...' : 'Speichern'}
+                        </button>
                       </div>
-                      <button type="button" onClick={saveConversationTitle} disabled={savingTitle || !activeConversationId || !conversationTitle.trim()} className="btn btn-ghost btn-sm">
-                        <Save size={14} /> {savingTitle ? '...' : 'Speichern'}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => createConversation()} disabled={creatingConversation || !activeAgent} className="btn btn-ghost btn-sm">
+                        <Plus size={14} /> Neuen Chat starten
+                      </button>
+                      <button type="button" onClick={exportConversation} disabled={exporting || !activeConversationId || messages.length === 0} className="btn btn-primary btn-sm">
+                        <Download size={14} /> {exporting ? 'Export...' : 'Chat exportieren'}
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => createConversation()} disabled={creatingConversation || !activeAgent} className="btn btn-ghost btn-sm">
-                      <Plus size={14} /> Neuen Chat starten
-                    </button>
-                    <button type="button" onClick={exportConversation} disabled={exporting || !activeConversationId || messages.length === 0} className="btn btn-primary btn-sm">
-                      <Download size={14} /> {exporting ? 'Export...' : 'Chat exportieren'}
-                    </button>
-                  </div>
                 </div>
-              </div>
 
-              <div className="panel-body flex-1 min-h-0 overflow-y-auto space-y-3">
-                {messages.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-center text-muted-foreground">
-                    <div className="space-y-3">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <Sparkles size={24} />
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-foreground">Starte eine neue Unterhaltung</div>
-                        <div className="text-xs">{selectedAgent ? `Frage ${selectedAgent.name} alles zu deinen Workflows.` : 'Aktiviere zuerst Agenten in den Einstellungen.'}</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((message) => {
-                    const mine = me?.username === message.from_agent;
-                    const attachments = Array.isArray(message.metadata?.attachments) ? message.metadata?.attachments || [] : [];
-                    return (
-                      <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 ${mine ? 'bg-primary text-primary-foreground' : 'bg-muted/40'}`}>
-                          <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{mine ? 'Du' : message.from_agent}</div>
-                          <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
-                          {typeof message.metadata?.credits_charged === 'number' ? (
-                            <div className={`mt-2 text-[11px] ${mine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                              €{creditsToEur(message.metadata.credits_charged || 0).toFixed(2)} · {message.metadata.display_mode || 'Auto-Modus'} · Rest €{creditsToEur(message.metadata.remaining_balance || 0).toFixed(2)}
-                            </div>
-                          ) : null}
-                          {attachments.length > 0 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {attachments.map((attachment) => (
-                                <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className={`rounded-full border px-3 py-1 text-xs ${mine ? 'border-primary-foreground/30' : 'border-border/60'}`}>
-                                  {attachment.name}
-                                </a>
-                              ))}
-                            </div>
-                          ) : null}
+                <div className="panel-body flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3">
+                  {messages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-center text-muted-foreground">
+                      <div className="space-y-3">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <Sparkles size={24} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-foreground">Starte eine neue Unterhaltung</div>
+                          <div className="text-xs">{selectedAgent ? `Frage ${selectedAgent.name} alles zu deinen Workflows.` : 'Aktiviere zuerst Agenten in den Einstellungen.'}</div>
                         </div>
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  ) : (
+                    messages.map((message) => {
+                      const mine = me?.username === message.from_agent;
+                      const attachments = Array.isArray(message.metadata?.attachments) ? message.metadata?.attachments || [] : [];
+                      return (
+                        <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 ${mine ? 'bg-primary text-primary-foreground' : 'bg-muted/40'}`}>
+                            <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{mine ? 'Du' : message.from_agent}</div>
+                            <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
+                            {typeof message.metadata?.credits_charged === 'number' ? (
+                              <div className={`mt-2 text-[11px] ${mine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                                €{creditsToEur(message.metadata.credits_charged || 0).toFixed(2)} · {message.metadata.display_mode || 'Auto-Modus'} · Rest €{creditsToEur(message.metadata.remaining_balance || 0).toFixed(2)}
+                              </div>
+                            ) : null}
+                            {attachments.length > 0 ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {attachments.map((attachment) => (
+                                  <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className={`rounded-full border px-3 py-1 text-xs ${mine ? 'border-primary-foreground/30' : 'border-border/60'}`}>
+                                    {attachment.name}
+                                  </a>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
 
-                {awaitingAgentReply ? (
-                  <div className="flex justify-start">
-                    <div className="max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 bg-muted/40">
-                      <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{selectedAgent?.name || 'Agent'}</div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-2">
-                        <span>Agent schreibt...</span>
-                        <span className="inline-flex gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:150ms]" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:300ms]" />
-                        </span>
+                  {awaitingAgentReply ? (
+                    <div className="flex justify-start">
+                      <div className="max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 bg-muted/40">
+                        <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{selectedAgent?.name || 'Agent'}</div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                          <span>Agent schreibt...</span>
+                          <span className="inline-flex gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:150ms]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:300ms]" />
+                          </span>
+                        </div>
                       </div>
                     </div>
+                  ) : null}
+                  <div ref={scrollAnchorRef} />
+                </div>
+
+                <div className="border-t border-border/50 p-4 space-y-3 bg-background/40">
+                  {pendingFiles.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {pendingFiles.map((file) => (
+                        <span key={`${file.name}-${file.size}`} className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/10 px-3 py-1 text-xs">
+                          {file.name}
+                          <button type="button" onClick={() => setPendingFiles((current) => current.filter((item) => item !== file))}>
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {uploadError ? <div className="text-sm text-destructive">{uploadError}</div> : null}
+
+                  <div className="rounded-2xl border border-border/60 bg-background px-3 py-2 flex items-end gap-2">
+                    <Bot size={18} className="mb-2 text-muted-foreground" />
+                    <textarea
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          sendMessage();
+                        }
+                      }}
+                      placeholder={selectedAgent ? `Schreibe deine Nachricht an ${selectedAgent.name}...` : 'Schreibe deine Nachricht...'}
+                      rows={3}
+                      className="min-h-[84px] max-h-[220px] flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
+                    />
+                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => addFiles(event.target.files)} />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="btn btn-ghost btn-sm">
+                      <FileUp size={14} /> Datei
+                    </button>
+                    <button type="button" onClick={sendMessage} disabled={sending || (!input.trim() && pendingFiles.length === 0)} className="btn btn-primary btn-sm">
+                      <Send size={14} /> {sending ? 'Sende...' : 'Senden'}
+                    </button>
                   </div>
-                ) : null}
-                <div ref={scrollAnchorRef} />
-              </div>
-
-              <div className="border-t border-border/50 p-4 space-y-3">
-                {pendingFiles.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {pendingFiles.map((file) => (
-                      <span key={`${file.name}-${file.size}`} className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/10 px-3 py-1 text-xs">
-                        {file.name}
-                        <button type="button" onClick={() => setPendingFiles((current) => current.filter((item) => item !== file))}>
-                          <X size={12} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-
-                {uploadError ? <div className="text-sm text-destructive">{uploadError}</div> : null}
-
-                <div className="rounded-2xl border border-border/60 bg-background px-3 py-2 flex items-end gap-2">
-                  <Bot size={18} className="mb-2 text-muted-foreground" />
-                  <textarea
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        sendMessage();
-                      }
-                    }}
-                    placeholder={selectedAgent ? `Schreibe deine Nachricht an ${selectedAgent.name}...` : 'Schreibe deine Nachricht...'}
-                    rows={3}
-                    className="min-h-[84px] max-h-[220px] flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
-                  />
-                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => addFiles(event.target.files)} />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="btn btn-ghost btn-sm">
-                    <FileUp size={14} /> Datei
-                  </button>
-                  <button type="button" onClick={sendMessage} disabled={sending || (!input.trim() && pendingFiles.length === 0)} className="btn btn-primary btn-sm">
-                    <Send size={14} /> {sending ? 'Sende...' : 'Senden'}
-                  </button>
                 </div>
               </div>
             </div>

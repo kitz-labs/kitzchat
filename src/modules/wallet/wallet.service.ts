@@ -187,6 +187,78 @@ export async function applyWalletDelta(userId: number, entry: WalletLedgerEntry)
   });
 }
 
+export async function transferWalletCredits(params: {
+  fromUserId: number;
+  toUserId: number;
+  referenceId?: string;
+  note?: string;
+}): Promise<{ transferredCredits: number; fromBalanceAfter: number; toBalanceAfter: number }> {
+  if (params.fromUserId === params.toUserId) {
+    return { transferredCredits: 0, fromBalanceAfter: 0, toBalanceAfter: 0 };
+  }
+
+  return withPgClient(async (client) => {
+    await client.beginTransaction?.();
+    try {
+      const ids = [params.fromUserId, params.toUserId].sort((a, b) => a - b);
+      const placeholders = ids.map((_, index) => `$${index + 1}`).join(', ');
+      const rows = await client.query<{ id: any; user_id: any; balance_credits: any }>(
+        `SELECT id, user_id, balance_credits FROM wallets WHERE user_id IN (${placeholders}) FOR UPDATE`,
+        ids,
+      );
+      const byUser = new Map<number, { id: number; balance: number }>();
+      rows.rows.forEach((row) => {
+        byUser.set(Number(row.user_id), { id: Number(row.id), balance: Number(row.balance_credits ?? 0) });
+      });
+
+      const fromWallet = byUser.get(params.fromUserId);
+      const toWallet = byUser.get(params.toUserId);
+      if (!fromWallet || !toWallet) {
+        throw new Error('wallet_not_found');
+      }
+
+      const transferable = Math.max(0, Math.round(fromWallet.balance));
+      if (transferable <= 0) {
+        await client.commit?.();
+        return { transferredCredits: 0, fromBalanceAfter: fromWallet.balance, toBalanceAfter: toWallet.balance };
+      }
+
+      const fromBalanceAfter = Math.max(0, fromWallet.balance - transferable);
+      const toBalanceAfter = toWallet.balance + transferable;
+
+      await client.query('UPDATE wallets SET balance_credits = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+        fromBalanceAfter,
+        fromWallet.id,
+      ]);
+      await client.query('UPDATE wallets SET balance_credits = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
+        toBalanceAfter,
+        toWallet.id,
+      ]);
+
+      const referenceId = params.referenceId ?? String(params.fromUserId);
+      const note = params.note ?? 'Transfer bei Kontoloeschung';
+      await client.query(
+        `INSERT INTO wallet_ledger
+          (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [params.fromUserId, fromWallet.id, 'adjustment', -transferable, fromBalanceAfter, 'account_delete', referenceId, note],
+      );
+      await client.query(
+        `INSERT INTO wallet_ledger
+          (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [params.toUserId, toWallet.id, 'adjustment', transferable, toBalanceAfter, 'account_delete', referenceId, note],
+      );
+
+      await client.commit?.();
+      return { transferredCredits: transferable, fromBalanceAfter, toBalanceAfter };
+    } catch (error) {
+      await client.rollback?.();
+      throw error;
+    }
+  });
+}
+
 export async function getWalletLedger(userId: number): Promise<Array<{
   id: number;
   entry_type: string;

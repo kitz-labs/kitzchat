@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createCustomerUserWithEmail, createEmailVerificationToken, seedAdmin } from '@/lib/auth';
+import { sendTelegramAlert } from '@/lib/alerts';
 import { buildPublicUrlFromRequest, isEmailConfigured, sendUserEmail } from '@/lib/mailer';
 import { getAllowUserRegistration } from '@/lib/settings';
 
@@ -46,6 +47,17 @@ export async function POST(request: Request) {
       text: `Hallo ${firstName || user.username},\n\nbitte bestaetige deine E-Mail-Adresse:\n${verifyUrl}\n\nDer Link ist zeitlich begrenzt.\n`,
       html: `<p>Hallo <b>${firstName || user.username}</b>,</p><p>bitte bestaetige deine E-Mail-Adresse:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>Der Link ist zeitlich begrenzt.</p>`,
     });
+
+    const telegramMessage = [
+      'Neuer Kunde registriert ✅',
+      '',
+      `Kunde: ${firstName ? `${firstName} ${lastName}`.trim() : user.username} (@${user.username})`,
+      company ? `Firma: ${company}` : null,
+      `E-Mail: ${user.email ?? body.email}`,
+      '',
+      `Dashboard: /customers/${user.id}`,
+    ].filter(Boolean).join('\n');
+    sendTelegramAlert(telegramMessage).catch(() => {});
 
     const response = NextResponse.json(
       {
