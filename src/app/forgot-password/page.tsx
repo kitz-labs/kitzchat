@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen text-white relative overflow-x-hidden">
-      <div className="relative min-h-screen flex flex-col">
+      <div className="relative min-h-screen flex flex-col pb-[calc(3.25rem+env(safe-area-inset-bottom,0px))]">
         <div className="flex-1 flex items-center justify-center px-4 py-10">
           <div className="w-full max-w-sm rounded-2xl bg-white/5 backdrop-blur-xl p-8 space-y-6 shadow-2xl">
             <div className="text-center space-y-2">

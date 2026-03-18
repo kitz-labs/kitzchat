@@ -242,7 +242,7 @@ function RegisterCard() {
 export default function RegisterPage() {
   return (
     <div className="min-h-screen text-white relative overflow-x-hidden">
-      <div className="relative min-h-screen flex flex-col">
+      <div className="relative min-h-screen flex flex-col pb-[calc(3.25rem+env(safe-area-inset-bottom,0px))]">
         <div className="flex-1 flex items-center justify-center px-4 py-10">
           <Suspense fallback={<div className="w-full max-w-sm h-[420px] rounded-2xl bg-white/5 backdrop-blur-xl shadow-2xl" />}>
             <RegisterCard />

@@ -356,15 +356,15 @@ export function CustomerWebchat() {
   return (
     <div className="h-full min-h-0 flex flex-col animate-in">
       <section className="panel flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="panel-header flex items-center justify-between gap-3">
+        <div className="panel-header flex items-center justify-between gap-3 bg-surface-1/60">
           <div>
             <h1 className="text-xl font-semibold">Chat</h1>
             <p className="text-xs text-muted-foreground">Chatte nach der Aktivierung direkt mit deinen aktivierten Agenten, speichere Chat-Namen und exportiere komplette Verlaeufe als Markdown.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {visibleAgents.length > 0 ? (
-              <label className="flex items-center gap-2 rounded-xl border border-border/60 bg-muted/10 px-3 py-2 text-sm">
-                <span className="text-muted-foreground">Agent</span>
+              <label className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Agent</span>
                 <select
                   value={activeAgent}
                   onChange={(event) => setActiveAgent(event.target.value)}
@@ -424,8 +424,8 @@ export function CustomerWebchat() {
           </div>
         ) : (
           <div className="grid flex-1 min-h-0 gap-0 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="border-b border-border/50 xl:border-b-0 xl:border-r xl:border-border/50 flex flex-col min-h-0 bg-muted/5">
-              <div className="flex items-center justify-between gap-2 border-b border-border/50 px-4 py-3">
+            <aside className="border-b border-border/50 xl:border-b-0 xl:border-r xl:border-border/50 flex flex-col min-h-0 bg-surface-1/35">
+              <div className="flex items-center justify-between gap-2 border-b border-border/50 px-4 py-3 bg-surface-1/60">
                 <div>
                   <div className="text-sm font-semibold">Gespeicherte Chats</div>
                   <div className="text-[11px] text-muted-foreground">Mit Namen, Verlauf und Export.</div>
@@ -462,8 +462,8 @@ export function CustomerWebchat() {
             </aside>
 
             <div className="flex min-h-0 flex-col p-3 xl:p-4">
-              <div className="flex min-h-0 flex-col rounded-2xl border border-border/60 bg-muted/10 overflow-hidden">
-                <div className="border-b border-border/50 px-4 py-3">
+              <div className="flex min-h-0 flex-col rounded-2xl border border-border/60 bg-surface-1/55 overflow-hidden shadow-sm">
+                <div className="border-b border-border/50 px-4 py-3 bg-surface-1/60">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div className="flex-1">
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Chatspeicherung</div>
@@ -493,7 +493,7 @@ export function CustomerWebchat() {
                   </div>
                 </div>
 
-                <div className="panel-body flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3">
+                <div className="panel-body flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3 bg-gradient-to-b from-transparent via-transparent to-black/10">
                   {messages.length === 0 ? (
                     <div className="h-full flex items-center justify-center text-center text-muted-foreground">
                       <div className="space-y-3">
@@ -512,7 +512,7 @@ export function CustomerWebchat() {
                       const attachments = Array.isArray(message.metadata?.attachments) ? message.metadata?.attachments || [] : [];
                       return (
                         <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 ${mine ? 'bg-primary text-primary-foreground' : 'bg-muted/40'}`}>
+                          <div className={`max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 ${mine ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-background/40 border border-border/60 shadow-sm'}`}>
                             <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{mine ? 'Du' : message.from_agent}</div>
                             <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
                             {typeof message.metadata?.credits_charged === 'number' ? (
