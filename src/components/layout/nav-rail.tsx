@@ -66,6 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/customers', label: 'Kunden', icon: Users },
       { href: '/billing', label: 'Abrechnung', icon: CreditCard },
       { href: '/stripe', label: 'Stripe', icon: CreditCard },
+      { href: '/maestro', label: 'MAESTRO', icon: Zap },
       { href: '/website', label: 'www.aikitz.at', icon: PenLine },
       { href: '/openai', label: 'OpenAI', icon: BrainCircuit },
       { href: '/db/billing', label: 'DB', icon: Database },
@@ -88,7 +89,8 @@ const CUSTOMER_NAV_GROUPS: NavGroup[] = [
   {
     label: 'KUNDE',
     items: [
-      { href: '/', label: 'Chat', icon: MessageCircle },
+      { href: '/', label: 'Home', icon: Gauge },
+      { href: '/chat', label: 'Chat', icon: MessageCircle },
       { href: '/agents', label: 'Agenten', icon: Bot },
       { href: '/usage-token', label: 'Guthaben', icon: BarChart3 },
       { href: '/downloads', label: 'Downloads', icon: Download },

@@ -198,6 +198,37 @@ export function CustomerWebchat() {
   const onboardingOpen = hasAccess && !me?.onboarding_completed_at;
 
   useEffect(() => {
+    if (!hasAccess) return;
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      const agentParam = url.searchParams.get('agent');
+      const template = url.searchParams.get('template');
+      const promptParam = url.searchParams.get('prompt');
+
+      if (agentParam && visibleAgents.some((a) => a.id === agentParam)) {
+        setActiveAgent(agentParam);
+      }
+
+      const templates: Record<string, string> = {
+        quickstart: 'Ich will heute ein klares Ergebnis: (1) Ziel, (2) Plan in 5 Schritten, (3) sofortiger erster Output. Frage maximal 1 Rueckfrage und starte dann.',
+        leads: 'Ich will mehr Leads. Bitte erstelle: 3 Messaging-Winkel, 5 Hooks, ein klares Offer + CTA, und einen 7-Tage Mini-Plan. Frage maximal 1 Rueckfrage.',
+        campaign: 'Bitte baue eine Kampagne: Zielgruppe, Hook, 3 Varianten, Kanalplan (IG/LI/Email), Messplan (Hypothese, Metrik, Stop/Go). Frage maximal 1 Rueckfrage.',
+        email: 'Schreibe eine professionelle E-Mail. Bitte frage zuerst: Kontext + Ziel + Tonalitaet (max 1 Rueckfrage), dann liefere 2 Varianten.',
+        support: 'Formuliere eine professionelle Support-Antwort (freundlich, klar, deeskalierend). Stelle max 1 Rueckfrage, dann liefere 2 Varianten + kurze Begründung.',
+        docs: 'Ich will meine Dokumente sauber ordnen. Liefere: Ordnerstruktur, Namensschema, Regeln, und eine To-do Liste. Frage maximal 1 Rueckfrage.',
+      };
+
+      const nextPrompt = promptParam || (template ? templates[template] : '');
+      if (nextPrompt && (!input || input.trim().length === 0)) {
+        setInput(nextPrompt);
+      }
+    } catch {
+      // ignore
+    }
+  }, [hasAccess, visibleAgents, input]);
+
+  useEffect(() => {
     if (!awaitingAgentReply || !lastSentAtSec) return;
     const resolved = messages.some((message) => {
       if (!message || typeof message.created_at !== 'number') return false;
@@ -412,7 +443,7 @@ export function CustomerWebchat() {
             </div>
 
             <div className="hidden md:flex items-center justify-end gap-2 text-xs text-muted-foreground">
-              <span className="badge badge-neutral">Tipp: Starte mit dem Agent „Meister“ fuers Routing.</span>
+              <span className="badge badge-neutral">Tipp: Starte mit dem Agent „Master Agent“ fuers Routing.</span>
             </div>
           </div>
         ) : null}
@@ -489,7 +520,7 @@ export function CustomerWebchat() {
             <div className="max-w-lg rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center space-y-4">
               <div>
                 <h3 className="text-lg font-semibold">Schliesse dein Kunden-Onboarding ab</h3>
-                <p className="mt-2 text-sm text-muted-foreground">Oeffne Guthaben, pruefe Rabatt und Guthabenstand und schliesse danach dein Onboarding ab.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Oeffne Guthaben, pruefe deinen Guthabenstand und schliesse danach dein Onboarding ab.</p>
               </div>
               <a href="/usage-token" className="btn btn-primary text-sm">Guthaben oeffnen</a>
             </div>

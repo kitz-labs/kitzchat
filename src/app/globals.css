@@ -24,7 +24,7 @@
 /* ─── Design Tokens ─────────────────────────────────────── */
 :root {
   --nav-width: 220px;
-  --header-height: 48px;
+  --header-height: 64px;
   --radius: 0.625rem;
   --app-bg: radial-gradient(1000px 700px at 40% 0%, rgba(47,107,255,0.10), transparent 55%),
             radial-gradient(900px 520px at 85% 18%, rgba(22,163,74,0.08), transparent 60%),

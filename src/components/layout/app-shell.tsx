@@ -25,7 +25,7 @@ export function AppShell({ children, customerView = false }: { children: React.R
     <>
       <main className={`main-content surface-0 flex-1 nav-offset-margin-left header-offset-margin-top p-3 sm:p-5 transition-[margin] duration-300 ${
         customerView
-          ? 'customer-shell flex h-[calc(100vh-4rem)] min-h-[calc(100vh-4rem)] flex-col overflow-auto pb-[calc(7.25rem+env(safe-area-inset-bottom,0px))]'
+          ? 'customer-shell flex h-[calc(100vh-var(--header-height))] min-h-[calc(100vh-var(--header-height))] flex-col overflow-auto pb-[calc(7.25rem+env(safe-area-inset-bottom,0px))]'
           : 'overflow-auto pb-[calc(3.25rem+env(safe-area-inset-bottom,0px))]'
       } ${!customerView && feedOpen ? 'lg:mr-80' : ''}`}>
         <div className={customerView ? 'flex-1 min-h-0' : ''}>{children}</div>

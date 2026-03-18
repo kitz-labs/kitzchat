@@ -177,11 +177,9 @@ export function CustomerUsage() {
   const restCents = Math.max(0, walletCents - todayCents);
   const hasAccess = Boolean(me?.has_agent_access);
   const isActivated = me?.payment_status === 'paid';
-  const nextTopupDiscountPercent = Math.max(0, Math.round(me?.next_topup_discount_percent ?? 0));
   const onboardingSteps = [
     { label: 'Onboarding', value: Boolean(me?.onboarding_completed_at) ? 1 : 0, color: '#0f766e' },
     { label: 'Aktivierung', value: isActivated ? 1 : 0, color: '#2563eb' },
-    { label: 'Rabatt vorbereitet', value: nextTopupDiscountPercent > 0 || (me?.completed_payments_count ?? 0) > 1 ? 1 : 0, color: '#f59e0b' },
   ];
   const checkoutPresetOptions = useMemo(() => {
     const configuredOptions = topupOffers
@@ -273,7 +271,7 @@ export function CustomerUsage() {
     <div className="space-y-6 animate-in">
       <div>
         <h1 className="text-xl font-semibold">Guthaben</h1>
-        <p className="text-xs text-muted-foreground">Verwalte Aktivierung, Guthaben, Rabatt, Onboarding und Rechnungen zentral an einem Ort.</p>
+        <p className="text-xs text-muted-foreground">Verwalte Aktivierung, Guthaben, Onboarding und Rechnungen zentral an einem Ort.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -349,7 +347,7 @@ export function CustomerUsage() {
             {!isActivated ? (
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
                 <div className="text-sm font-medium">Aktivierung und erste Einzahlung</div>
-                <div className="text-xs text-muted-foreground">Dieser Schritt ist optional fuer das Onboarding. Wenn du ihn jetzt machst, werden alle Agenten freigeschaltet. Du kannst direkt 10, 20, 50, 100 Euro oder einen freien Startbetrag waehlen. Danach erhaeltst du automatisch 30 % Rabatt auf deine naechste Guthaben-Aufladung.</div>
+                <div className="text-xs text-muted-foreground">Dieser Schritt ist optional fuer das Onboarding. Wenn du ihn jetzt machst, werden alle Agenten freigeschaltet. Du kannst direkt 10, 20, 50, 100 Euro oder einen freien Startbetrag waehlen.</div>
                 <CheckoutAmountPicker
                   checkoutType="activation"
                   customAmount={activationAmount}
@@ -362,15 +360,6 @@ export function CustomerUsage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-success/30 bg-success/5 p-4">
-                  <div className="text-sm font-medium">Naechster Auflade-Rabatt</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {nextTopupDiscountPercent > 0
-                      ? `Du hast aktuell ${nextTopupDiscountPercent}% Rabatt auf deine naechste Einzahlung.`
-                      : 'Aktuell ist kein Folgerabatt aktiv. Nach deiner ersten erfolgreichen Einzahlung wird der Rabatt automatisch vorbereitet.'}
-                  </div>
-                </div>
-
                 <div>
                   <div className="text-sm font-medium">Guthaben aufladen</div>
                   <div className="mt-1 text-xs text-muted-foreground">Stripe Checkout bucht dein Guthaben automatisch in dein Wallet ein.</div>
@@ -382,7 +371,7 @@ export function CustomerUsage() {
                   onCustomAmountChange={setCustomAmount}
                   onCheckout={startTopup}
                   loadingKey={checkoutLoading}
-                  discountPercent={nextTopupDiscountPercent}
+                  discountPercent={0}
                   error={checkoutError}
                   presetOptions={checkoutPresetOptions}
                 />
@@ -404,8 +393,8 @@ export function CustomerUsage() {
             />
             <DonutCard
               title="Fortschritt als Cake"
-              description="Onboarding, Aktivierung und Rabattstatus auf einen Blick."
-              totalLabel={`${onboardingSteps.filter((step) => step.value > 0).length}/3`}
+              description="Onboarding und Aktivierung auf einen Blick."
+              totalLabel={`${onboardingSteps.filter((step) => step.value > 0).length}/2`}
               segments={onboardingSteps}
             />
           </div>
@@ -421,7 +410,6 @@ export function CustomerUsage() {
               {[
                 { label: 'Onboarding ohne Einzahlung abschliessen', done: Boolean(me?.onboarding_completed_at) },
                 { label: 'Optionale Aktivierung / Einzahlung', done: isActivated },
-                { label: '30 % Rabatt fuer naechste Einzahlung vorbereitet', done: nextTopupDiscountPercent > 0 || (me?.completed_payments_count ?? 0) > 1 },
               ].map((step) => (
                 <div key={step.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/10 px-4 py-3">
                   <span>{step.label}</span>
@@ -500,7 +488,7 @@ export function CustomerUsage() {
               <div>
                 <div className="text-sm font-semibold">{invoice.title}</div>
                 <div className="text-xs text-muted-foreground">{new Date(invoice.created_at).toLocaleString('de-DE')} · berechnet €{(invoice.amount_cents / 100).toFixed(2)} · gutgeschrieben €{((invoice.credit_amount_cents || invoice.amount_cents) / 100).toFixed(2)}</div>
-                {invoice.discount_percent > 0 ? <div className="mt-1 text-xs text-success">Rabatt angewendet: {invoice.discount_percent}%</div> : null}
+                {null}
               </div>
               <a href={invoice.download_url} className="btn btn-primary text-sm" download>
                 PDF herunterladen

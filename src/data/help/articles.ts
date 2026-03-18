@@ -291,7 +291,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
           'Card anklicken → Popup oeffnet sich.',
           '„CSV herunterladen“ klicken und Datei lokal speichern.',
           'CSV in Excel/Numbers/Google Sheets bearbeiten oder direkt in Tools importieren.',
-          'Wenn du unsicher bist: Agent „Meister“ bitten, die CSV fuer deinen Use Case anzupassen.',
+          'Wenn du unsicher bist: Agent „Master Agent“ bitten, die CSV fuer deinen Use Case anzupassen.',
         ],
       },
       { kind: 'links', items: [{ label: 'Downloads', href: '/downloads', note: 'CSV Templates als Cards' }, { label: 'Agenten', href: '/agents', note: 'CSV fuellen lassen (Input/Output)' }] },

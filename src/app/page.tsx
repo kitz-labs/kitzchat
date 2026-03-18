@@ -17,7 +17,7 @@ import type { OverviewStats, Alert, ActivityEntry, DailyMetrics } from '@/types'
 import { PipelineFunnel } from '@/components/pipeline/pipeline-funnel';
 import { AgentSessions } from '@/components/sessions/agent-sessions';
 import { ContentCalendar } from '@/components/content/content-calendar';
-import { CustomerWebchat } from '@/components/customer/customer-webchat';
+import { CustomerHome } from '@/components/customer/customer-home';
 
 interface AgentBrief {
   id: string;
@@ -192,7 +192,7 @@ export default function OverviewPage() {
   }
 
   if (customerView) {
-    return <CustomerWebchat />;
+    return <CustomerHome />;
   }
 
   if (!data || loading) {

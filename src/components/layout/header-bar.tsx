@@ -45,10 +45,7 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
           <div className="shrink-0 md:hidden">
             <BrandLogo compact />
           </div>
-          <div className="flex items-baseline gap-2 min-w-0">
-            <span className="text-sm font-semibold tracking-tight text-foreground">Nexora</span>
-            <span className="hidden sm:inline truncate text-xs text-muted-foreground">ein Chat Assistent den du lieben wirst.</span>
-          </div>
+          <TypingBrand />
         </div>
 
         <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3">
@@ -93,6 +90,55 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
         <LogoutButton />
       </div>
     </header>
+  );
+}
+
+function TypingBrand() {
+  const text = 'ein Chat Assistent den du lieben wirst.';
+  const [shown, setShown] = useState('');
+  const [phase, setPhase] = useState<'typing' | 'pause' | 'clearing'>('typing');
+
+  useEffect(() => {
+    let timer: number | undefined;
+    if (phase === 'typing') {
+      timer = window.setInterval(() => {
+        setShown((current) => {
+          const next = text.slice(0, Math.min(text.length, current.length + 1));
+          if (next.length >= text.length) {
+            window.setTimeout(() => setPhase('pause'), 650);
+          }
+          return next;
+        });
+      }, 45);
+    } else if (phase === 'pause') {
+      timer = window.setTimeout(() => setPhase('clearing'), 950) as any;
+    } else if (phase === 'clearing') {
+      timer = window.setInterval(() => {
+        setShown((current) => {
+          const next = current.slice(0, Math.max(0, current.length - 2));
+          if (next.length === 0) {
+            window.setTimeout(() => setPhase('typing'), 350);
+          }
+          return next;
+        });
+      }, 28);
+    }
+
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
+  }, [phase, text]);
+
+  return (
+    <div className="min-w-0">
+      <div className="text-base sm:text-lg font-extrabold tracking-tight text-foreground leading-none">
+        Nexora
+      </div>
+      <div className="text-[12px] sm:text-sm text-muted-foreground leading-none mt-1 truncate max-w-[46vw] sm:max-w-[52vw]">
+        <span className="font-medium">{shown}</span>
+        <span className="inline-block w-[10px] ml-1 align-baseline opacity-60 animate-pulse">|</span>
+      </div>
+    </div>
   );
 }
 
