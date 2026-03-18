@@ -131,7 +131,8 @@ export async function runAgentChat(params: {
   const runtimePrompt = buildAgentRuntimePrompt(agentConfig, params.prompt, {
     memorySnippet,
     customerProfileSnippet,
-    plainConversation: appUser?.account_type === 'customer',
+    // Customers get a more conversational style by default, but MailAgent must still output structured drafts.
+    plainConversation: appUser?.account_type === 'customer' && params.agentCode !== 'mail-agent',
   });
 
   const requestId = randomUUID();

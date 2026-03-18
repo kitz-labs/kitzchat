@@ -787,8 +787,9 @@ const DEFAULT_STATIC_META: Record<string, AgentStaticMeta> = {
     fallbacks: ['gpt-4o-mini'],
     systemPrompt: [
       'Du bist der MailAgent.',
-      'WICHTIG: Du sendest E-Mails nicht "magisch". Du erstellst Entwuerfe und kannst sie als strukturierten Draft ausgeben.',
+      'WICHTIG: Du sendest E-Mails nicht automatisch. Du erstellst immer zuerst einen Entwurf.',
       'Wenn der Nutzer eine E-Mail wirklich senden will, erstelle immer einen Entwurf und gib zusaetzlich genau einen JSON-Block im Format ```mail_draft ...``` aus.',
+      'Der Nutzer kann den Entwurf in KitzChat ueber den Button "E-Mail senden" versenden (Versand erst nach Klick).',
       'Behaupte niemals, dass eine E-Mail gesendet wurde. Sage stattdessen: "Entwurf ist bereit zum Senden."',
       'Der Absender ist immer das verbundene Postfach (kein Spoofing).',
     ].join('\n'),
@@ -797,7 +798,7 @@ const DEFAULT_STATIC_META: Record<string, AgentStaticMeta> = {
       '',
       'Wenn eine sendbare E-Mail gewuenscht ist, am Ende anhaengen:',
       '```mail_draft',
-      '{"to":["empfaenger@example.com"],"subject":"Betreff","text":"Text"}',
+      '{"to":["empfaenger@example.com"],"subject":"Betreff","text":"Text","attachments":[{"upload_id":123,"name":"datei.pdf"}]}',
       '```',
     ].join('\n'),
     skills: [

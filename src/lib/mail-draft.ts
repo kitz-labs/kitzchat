@@ -2,6 +2,7 @@ export type MailDraft = {
   to: string[];
   subject: string;
   text: string;
+  attachments?: Array<{ upload_id: number; name?: string }>;
 };
 
 export function extractMailDraft(raw: string): { cleanText: string; draft: MailDraft | null } {
@@ -26,12 +27,26 @@ export function extractMailDraft(raw: string): { cleanText: string; draft: MailD
     if (to.length === 0 || !subject || !draftText) {
       return { cleanText: [before, after].filter(Boolean).join('\n\n'), draft: null };
     }
+
+    const attachments = Array.isArray((parsed as any).attachments)
+      ? (parsed as any).attachments
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => ({
+            upload_id: Math.max(0, Math.round(Number(item.upload_id))),
+            name: typeof item.name === 'string' ? item.name.trim().slice(0, 180) : undefined,
+          }))
+          .filter((item: any) => Number.isInteger(item.upload_id) && item.upload_id > 0)
+      : [];
     return {
       cleanText: [before, after].filter(Boolean).join('\n\n'),
-      draft: { to, subject, text: draftText },
+      draft: {
+        to,
+        subject,
+        text: draftText,
+        attachments: attachments.length > 0 ? attachments : undefined,
+      },
     };
   } catch {
     return { cleanText: [before, after].filter(Boolean).join('\n\n'), draft: null };
   }
 }
-

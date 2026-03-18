@@ -251,7 +251,7 @@ async function forwardToAgent(
   integrationContext: string,
 ) {
   const attachmentSummary = attachments.length > 0
-    ? `\n\nAngehaengte Dateien:\n${attachments.map((item) => `- ${item.name} (${item.type || 'Datei'})`).join('\n')}`
+    ? `\n\nAngehaengte Dateien (nutze upload_id fuer Entwuerfe/Anhänge):\n${attachments.map((item) => `- upload_id=${item.id} · ${item.name} · ${item.type || 'Datei'} · ${Math.max(0, Number(item.size || 0))} bytes`).join('\n')}`
     : '';
   const prompt = `Message from ${from}: ${content}${attachmentSummary}${integrationContext}`;
   const useCreditRouting = hasPostgresConfig() && username !== 'admin';

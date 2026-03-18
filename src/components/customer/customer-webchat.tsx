@@ -49,6 +49,7 @@ type ChatMessage = {
       to: string[];
       subject: string;
       text: string;
+      attachments?: Array<{ upload_id: number; name?: string }>;
     };
   } | null;
 };
@@ -443,7 +444,7 @@ export function CustomerWebchat() {
       const response = await fetch('/api/customer/mail/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: draft.to, subject: draft.subject, text: draft.text }),
+        body: JSON.stringify({ to: draft.to, subject: draft.subject, text: draft.text, attachments: draft.attachments || [] }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) throw new Error(String(payload?.error || 'Mail konnte nicht gesendet werden'));
@@ -712,6 +713,11 @@ export function CustomerWebchat() {
                                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">E-Mail Entwurf</div>
                                 <div className="text-xs text-muted-foreground">An: {mailDraft.to.join(', ')}</div>
                                 <div className="text-xs text-muted-foreground">Betreff: {mailDraft.subject}</div>
+                                {Array.isArray(mailDraft.attachments) && mailDraft.attachments.length > 0 ? (
+                                  <div className="text-xs text-muted-foreground">
+                                    Anhaenge: {mailDraft.attachments.map((a) => a.name ? a.name : `upload_id ${a.upload_id}`).join(', ')}
+                                  </div>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={() => sendDraftMail(message)}
@@ -721,6 +727,13 @@ export function CustomerWebchat() {
                                   {mailSendingId === message.id ? 'Sende...' : 'E-Mail senden'}
                                 </button>
                                 {mailSendError ? <div className="text-xs text-destructive">{mailSendError}</div> : null}
+                              </div>
+                            ) : null}
+                            {!mine && message.from_agent === 'mail-agent' && !mailDraft && /(entwurf|e-mail|email|senden)/i.test(message.content) ? (
+                              <div className="mt-3 rounded-xl border border-border/60 bg-warning/5 p-3">
+                                <div className="text-xs text-muted-foreground">
+                                  Kein sendbarer Entwurf erkannt. Bitte schreibe: "Gib den Entwurf als mail_draft Block aus."
+                                </div>
                               </div>
                             ) : null}
                             {typeof message.metadata?.credits_charged === 'number' ? (
