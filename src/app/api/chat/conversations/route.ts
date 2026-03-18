@@ -185,3 +185,36 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Failed to update conversation' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  const auth = requireApiUser(request as Request);
+  if (auth) return auth;
+
+  try {
+    const actor = requireUser(request as Request);
+    const db = getDb();
+    const body = await request.json().catch(() => ({}));
+    const conversationId = typeof body?.conversation_id === 'string' ? body.conversation_id.trim() : '';
+
+    if (!conversationId) {
+      return NextResponse.json({ error: 'conversation_id is required' }, { status: 400 });
+    }
+
+    if (actor.account_type === 'customer' && actor.role !== 'admin') {
+      const existing = db.prepare('SELECT owner_user_id FROM chat_conversations WHERE conversation_id = ? LIMIT 1').get(conversationId) as { owner_user_id: number | null } | undefined;
+      if (existing && existing.owner_user_id && existing.owner_user_id !== actor.id) {
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      }
+      db.prepare('DELETE FROM messages WHERE conversation_id = ? AND owner_user_id = ?').run(conversationId, actor.id);
+      db.prepare('DELETE FROM chat_conversations WHERE conversation_id = ? AND owner_user_id = ?').run(conversationId, actor.id);
+    } else {
+      db.prepare('DELETE FROM messages WHERE conversation_id = ?').run(conversationId);
+      db.prepare('DELETE FROM chat_conversations WHERE conversation_id = ?').run(conversationId);
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('DELETE /api/chat/conversations error:', error);
+    return NextResponse.json({ error: 'Failed to delete conversation' }, { status: 500 });
+  }
+}

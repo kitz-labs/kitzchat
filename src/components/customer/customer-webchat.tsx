@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Download, FileUp, Lock, PenSquare, Plus, Save, Send, Sparkles, X, Wand2, Wallet, HelpCircle } from 'lucide-react';
+import { Bot, Download, FileUp, Lock, PenSquare, Plus, Save, Send, Sparkles, X, Wand2, Wallet, HelpCircle, Trash2 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
@@ -200,15 +200,17 @@ export function CustomerWebchat() {
     setConversationTitle(selectedConversation?.title || '');
   }, [selectedConversation?.conversation_id, selectedConversation?.title]);
 
+  const walletCents = Number(me?.wallet_balance_cents ?? 0);
+  const walletCredits = Number(wallet?.balance ?? 0);
   const hasAccess =
     Boolean(me?.has_agent_access) ||
     me?.payment_status === 'paid' ||
-    (me?.wallet_balance_cents ?? 0) > 0 ||
-    (wallet?.balance ?? 0) > 0;
-  const chatLocked = !hasAccess && me?.account_type !== 'customer';
+    (Number.isFinite(walletCents) && walletCents > 0) ||
+    (Number.isFinite(walletCredits) && walletCredits > 0);
+  const chatLocked = Boolean(me) && !hasAccess && me?.account_type !== 'customer';
   const messages = messagePayload?.messages || [];
   const selectedAgent = visibleAgents.find((agent) => agent.id === activeAgent) || null;
-  const onboardingOpen = hasAccess && !me?.onboarding_completed_at;
+  const onboardingOpen = !hasAccess && !me?.onboarding_completed_at;
 
   useEffect(() => {
     if (!hasAccess) return;
@@ -238,7 +240,7 @@ export function CustomerWebchat() {
       // ignore
     }
   }, [hasAccess, enabledAgentIds, input]);
-
+  
   useEffect(() => {
     if (!awaitingAgentReply || !lastSentAtSec) return;
     const resolved = messages.some((message) => {
@@ -334,6 +336,31 @@ export function CustomerWebchat() {
       setUploadError(error instanceof Error ? error.message : 'Chat konnte nicht exportiert werden');
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function deleteConversation(conversationId: string) {
+    if (!conversationId) return;
+    const confirmed = window.confirm('Diesen Chat wirklich loeschen?');
+    if (!confirmed) return;
+    setUploadError(null);
+    try {
+      const response = await fetch('/api/chat/conversations', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: conversationId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(payload?.error || 'Chat konnte nicht geloescht werden'));
+      }
+      if (conversationId === activeConversationId) {
+        setActiveConversationId('');
+        setConversationTitle('');
+      }
+      await refetchConversations();
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Chat konnte nicht geloescht werden');
     }
   }
 
@@ -559,19 +586,38 @@ export function CustomerWebchat() {
                 ) : (
                   <div className="space-y-2">
                     {filteredConversations.map((conversation) => (
-                      <button
+                      <div
                         key={conversation.conversation_id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setActiveConversationId(conversation.conversation_id)}
-                        className={`w-full rounded-2xl border px-3 py-3 text-left transition-colors ${conversation.conversation_id === activeConversationId ? 'border-primary/40 bg-primary/5' : 'border-border/60 bg-muted/10 hover:bg-muted/20'}`}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setActiveConversationId(conversation.conversation_id);
+                          }
+                        }}
+                        className={`w-full rounded-2xl border px-3 py-3 text-left transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40 ${conversation.conversation_id === activeConversationId ? 'border-primary/40 bg-primary/5' : 'border-border/60 bg-muted/10 hover:bg-muted/20'}`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 truncate text-sm font-medium text-foreground">{conversation.title}</div>
-                          <div className="text-[11px] text-muted-foreground">{conversation.message_count}</div>
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                            <span>{conversation.message_count}</span>
+                            <button
+                              type="button"
+                              className="rounded-full border border-border/60 p-1 text-muted-foreground hover:text-destructive"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                deleteConversation(conversation.conversation_id);
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </div>
                         <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{conversation.last_message?.content || 'Noch keine Nachrichten'}</div>
                         <div className="mt-2 text-[11px] text-muted-foreground">{formatConversationTime(conversation.last_message_at || conversation.created_at)}</div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}
