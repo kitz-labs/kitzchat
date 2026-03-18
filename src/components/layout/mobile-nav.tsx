@@ -38,34 +38,48 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Kern',
+    label: 'Top-Level',
     items: [
       { href: '/', label: 'Uebersicht', icon: Gauge, priority: true },
-      { href: '/agents/squads', label: 'Squads', icon: Bot, priority: true },
       { href: '/customers', label: 'Kunden', icon: Contact, priority: true },
-      { href: '/stripe', label: 'Stripe', icon: CreditCard, priority: true },
+      { href: '/billing', label: 'Billing', icon: CreditCard, priority: true },
+      { href: '/support', label: 'Support', icon: LifeBuoy, priority: true },
     ],
   },
   {
-    label: 'Betrieb',
+    label: 'Revenue',
     items: [
-      { href: '/customers', label: 'Kunden', icon: Contact },
-      { href: '/compliance', label: 'Verstoesse', icon: ShieldAlert },
-      { href: '/agents/comms', label: 'Comms', icon: MessageCircle },
-      { href: '/agents/workspace', label: 'Workspace', icon: FolderOpen },
-      { href: '/telegram', label: 'Telegram', icon: Mail },
-      { href: '/website', label: 'www.aikitz.at', icon: PenLine },
-      { href: '/openai', label: 'OpenAI', icon: BrainCircuit },
-      { href: '/engagement', label: 'Engagement', icon: MessageCircle },
-      { href: '/db/billing', label: 'DB', icon: Database },
+      { href: '/stripe', label: 'Stripe', icon: CreditCard },
+      { href: '/db/billing', label: 'Billing DB', icon: Database },
     ],
   },
   {
-    label: 'Einblicke',
+    label: 'AI & Systeme',
+    items: [
+      { href: '/openai', label: 'OpenAI', icon: BrainCircuit },
+      { href: '/agents/catalog', label: 'Agenten', icon: Bot },
+      { href: '/agents/squads', label: 'Squads', icon: Bot },
+      { href: '/agents/workspace', label: 'Workspace', icon: FolderOpen },
+      { href: '/memory', label: 'Memory', icon: BrainCircuit },
+      { href: '/telegram', label: 'Telegram', icon: Mail },
+      { href: '/maestro', label: 'MAESTRO', icon: Sparkles },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { href: '/support/db', label: 'Support DB', icon: Database },
+      { href: '/compliance', label: 'Verstoesse', icon: ShieldAlert },
+      { href: '/engagement', label: 'Engagement', icon: MessageCircle },
+      { href: '/activity', label: 'Activity', icon: List },
+      { href: '/website', label: 'www.aikitz.at', icon: PenLine },
+      { href: '/deploy', label: 'Deploy', icon: Sparkles },
+    ],
+  },
+  {
+    label: 'Insights',
     items: [
       { href: '/analytics', label: 'Analytics', icon: LineChart },
-      { href: '/memory', label: 'Memory', icon: BrainCircuit },
-      { href: '/activity', label: 'Activity', icon: List },
       { href: '/settings', label: 'Einstellungen', icon: Settings },
     ],
   },
