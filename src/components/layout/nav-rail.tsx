@@ -66,6 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/customers', label: 'Kunden', icon: Users },
       { href: '/billing', label: 'Abrechnung', icon: CreditCard },
       { href: '/stripe', label: 'Stripe', icon: CreditCard },
+      { href: '/maestro', label: 'MAESTRO', icon: Zap },
       { href: '/website', label: 'www.aikitz.at', icon: PenLine },
       { href: '/openai', label: 'OpenAI', icon: BrainCircuit },
       { href: '/db/billing', label: 'DB', icon: Database },
