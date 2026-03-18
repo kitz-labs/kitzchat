@@ -298,7 +298,7 @@ export function CustomerSettings() {
               <DetailRow label="Status" value={confirming ? 'Zahlung wird geprueft...' : paymentLabel} />
               <DetailRow label="Guthaben" value={`€${((me?.wallet_balance_cents ?? 0) / 100).toFixed(2)}`} />
               <DetailRow label="Onboarding" value={me?.onboarding_completed_at ? 'Abgeschlossen' : 'Offen'} />
-              <DetailRow label="Naechster Rabatt" value="—" />
+              <DetailRow label="Naechster Rabatt" value={me?.next_topup_discount_percent ? `${me.next_topup_discount_percent}%` : 'Kein aktiver Rabatt'} />
             </div>
 
             {!isActivated ? (

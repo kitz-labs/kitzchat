@@ -102,7 +102,7 @@ export function CheckoutAmountPicker({
         <div className="text-xs text-muted-foreground">
           {checkoutType === 'activation'
             ? `Deine erste Einzahlung schaltet den Zugang frei und laedt ${formatEuro(customAmountCents)} als Startguthaben.`
-            : `Gutgeschrieben werden ${formatEuro(customAmountCents)}.`}
+            : `Gutgeschrieben werden ${formatEuro(customAmountCents)}.${discountPercent > 0 ? ` Durch deinen Rabatt zahlst du aktuell nur ${formatEuro(discountedCustomAmountCents)}.` : ''}`}
         </div>
         <div className="text-xs text-muted-foreground">Im Stripe Checkout kannst du zusaetzlich einen Coupon-Code oder Promotion Code eingeben.</div>
       </div>

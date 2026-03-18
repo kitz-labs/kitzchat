@@ -22,7 +22,7 @@ const STEPS = [
   },
   {
     title: 'So funktioniert dein Guthaben',
-    description: 'Aktivierung und Guthaben sind ein separater Schritt. Wenn du spaeter zahlst, schaltest du alle Agenten frei.',
+    description: 'Aktivierung und Guthaben sind ein separater Schritt. Wenn du spaeter zahlst, schaltest du alle Agenten frei und bekommst danach automatisch 30 % Rabatt fuer die naechste Einzahlung vorbereitet.',
     icon: Coins,
   },
   {
@@ -61,7 +61,7 @@ export function CustomerOnboarding({ isActivated, onboardingCompleted, walletBal
             <h3 className="text-lg font-semibold">{current.title}</h3>
             <p className="text-sm text-muted-foreground">{current.description}</p>
             {isActivated ? <div className="text-xs text-success">Aktivierung erkannt. Aktuelles Guthaben: €{(walletBalanceCents / 100).toFixed(2)}</div> : null}
-            {!isActivated && stepIndex === 2 ? <div className="text-xs text-primary">Wenn du spaeter aktivierst, kannst du jederzeit Guthaben aufladen und alle Agenten freischalten.</div> : null}
+            {!isActivated && stepIndex === 2 ? <div className="text-xs text-primary">Wenn du spaeter aktivierst, wird der 30 %-Folgerabatt fuer die naechste Einzahlung automatisch vorbereitet.</div> : null}
           </div>
         </div>
 

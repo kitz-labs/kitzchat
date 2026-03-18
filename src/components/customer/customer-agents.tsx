@@ -187,7 +187,7 @@ export function CustomerAgents() {
           <div className="panel-body flex items-center justify-between gap-4 flex-wrap">
             <div>
               <div className="text-sm font-medium">Aktivierung ist ein separater Schritt</div>
-              <div className="text-xs text-muted-foreground">Dein Onboarding kann schon abgeschlossen sein. Wenn du alle Agenten freischalten willst, waehle auf der Guthaben-Seite 10, 20, 50, 100 Euro oder einen freien Betrag.</div>
+              <div className="text-xs text-muted-foreground">Dein Onboarding kann schon abgeschlossen sein. Wenn du alle Agenten freischalten willst, waehle auf der Guthaben-Seite 10, 20, 50, 100 Euro oder einen freien Betrag. Danach wird der Rabatt fuer die naechste Einzahlung vorbereitet.</div>
             </div>
             <a href="/usage-token" className="btn btn-primary text-sm">Aktivierung oeffnen</a>
           </div>
