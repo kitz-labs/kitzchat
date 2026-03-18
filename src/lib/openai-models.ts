@@ -5,6 +5,9 @@ export type OpenAiModelOption = {
 };
 
 export const OPENAI_MODEL_OPTIONS: OpenAiModelOption[] = [
+  { value: 'o3-mini', label: 'o3-mini (Reasoning)', group: 'Reasoning' },
+  { value: 'o1-mini', label: 'o1-mini (Reasoning)', group: 'Reasoning' },
+  { value: 'o1', label: 'o1 (Reasoning)', group: 'Reasoning' },
   { value: 'gpt-5.4', label: 'gpt-5.4 (Premium)', group: 'GPT' },
   { value: 'gpt-5', label: 'gpt-5', group: 'GPT' },
   { value: 'gpt-4.1', label: 'gpt-4.1', group: 'GPT' },
@@ -18,4 +21,3 @@ export const OPENAI_MODEL_OPTIONS: OpenAiModelOption[] = [
 export function listOpenAiModelValues(): string[] {
   return OPENAI_MODEL_OPTIONS.map((entry) => entry.value);
 }
-

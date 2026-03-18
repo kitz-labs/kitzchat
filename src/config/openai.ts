@@ -36,6 +36,11 @@ function resolveApiModel(modelInternal: string): { apiModel: string; modelIntern
   return { apiModel: modelInternal, modelInternal };
 }
 
+function supportsReasoningEffort(modelName: string): boolean {
+  const normalized = modelName.toLowerCase();
+  return normalized.startsWith('o1') || normalized.startsWith('o3') || normalized.includes('reasoning');
+}
+
 function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
@@ -160,7 +165,9 @@ export async function requestOpenAiResponse(prompt: string, modelInternal: strin
   const payload: Record<string, unknown> = {
     model: resolvedModel.apiModel,
     input: prompt,
-    ...(modelUsage?.reasoningEffort ? { reasoning: { effort: modelUsage.reasoningEffort } } : {}),
+    ...(modelUsage?.reasoningEffort && supportsReasoningEffort(resolvedModel.apiModel)
+      ? { reasoning: { effort: modelUsage.reasoningEffort } }
+      : {}),
     ...(modelUsage?.maxOutputTokens ? { max_output_tokens: modelUsage.maxOutputTokens } : {}),
     ...(typeof modelUsage?.temperature === 'number' ? { temperature: modelUsage.temperature } : {}),
   };
@@ -187,13 +194,17 @@ export async function requestOpenAiResponse(prompt: string, modelInternal: strin
 
   let { response, json, text } = await doRequest(payload);
 
-  // Manche Modelle (z.B. gpt-5) akzeptieren nicht alle Parameter. Wir retryn einmal ohne "temperature".
+  // Manche Modelle akzeptieren nicht alle Parameter. Wir retryn einmal ohne problematischen Parameter.
   if (!response.ok && response.status === 400) {
     const errParam = String((json as any)?.error?.param || '');
     const errMsg = String((json as any)?.error?.message || '');
     if (errParam === 'temperature' || errMsg.toLowerCase().includes('unsupported parameter') && errMsg.toLowerCase().includes('temperature')) {
       const retryPayload = { ...payload };
       delete retryPayload.temperature;
+      ({ response, json, text } = await doRequest(retryPayload));
+    } else if (errParam === 'reasoning.effort' || errMsg.toLowerCase().includes('reasoning') && errMsg.toLowerCase().includes('unsupported')) {
+      const retryPayload = { ...payload };
+      delete retryPayload.reasoning;
       ({ response, json, text } = await doRequest(retryPayload));
     }
   }

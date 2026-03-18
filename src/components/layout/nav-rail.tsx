@@ -150,6 +150,7 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
           <div className="flex flex-col items-center text-center gap-2">
             <BrandLogo compact className="justify-center" imageClassName="h-[47px]" />
             <div className="text-sm font-semibold">{currentUser?.username || 'Kunde'}</div>
+            <div className="text-[11px] text-muted-foreground">Hey {currentUser?.username || 'Kunde'}</div>
           </div>
         ) : (
           <div className="flex items-center gap-2.5">
