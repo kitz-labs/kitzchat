@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Download, FileUp, Lock, PenSquare, Plus, Save, Send, Sparkles, X } from 'lucide-react';
+import { Bot, Download, FileUp, Lock, PenSquare, Plus, Save, Send, Sparkles, X, Wand2, Wallet, HelpCircle } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
@@ -84,6 +84,7 @@ export function CustomerWebchat() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [wallet, setWallet] = useState<WalletSnapshot | null>(null);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [quickStartOpen, setQuickStartOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
 
@@ -111,6 +112,15 @@ export function CustomerWebchat() {
     loadPreferences().catch(() => setPreferences({ enabled_agent_ids: [], instagram_connected: false }));
     loadWallet().catch(() => setWallet(null));
   }, [loadMe, loadPreferences, loadWallet]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('kitzchat-quickstart-closed');
+      if (stored === '1') setQuickStartOpen(false);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useCustomerBillingSync({
     onConfirmed: async () => {
@@ -384,6 +394,29 @@ export function CustomerWebchat() {
           </div>
         </div>
 
+        {hasAccess ? (
+          <div className="mx-6 mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] items-start">
+            <div className="flex flex-wrap items-center gap-2">
+              <a href="#" onClick={(e) => { e.preventDefault(); createConversation(); }} className="btn btn-primary btn-sm inline-flex items-center gap-2">
+                <Wand2 size={14} /> Neuer Chat
+              </a>
+              <a href="/agents" className="btn btn-ghost btn-sm inline-flex items-center gap-2">
+                <Bot size={14} /> Agenten anpassen
+              </a>
+              <a href="/usage-token" className="btn btn-ghost btn-sm inline-flex items-center gap-2">
+                <Wallet size={14} /> Guthaben aufladen
+              </a>
+              <a href="/hilfe" className="btn btn-ghost btn-sm inline-flex items-center gap-2">
+                <HelpCircle size={14} /> Hilfe
+              </a>
+            </div>
+
+            <div className="hidden md:flex items-center justify-end gap-2 text-xs text-muted-foreground">
+              <span className="badge badge-neutral">Tipp: Starte mit dem Agent „Meister“ fuers Routing.</span>
+            </div>
+          </div>
+        ) : null}
+
         {confirmingPayment ? (
           <div className="mx-6 mt-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-primary">
             Zahlung erkannt. Dein Dashboard und der Chat werden gerade freigeschaltet.
@@ -393,6 +426,45 @@ export function CustomerWebchat() {
         {hasAccess && wallet ? (
           <div className={`mx-6 mt-4 rounded-2xl border px-4 py-3 text-sm ${wallet.lowBalanceWarning ? 'border-warning/40 bg-warning/5 text-warning' : 'border-border/60 bg-muted/10 text-foreground'}`}>
             {wallet.premiumModeMessage} · Verfuegbar: €{creditsToEur(wallet.balance || 0).toFixed(2)}
+          </div>
+        ) : null}
+
+        {hasAccess && quickStartOpen ? (
+          <div className="mx-6 mt-3 rounded-2xl border border-border/60 bg-background/35 px-4 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Schnellstart</div>
+                <div className="mt-1 text-sm font-semibold">In 60 Sekunden produktiv</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Keine Codes, keine Technik: einfach Fragen stellen – Nexora setzt um.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setQuickStartOpen(false);
+                  try { window.localStorage.setItem('kitzchat-quickstart-closed', '1'); } catch {}
+                }}
+              >
+                <X size={14} /> Ausblenden
+              </button>
+            </div>
+
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              <div className="rounded-xl border border-border/60 bg-muted/10 p-3">
+                <div className="text-xs font-semibold">1) Ziel sagen</div>
+                <div className="mt-1 text-xs text-muted-foreground">„Ich will mehr Leads fuer &lt;Angebot&gt;.“</div>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/10 p-3">
+                <div className="text-xs font-semibold">2) Agent waehlen</div>
+                <div className="mt-1 text-xs text-muted-foreground">MarketingAgent / SalesAgent / SupportAgent.</div>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/10 p-3">
+                <div className="text-xs font-semibold">3) Copy‑Paste Ergebnis</div>
+                <div className="mt-1 text-xs text-muted-foreground">Nexora liefert direkt Posts, Mails, Pläne.</div>
+              </div>
+            </div>
           </div>
         ) : null}
 

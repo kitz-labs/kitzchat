@@ -120,15 +120,25 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
       <div key={item.href} className="space-y-0.5">
         <Link
           href={item.href}
-          className={`relative w-full flex items-center gap-2 rounded-lg text-sm transition-smooth ${
-            active
-              ? 'bg-primary/14 text-primary'
-              : 'text-muted-foreground hover:text-foreground hover:bg-surface-2/80'
+          className={`relative w-full flex items-center gap-2 rounded-xl text-sm transition-smooth ${
+            customerView
+              ? (active
+                  ? 'bg-gradient-to-r from-primary/18 via-primary/10 to-transparent text-foreground border border-primary/25'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-surface-2/70 border border-transparent hover:border-border/60')
+              : (active
+                  ? 'bg-primary/14 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-surface-2/80')
           }`}
           style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: '8px', paddingTop: '6px', paddingBottom: '6px' }}
         >
           {active && <span className="absolute left-0 w-0.5 h-5 bg-primary rounded-r" />}
-          <Icon size={depth > 0 ? 14 : 16} />
+          <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+            customerView
+              ? (active ? 'bg-primary/14 text-primary' : 'bg-muted/30 text-muted-foreground')
+              : 'bg-transparent'
+          }`}>
+            <Icon size={depth > 0 ? 14 : 16} />
+          </span>
           <span className="flex-1 truncate">{item.label}</span>
           {!customerView && count > 0 && (
             <span className={`min-w-[18px] h-4 px-1 text-[9px] font-bold rounded-full flex items-center justify-center ${

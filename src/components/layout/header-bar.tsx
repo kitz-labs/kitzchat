@@ -45,9 +45,9 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
           <div className="shrink-0 md:hidden">
             <BrandLogo compact />
           </div>
-          <div className="hidden md:flex items-baseline gap-2 min-w-0">
+          <div className="flex items-baseline gap-2 min-w-0">
             <span className="text-sm font-semibold tracking-tight text-foreground">Nexora</span>
-            <span className="truncate text-xs text-muted-foreground">ein Chat Assistent den du lieben wirst.</span>
+            <span className="hidden sm:inline truncate text-xs text-muted-foreground">ein Chat Assistent den du lieben wirst.</span>
           </div>
         </div>
 
@@ -137,8 +137,12 @@ function CustomerHeaderMeta({ walletBalanceCents }: { walletBalanceCents: number
   return (
     <div className="hidden md:flex items-center justify-end gap-2 text-sm text-muted-foreground">
       <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5 font-medium">Uhrzeit {time}</span>
-      <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5 font-medium">Guthaben €{(walletBalanceCents / 100).toFixed(2)}</span>
-      <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5 font-medium">Systemstatus {health?.status === 'ok' ? 'OK' : 'Pruefung'}</span>
+      <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 font-medium text-foreground">Guthaben €{(walletBalanceCents / 100).toFixed(2)}</span>
+      <span className={`rounded-full border px-3 py-1.5 font-medium ${
+        health?.status === 'ok'
+          ? 'border-success/30 bg-success/10 text-foreground'
+          : 'border-warning/30 bg-warning/10 text-foreground'
+      }`}>Systemstatus {health?.status === 'ok' ? 'OK' : 'Pruefung'}</span>
     </div>
   );
 }
