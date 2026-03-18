@@ -59,7 +59,7 @@ export default function MaestroPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="h-full min-h-0 flex flex-col gap-4">
       <div className="card p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -75,7 +75,7 @@ export default function MaestroPage() {
         </div>
       </div>
 
-      <div className="card p-4 space-y-3">
+      <div className="card p-4 flex-1 min-h-0 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium flex items-center gap-2">
             <Bot size={14} className="text-primary" /> Ops Chat
@@ -85,7 +85,7 @@ export default function MaestroPage() {
           </button>
         </div>
 
-        <div className="min-h-[320px] max-h-[520px] overflow-y-auto space-y-3 rounded-xl border border-border/60 bg-surface-1/40 p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3 rounded-xl border border-border/60 bg-surface-1/40 p-4">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 size={16} className="animate-spin" /> Laden...
@@ -120,14 +120,14 @@ export default function MaestroPage() {
               }
             }}
             placeholder="Beschreibe dein Ziel (z.B. Umsatz steigern, Bug fixen, Agenten optimieren)..."
-            rows={3}
-            className="min-h-[84px] max-h-[220px] flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
+            rows={4}
+            className="min-h-[110px] max-h-[320px] flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
           />
           <button type="button" onClick={sendMessage} disabled={sending || !input.trim()} className="btn btn-primary btn-sm">
             <Send size={14} /> {sending ? 'Sende...' : 'Senden'}
           </button>
         </div>
-        <div className="text-xs text-muted-foreground">Tipp: Senden mit <span className="font-semibold">Ctrl</span> + <span className="font-semibold">Enter</span>.</div>
+        <div className="text-xs text-muted-foreground">Tipp: <span className="font-semibold">Enter</span> sendet · <span className="font-semibold">Shift</span> + <span className="font-semibold">Enter</span> neue Zeile.</div>
       </div>
     </div>
   );

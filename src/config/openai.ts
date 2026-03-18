@@ -51,8 +51,9 @@ function estimateCostEur(modelInternal: string, inputTokens: number, outputToken
 }
 
 function getOpenAiHeaders(): Record<string, string> {
+  const token = env.OPENAI_API_KEY || env.OPENAI_ADMIN_KEY;
   return {
-    Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+    Authorization: `Bearer ${token}`,
     ...(env.OPENAI_ORG_ID ? { 'OpenAI-Organization': env.OPENAI_ORG_ID } : {}),
     ...(env.OPENAI_PROJECT ? { 'OpenAI-Project': env.OPENAI_PROJECT } : {}),
   };

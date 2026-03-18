@@ -98,7 +98,7 @@ export function hasStripeConfig(): boolean {
 }
 
 export function hasOpenAiConfig(): boolean {
-  return Boolean(env.OPENAI_API_KEY);
+  return Boolean(env.OPENAI_API_KEY || env.OPENAI_ADMIN_KEY);
 }
 
 export function hasOpenAiWebhookConfig(): boolean {
