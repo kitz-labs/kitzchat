@@ -199,7 +199,7 @@ export function CustomerWebchat() {
     setConversationTitle(selectedConversation?.title || '');
   }, [selectedConversation?.conversation_id, selectedConversation?.title]);
 
-  const hasAccess = Boolean(me?.has_agent_access);
+  const hasAccess = Boolean(me?.has_agent_access) || (wallet?.balance ?? 0) > 0;
   const messages = messagePayload?.messages || [];
   const selectedAgent = visibleAgents.find((agent) => agent.id === activeAgent) || null;
   const onboardingOpen = hasAccess && !me?.onboarding_completed_at;
