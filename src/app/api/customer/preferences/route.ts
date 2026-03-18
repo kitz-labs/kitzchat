@@ -30,8 +30,12 @@ export async function PATCH(request: Request) {
       enabled_agent_ids?: string[];
       usage_alert_enabled?: boolean;
       usage_alert_daily_tokens?: number;
-      memory_storage_mode?: 'state' | 'custom';
+      memory_storage_mode?: 'state' | 'custom' | 'cloud';
       memory_storage_path?: string;
+      cloud_login_url?: string;
+      cloud_username?: string;
+      cloud_password?: string;
+      cloud_folder?: string;
       docu_provider?: string;
       docu_root_path?: string;
       docu_account_email?: string;

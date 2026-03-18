@@ -38,6 +38,10 @@ const EMPTY_PREFERENCES: Preferences = {
   secure_storage_enabled: false,
   memory_storage_mode: 'state',
   memory_storage_path: '',
+  cloud_login_url: '',
+  cloud_username: '',
+  cloud_password: '',
+  cloud_folder: '',
   docu_provider: 'lokal',
   docu_root_path: '',
   docu_account_email: '',
@@ -96,6 +100,7 @@ export function CustomerSettings() {
 
   const mailAddressRef = useRef<HTMLInputElement | null>(null);
   const mailPasswordRef = useRef<HTMLInputElement | null>(null);
+  const cloudPasswordRef = useRef<HTMLInputElement | null>(null);
 
   const loadMe = useCallback(async () => {
     const res = await fetch('/api/auth/me', { cache: 'no-store' });
@@ -331,6 +336,7 @@ export function CustomerSettings() {
         ...preferences,
         mail_address: mailAddressRef.current?.value ?? preferences.mail_address,
         mail_password: mailPasswordRef.current?.value ?? preferences.mail_password,
+        cloud_password: cloudPasswordRef.current?.value ?? preferences.cloud_password,
       };
       const res = await fetch('/api/customer/preferences', {
         method: 'PATCH',
@@ -561,16 +567,29 @@ export function CustomerSettings() {
           <div className="panel-body space-y-4">
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Speichermodus</div>
-              <select value={preferences.memory_storage_mode} onChange={(event) => setPreferences((current) => ({ ...current, memory_storage_mode: event.target.value as 'state' | 'custom' }))} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm">
+              <select value={preferences.memory_storage_mode} onChange={(event) => setPreferences((current) => ({ ...current, memory_storage_mode: event.target.value as 'state' | 'custom' | 'cloud' }))} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm">
                 <option value="state">Nexora State (automatisch)</option>
                 <option value="custom">Eigenen Speicherort verwenden</option>
+                <option value="cloud">Eigene Cloud (Login)</option>
               </select>
             </label>
-            <PrefInput label="Memory-Pfad" value={preferences.memory_storage_path} onChange={(value) => setPreferences((current) => ({ ...current, memory_storage_path: value }))} />
+            {preferences.memory_storage_mode === 'custom' ? (
+              <PrefInput label="Memory-Pfad (Server)" value={preferences.memory_storage_path} onChange={(value) => setPreferences((current) => ({ ...current, memory_storage_path: value }))} />
+            ) : null}
+            {preferences.memory_storage_mode === 'cloud' ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <PrefInput label="Cloud Login" value={preferences.cloud_login_url} onChange={(value) => setPreferences((current) => ({ ...current, cloud_login_url: value }))} />
+                <PrefInput label="Benutzername" value={preferences.cloud_username} onChange={(value) => setPreferences((current) => ({ ...current, cloud_username: value }))} />
+                <PrefInput inputRef={cloudPasswordRef} label="Passwort" type="password" value={preferences.cloud_password} onChange={(value) => setPreferences((current) => ({ ...current, cloud_password: value }))} />
+                <PrefInput label="Link zum Ordner" value={preferences.cloud_folder} onChange={(value) => setPreferences((current) => ({ ...current, cloud_folder: value }))} />
+              </div>
+            ) : null}
             <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
               {preferences.memory_storage_mode === 'custom'
-                ? 'Neue Chat- und Agentenbeitraege werden in den angegebenen Kundenpfad gespiegelt.'
-                : 'Neue Chat- und Agentenbeitraege werden automatisch im Nexora-State unter customer-memory abgelegt.'}
+                ? 'Neue Chat- und Agentenbeitraege werden in den angegebenen Server-Pfad gespiegelt.'
+                : preferences.memory_storage_mode === 'cloud'
+                  ? 'Cloud-Zugangsdaten werden als Agenten-Kontext genutzt. Memory bleibt bis zur WebDAV-Synchronisation im Nexora-State gespeichert.'
+                  : 'Neue Chat- und Agentenbeitraege werden automatisch im Nexora-State unter customer-memory abgelegt.'}
             </div>
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'Memory-Speicher speichern'}
@@ -597,13 +616,25 @@ export function CustomerSettings() {
                   <option value="dropbox">Dropbox</option>
                   <option value="google-drive">Google Drive</option>
                   <option value="owncloud">ownCloud</option>
+                  <option value="cloud">Eigene Cloud (Login)</option>
                 </select>
               </label>
-              <PrefInput label="Wurzelpfad / Cloud-Ordner" value={preferences.docu_root_path} onChange={(value) => setPreferences((current) => ({ ...current, docu_root_path: value }))} />
-              <PrefInput label="Kontakt / Login-Mail" value={preferences.docu_account_email} onChange={(value) => setPreferences((current) => ({ ...current, docu_account_email: value }))} />
-              <PrefInput label="App-Passwort" type="password" value={preferences.docu_app_password} onChange={(value) => setPreferences((current) => ({ ...current, docu_app_password: value }))} />
-              <PrefInput label="API-Key" type="password" value={preferences.docu_api_key} onChange={(value) => setPreferences((current) => ({ ...current, docu_api_key: value }))} />
-              <PrefInput label="Access-Token" type="password" value={preferences.docu_access_token} onChange={(value) => setPreferences((current) => ({ ...current, docu_access_token: value }))} />
+              {preferences.docu_provider === 'cloud' || preferences.docu_provider === 'owncloud' ? (
+                <>
+                  <PrefInput label="Cloud Login" value={preferences.cloud_login_url} onChange={(value) => setPreferences((current) => ({ ...current, cloud_login_url: value }))} />
+                  <PrefInput label="Benutzername" value={preferences.cloud_username} onChange={(value) => setPreferences((current) => ({ ...current, cloud_username: value }))} />
+                  <PrefInput inputRef={cloudPasswordRef} label="Passwort" type="password" value={preferences.cloud_password} onChange={(value) => setPreferences((current) => ({ ...current, cloud_password: value }))} />
+                  <PrefInput label="Link zum Ordner" value={preferences.docu_root_path || preferences.cloud_folder} onChange={(value) => setPreferences((current) => ({ ...current, docu_root_path: value, cloud_folder: value }))} />
+                </>
+              ) : (
+                <>
+                  <PrefInput label="Wurzelpfad / Cloud-Ordner" value={preferences.docu_root_path} onChange={(value) => setPreferences((current) => ({ ...current, docu_root_path: value }))} />
+                  <PrefInput label="Kontakt / Login-Mail" value={preferences.docu_account_email} onChange={(value) => setPreferences((current) => ({ ...current, docu_account_email: value }))} />
+                  <PrefInput label="App-Passwort" type="password" value={preferences.docu_app_password} onChange={(value) => setPreferences((current) => ({ ...current, docu_app_password: value }))} />
+                  <PrefInput label="API-Key" type="password" value={preferences.docu_api_key} onChange={(value) => setPreferences((current) => ({ ...current, docu_api_key: value }))} />
+                  <PrefInput label="Access-Token" type="password" value={preferences.docu_access_token} onChange={(value) => setPreferences((current) => ({ ...current, docu_access_token: value }))} />
+                </>
+              )}
             </div>
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'DocuAgent speichern'}

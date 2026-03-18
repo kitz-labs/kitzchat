@@ -13,8 +13,12 @@ export type CustomerPreferences = {
   usage_alert_enabled: boolean;
   usage_alert_daily_tokens: number;
   secure_storage_enabled: boolean;
-  memory_storage_mode: 'state' | 'custom';
+  memory_storage_mode: 'state' | 'custom' | 'cloud';
   memory_storage_path: string;
+  cloud_login_url: string;
+  cloud_username: string;
+  cloud_password: string;
+  cloud_folder: string;
   docu_provider: string;
   docu_root_path: string;
   docu_account_email: string;
@@ -52,6 +56,10 @@ type CustomerPreferencesRow = {
   usage_alert_daily_tokens: number;
   memory_storage_mode: string | null;
   memory_storage_path: string | null;
+  cloud_login_url: string | null;
+  cloud_username: string | null;
+  cloud_password: string | null;
+  cloud_folder: string | null;
   docu_provider: string | null;
   docu_root_path: string | null;
   docu_account_email: string | null;
@@ -104,8 +112,10 @@ function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function normalizeStorageMode(value: unknown): 'state' | 'custom' {
-  return value === 'custom' ? 'custom' : 'state';
+function normalizeStorageMode(value: unknown): 'state' | 'custom' | 'cloud' {
+  if (value === 'custom') return 'custom';
+  if (value === 'cloud') return 'cloud';
+  return 'state';
 }
 
 function normalizePort(value: unknown, fallback: number): number {
@@ -167,15 +177,18 @@ function countConnectedIntegrations(profiles: CustomerIntegrationProfile[]): num
 }
 
 export function isDocuAgentConnected(
-  preferences: Pick<CustomerPreferences, 'docu_provider' | 'docu_root_path' | 'docu_account_email' | 'docu_app_password' | 'docu_api_key' | 'docu_access_token' | 'memory_storage_path'>,
+  preferences: Pick<CustomerPreferences, 'docu_provider' | 'docu_root_path' | 'docu_account_email' | 'docu_app_password' | 'docu_api_key' | 'docu_access_token' | 'memory_storage_path' | 'cloud_login_url' | 'cloud_username' | 'cloud_password' | 'cloud_folder'>,
 ): boolean {
   const provider = preferences.docu_provider.trim().toLowerCase();
   if (!provider) return false;
   if (provider === 'lokal') {
     return Boolean(preferences.docu_root_path || preferences.memory_storage_path);
   }
-  if (provider === 'owncloud') {
-    return Boolean(preferences.docu_root_path && preferences.docu_account_email && preferences.docu_app_password);
+  if (provider === 'owncloud' || provider === 'cloud') {
+    const folder = preferences.docu_root_path || preferences.cloud_folder;
+    const username = preferences.cloud_username || preferences.docu_account_email;
+    const password = preferences.cloud_password || preferences.docu_app_password;
+    return Boolean(preferences.cloud_login_url && folder && username && password);
   }
   return Boolean(preferences.docu_access_token || preferences.docu_api_key);
 }
@@ -213,6 +226,10 @@ function mapRow(row: CustomerPreferencesRow): CustomerPreferences {
     secure_storage_enabled: isSecretEncryptionAvailable(),
     memory_storage_mode: normalizeStorageMode(row.memory_storage_mode),
     memory_storage_path: row.memory_storage_path ?? '',
+    cloud_login_url: row.cloud_login_url ?? '',
+    cloud_username: row.cloud_username ?? '',
+    cloud_password: decryptStoredText(row.cloud_password),
+    cloud_folder: row.cloud_folder ?? '',
     docu_provider: row.docu_provider ?? '',
     docu_root_path: row.docu_root_path ?? '',
     docu_account_email: row.docu_account_email ?? '',
@@ -256,6 +273,7 @@ function hasLegacySensitiveStorage(row: CustomerPreferencesRow): boolean {
     hasLegacyPlaintext(row.mail_password) ||
     hasLegacyPlaintext(row.instagram_password) ||
     hasLegacyPlaintext(row.instagram_user_access_token) ||
+    hasLegacyPlaintext(row.cloud_password) ||
     hasLegacyPlaintext(row.integration_profiles)
   );
 }
@@ -270,6 +288,7 @@ function persistProtectedPreferences(userId: number, preferences: CustomerPrefer
            mail_password = ?,
            instagram_password = ?,
            instagram_user_access_token = ?,
+           cloud_password = ?,
            integration_profiles = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE user_id = ?`,
@@ -281,6 +300,7 @@ function persistProtectedPreferences(userId: number, preferences: CustomerPrefer
       encryptStoredText(preferences.mail_password),
       encryptStoredText(preferences.instagram_password),
       encryptStoredText(preferences.instagram_user_access_token),
+      encryptStoredText(preferences.cloud_password),
       encryptStoredText(JSON.stringify(preferences.integration_profiles)),
       userId,
     );
@@ -298,7 +318,7 @@ export function ensureCustomerPreferences(userId: number): CustomerPreferences {
   const row = db
     .prepare(
       `SELECT user_id, enabled_agent_ids, usage_alert_enabled, usage_alert_daily_tokens,
-              memory_storage_mode, memory_storage_path,
+              memory_storage_mode, memory_storage_path, cloud_login_url, cloud_username, cloud_password, cloud_folder,
               docu_provider, docu_root_path, docu_account_email, docu_app_password, docu_api_key, docu_access_token,
               mail_provider, mail_display_name, mail_address, mail_password,
               mail_imap_host, mail_imap_port, mail_smtp_host, mail_smtp_port, mail_pop3_host, mail_pop3_port, mail_use_ssl,
@@ -318,6 +338,10 @@ export function ensureCustomerPreferences(userId: number): CustomerPreferences {
       usage_alert_daily_tokens: 50000,
       memory_storage_mode: 'state',
       memory_storage_path: null,
+      cloud_login_url: null,
+      cloud_username: null,
+      cloud_password: null,
+      cloud_folder: null,
       docu_provider: null,
       docu_root_path: null,
       docu_account_email: null,
@@ -370,6 +394,10 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
     secure_storage_enabled: isSecretEncryptionAvailable(),
     memory_storage_mode: normalizeStorageMode(updates.memory_storage_mode ?? current.memory_storage_mode),
     memory_storage_path: normalizeText(updates.memory_storage_path ?? current.memory_storage_path),
+    cloud_login_url: normalizeText(updates.cloud_login_url ?? current.cloud_login_url),
+    cloud_username: normalizeText(updates.cloud_username ?? current.cloud_username),
+    cloud_password: normalizeText(updates.cloud_password ?? current.cloud_password),
+    cloud_folder: normalizeText(updates.cloud_folder ?? current.cloud_folder),
     docu_provider: normalizeText(updates.docu_provider ?? current.docu_provider),
     docu_root_path: normalizeText(updates.docu_root_path ?? current.docu_root_path),
     docu_account_email: normalizeText(updates.docu_account_email ?? current.docu_account_email),
@@ -412,6 +440,10 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
            usage_alert_daily_tokens = ?,
            memory_storage_mode = ?,
            memory_storage_path = ?,
+           cloud_login_url = ?,
+           cloud_username = ?,
+           cloud_password = ?,
+           cloud_folder = ?,
            docu_provider = ?,
            docu_root_path = ?,
            docu_account_email = ?,
@@ -445,6 +477,10 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
       normalizedNext.usage_alert_daily_tokens,
       normalizedNext.memory_storage_mode,
       normalizedNext.memory_storage_path || null,
+      normalizedNext.cloud_login_url || null,
+      normalizedNext.cloud_username || null,
+      encryptStoredText(normalizedNext.cloud_password),
+      normalizedNext.cloud_folder || null,
       normalizedNext.docu_provider || null,
       normalizedNext.docu_root_path || null,
       normalizedNext.docu_account_email || null,
@@ -541,7 +577,10 @@ export function buildCustomerIntegrationContext(preferences: CustomerPreferences
 
   if (!agentId || agentId === 'docu-agent') {
     if (preferences.docu_connected) {
-      lines.push(`- Dokumentenablage: ${preferences.docu_provider || 'lokal'}; Zielpfad: ${preferences.docu_root_path || preferences.memory_storage_path || 'lokaler Standardspeicher'}; Kontakt: ${preferences.docu_account_email || 'nicht gesetzt'}`);
+      const folder = preferences.docu_root_path || preferences.cloud_folder || preferences.memory_storage_path || 'lokaler Standardspeicher';
+      const login = preferences.cloud_login_url ? `; Cloud-Login: ${preferences.cloud_login_url}` : '';
+      const user = preferences.cloud_username || preferences.docu_account_email || '';
+      lines.push(`- Dokumentenablage: ${preferences.docu_provider || 'lokal'}; Ziel: ${folder}${login}; Benutzer: ${user || 'nicht gesetzt'}`);
     }
   }
 

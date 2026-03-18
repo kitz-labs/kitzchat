@@ -31,6 +31,7 @@ type PreferenceRow = {
   mail_password: string | null;
   instagram_password: string | null;
   instagram_user_access_token: string | null;
+  cloud_password: string | null;
   integration_profiles: string | null;
 };
 
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
     const preferenceRows = db
       .prepare(
         `SELECT user_id, docu_app_password, docu_api_key, docu_access_token,
-                mail_password, instagram_password, instagram_user_access_token, integration_profiles
+                mail_password, instagram_password, instagram_user_access_token, cloud_password, integration_profiles
          FROM customer_preferences`,
       )
       .all() as PreferenceRow[];
@@ -126,6 +127,7 @@ export async function GET(request: Request) {
           isLegacyStoredSecret(row.mail_password) ||
           isLegacyStoredSecret(row.instagram_password) ||
           isLegacyStoredSecret(row.instagram_user_access_token) ||
+          isLegacyStoredSecret(row.cloud_password) ||
           isLegacyStoredSecret(row.integration_profiles, { allowJsonEmpty: true }),
         )
         .map((row) => row.user_id),

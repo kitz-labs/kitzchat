@@ -40,7 +40,7 @@ function sanitizePathSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-').slice(0, 120) || 'conversation';
 }
 
-function resolveCustomerMemoryPath(userId: number, username: string, memoryStorageMode: 'state' | 'custom', memoryStoragePath: string): string {
+function resolveCustomerMemoryPath(userId: number, username: string, memoryStorageMode: 'state' | 'custom' | 'cloud', memoryStoragePath: string): string {
   if (memoryStorageMode === 'custom' && memoryStoragePath.trim()) {
     return memoryStoragePath.trim();
   }

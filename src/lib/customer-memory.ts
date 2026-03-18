@@ -19,6 +19,7 @@ export function resolveCustomerMemoryBasePath(userId: number, username: string):
   if (preferences.memory_storage_mode === 'custom' && preferences.memory_storage_path.trim()) {
     return preferences.memory_storage_path.trim();
   }
+  // Cloud mode currently stores memory locally; cloud credentials are used by agents as context.
   return path.join(getAppStateDir(), 'customer-memory', `${sanitizePathSegment(username)}-${userId}`);
 }
 
@@ -89,4 +90,3 @@ export async function getRecentCustomerMemorySnippet(userId: number, username: s
     return '';
   }
 }
-

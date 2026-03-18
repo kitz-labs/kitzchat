@@ -218,6 +218,10 @@ function migrate(db: Database.Database) {
       usage_alert_daily_tokens INTEGER NOT NULL DEFAULT 50000,
       memory_storage_mode TEXT NOT NULL DEFAULT 'state',
       memory_storage_path TEXT,
+      cloud_login_url TEXT,
+      cloud_username TEXT,
+      cloud_password TEXT,
+      cloud_folder TEXT,
       docu_provider TEXT,
       docu_root_path TEXT,
       docu_account_email TEXT,
@@ -330,6 +334,10 @@ function migrate(db: Database.Database) {
   try { db.exec('ALTER TABLE support_messages ADD COLUMN read_at DATETIME'); } catch { /* column exists */ }
   try { db.exec("ALTER TABLE customer_preferences ADD COLUMN memory_storage_mode TEXT NOT NULL DEFAULT 'state'"); } catch { /* column exists */ }
   try { db.exec('ALTER TABLE customer_preferences ADD COLUMN memory_storage_path TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN cloud_login_url TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN cloud_username TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN cloud_password TEXT'); } catch { /* column exists */ }
+  try { db.exec('ALTER TABLE customer_preferences ADD COLUMN cloud_folder TEXT'); } catch { /* column exists */ }
   try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_provider TEXT'); } catch { /* column exists */ }
   try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_root_path TEXT'); } catch { /* column exists */ }
   try { db.exec('ALTER TABLE customer_preferences ADD COLUMN docu_account_email TEXT'); } catch { /* column exists */ }
