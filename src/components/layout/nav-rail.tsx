@@ -89,8 +89,7 @@ const CUSTOMER_NAV_GROUPS: NavGroup[] = [
   {
     label: 'KUNDE',
     items: [
-      { href: '/', label: 'Home', icon: Gauge },
-      { href: '/chat', label: 'Chat', icon: MessageCircle },
+      { href: '/', label: 'Chat', icon: MessageCircle },
       { href: '/agents', label: 'Agenten', icon: Bot },
       { href: '/usage-token', label: 'Guthaben', icon: BarChart3 },
       { href: '/downloads', label: 'Downloads', icon: Download },

@@ -72,8 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const CUSTOMER_PRIORITY_ITEMS: NavItem[] = [
-  { href: '/', label: 'Home', icon: Gauge, priority: true },
-  { href: '/chat', label: 'Chat', icon: MessageCircle, priority: true },
+  { href: '/', label: 'Chat', icon: MessageCircle, priority: true },
   { href: '/agents', label: 'Agenten', icon: Bot, priority: true },
   { href: '/usage-token', label: 'Guthaben', icon: CreditCard, priority: true },
   { href: '/support-chat', label: 'Support', icon: LifeBuoy, priority: true },
