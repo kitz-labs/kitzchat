@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       marketing_label?: string;
       marketingLabel?: string;
     };
-    return NextResponse.json(await createTopupOffer({
+    const created = await createTopupOffer({
       offerCode: body.offerCode || body.offer_code || '',
       name: body.name || '',
       amountEur: Number(body.amountEur ?? body.amount_eur ?? 0),
@@ -45,7 +45,12 @@ export async function POST(request: Request) {
       active: body.active !== false,
       sortOrder: Number(body.sortOrder ?? body.sort_order ?? 1),
       marketingLabel: body.marketingLabel || body.marketing_label || null,
-    }), { status: 201 });
+    });
+    return NextResponse.json({
+      id: created?.id ?? null,
+      offer_code: created?.offer_code ?? null,
+      offerCode: created?.offer_code ?? null,
+    }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to save topup offer';
     if (message === 'unauthorized') return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

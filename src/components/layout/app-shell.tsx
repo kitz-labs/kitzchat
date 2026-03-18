@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useDashboard } from '@/store';
 import { LiveFeed } from '@/components/live-feed';
+import { AppFooter } from '@/components/layout/app-footer';
 
 export function AppShell({ children, customerView = false }: { children: React.ReactNode; customerView?: boolean }) {
   const { feedOpen, toggleFeed } = useDashboard();
@@ -27,13 +28,7 @@ export function AppShell({ children, customerView = false }: { children: React.R
       } ${customerView ? 'flex min-h-[calc(100vh-4rem)] flex-col' : ''}`}>
         <div className={customerView ? 'flex-1' : ''}>{children}</div>
         {customerView ? (
-          <footer className="mt-auto border-t border-border/50 pt-3 pb-1 text-center text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-              <a href="/nutzungshinweise" className="hover:text-foreground transition-colors">Nutzungshinweise</a>
-              <a href="/datenschutz" className="hover:text-foreground transition-colors">Datenschutz</a>
-              <a href="https://www.aikitz.at" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">www.aikitz.at</a>
-            </div>
-          </footer>
+          <AppFooter variant="default" />
         ) : null}
       </main>
       {!customerView ? <LiveFeed open={feedOpen} onClose={toggleFeed} /> : null}

@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import { readSettings } from '@/lib/settings';
+import { getCanonicalBaseUrl } from '@/lib/public-url';
 
 type AlertChannelResult = {
   ok: boolean;
@@ -11,7 +13,7 @@ type AlertFanoutResult = {
 };
 
 function getBaseUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000';
+  return getCanonicalBaseUrl();
 }
 
 function getAlertRecipients() {
@@ -64,12 +66,20 @@ export async function sendAlertEmail(subject: string, lines: string[]): Promise<
 }
 
 export async function sendTelegramAlert(message: string): Promise<AlertChannelResult> {
-  const token = process.env.TELEGRAM_BOT_TOKEN || '';
-  const chatId = process.env.TELEGRAM_CHAT_ID || '';
+  const settings = (() => {
+    try {
+      return readSettings();
+    } catch {
+      return {};
+    }
+  })();
 
-  if (!token || !chatId) {
-    return { ok: false, detail: 'telegram_not_configured' };
-  }
+  const enabled = settings.telegram?.enabled ?? true;
+  const token = (settings.telegram?.bot_token || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  const chatId = (settings.telegram?.chat_id || process.env.TELEGRAM_CHAT_ID || '').trim();
+
+  if (!enabled) return { ok: false, detail: 'telegram_disabled' };
+  if (!token || !chatId) return { ok: false, detail: 'telegram_not_configured' };
 
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',

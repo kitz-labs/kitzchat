@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { sendTelegramAlert } from '@/lib/alerts';
+import { readSettings } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
     requireAdmin(request);
+    const settings = readSettings();
+    const enabled = settings.telegram?.enabled ?? true;
+    const token = (settings.telegram?.bot_token || process.env.TELEGRAM_BOT_TOKEN || '').trim();
+    const chatId = (settings.telegram?.chat_id || process.env.TELEGRAM_CHAT_ID || '').trim();
     return NextResponse.json({
-      configured: Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim() && process.env.TELEGRAM_CHAT_ID?.trim()),
+      configured: Boolean(enabled && token && chatId),
+      enabled,
+      has_bot_token: Boolean(token),
+      has_chat_id: Boolean(chatId),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load telegram status';

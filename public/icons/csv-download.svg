@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none">
+  <path d="M22 10h36l16 16v48c0 6.6-5.4 12-12 12H22c-6.6 0-12-5.4-12-12V22c0-6.6 5.4-12 12-12Z" stroke="white" stroke-width="6" stroke-linejoin="round" opacity="0.95"/>
+  <path d="M58 10v16h16" stroke="white" stroke-width="6" stroke-linejoin="round" opacity="0.95"/>
+  <path d="M28 54h28a10 10 0 0 1 0 20H28a10 10 0 0 1 0-20Z" stroke="white" stroke-width="6" opacity="0.95"/>
+  <text x="42" y="70" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial" font-size="16" font-weight="800" fill="white">CSV</text>
+  <path d="M70 60v16" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.95"/>
+  <path d="M64 72l6 6 6-6" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+</svg>
+

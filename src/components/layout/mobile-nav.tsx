@@ -7,7 +7,7 @@ import {
   Gauge, Bot, Mail, Contact, MoreHorizontal,
   PenLine, MessageCircle, Zap, FlaskConical, Search,
   BarChart3, LineChart, BrainCircuit, Rocket, Clock, List, Settings,
-  FolderOpen, ShieldAlert, LifeBuoy,
+  FolderOpen, ShieldAlert, LifeBuoy, Download, CreditCard, Database,
 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useDashboard } from '@/store';
@@ -42,8 +42,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/', label: 'Uebersicht', icon: Gauge, priority: true },
       { href: '/agents/squads', label: 'Squads', icon: Bot, priority: true },
-      { href: '/outreach', label: 'Outreach', icon: Mail, countKey: 'outreach', priority: true },
-      { href: '/crm', label: 'CRM', icon: Contact, countKey: 'new_leads', priority: true },
+      { href: '/customers', label: 'Kunden', icon: Contact, priority: true },
+      { href: '/stripe', label: 'Stripe', icon: CreditCard, priority: true },
     ],
   },
   {
@@ -53,34 +53,35 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/compliance', label: 'Verstoesse', icon: ShieldAlert },
       { href: '/agents/comms', label: 'Comms', icon: MessageCircle },
       { href: '/agents/workspace', label: 'Workspace', icon: FolderOpen },
-      { href: '/content', label: 'Content', icon: PenLine, countKey: 'content' },
+      { href: '/telegram', label: 'Telegram', icon: Mail },
+      { href: '/website', label: 'www.aikitz.at', icon: PenLine },
+      { href: '/openai', label: 'OpenAI', icon: BrainCircuit },
       { href: '/engagement', label: 'Engagement', icon: MessageCircle },
-      { href: '/automations', label: 'Automations', icon: Zap, countKey: 'outreach' },
-      { href: '/experiments', label: 'Experiments', icon: FlaskConical },
+      { href: '/db/billing', label: 'DB', icon: Database },
     ],
   },
   {
     label: 'Einblicke',
     items: [
-      { href: '/research', label: 'Research', icon: Search, countKey: 'signals_today' },
-      { href: '/kpis', label: 'KPIs', icon: BarChart3 },
       { href: '/analytics', label: 'Analytics', icon: LineChart },
       { href: '/memory', label: 'Memory', icon: BrainCircuit },
-      { href: '/deploy', label: 'Deploy', icon: Rocket },
-      { href: '/cron', label: 'Cron', icon: Clock },
       { href: '/activity', label: 'Activity', icon: List },
       { href: '/settings', label: 'Einstellungen', icon: Settings },
     ],
   },
 ];
 
-const CUSTOMER_ITEMS: NavItem[] = [
-  { href: '/', label: 'Webchat', icon: MessageCircle, priority: true },
+const CUSTOMER_PRIORITY_ITEMS: NavItem[] = [
+  { href: '/', label: 'Chat', icon: MessageCircle, priority: true },
   { href: '/agents', label: 'Agenten', icon: Bot, priority: true },
   { href: '/usage-token', label: 'Guthaben', icon: BarChart3, priority: true },
   { href: '/support-chat', label: 'Support', icon: LifeBuoy, priority: true },
-  { href: '/settings', label: 'Einstellungen', icon: Settings, priority: true },
-  { href: '/hilfe', label: 'Hilfe', icon: Search, priority: true },
+];
+
+const CUSTOMER_SHEET_ITEMS: NavItem[] = [
+  { href: '/downloads', label: 'Downloads', icon: Download },
+  { href: '/settings', label: 'Einstellungen', icon: Settings },
+  { href: '/hilfe', label: 'Hilfe', icon: Search },
 ];
 
 export function MobileNav({ currentUser, appAudience }: { currentUser: { account_type?: 'staff' | 'customer' } | null; appAudience: AppAudience }) {
@@ -89,6 +90,7 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
   const sheetRef = useRef<HTMLDivElement>(null);
   const realOnly = useDashboard(s => s.realOnly);
   const customerView = appAudience === 'customer';
+  const customerHasMore = CUSTOMER_SHEET_ITEMS.length > 0;
 
   const { data: counts } = useSmartPoll<NavCounts>(
     () => fetch(`/api/counts${realOnly ? '?real=true' : ''}`).then(r => r.json()),
@@ -96,7 +98,7 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
   );
 
   const priorityItems = useMemo(
-    () => customerView ? CUSTOMER_ITEMS : NAV_GROUPS.flatMap(g => g.items).filter(i => i.priority),
+    () => customerView ? CUSTOMER_PRIORITY_ITEMS : NAV_GROUPS.flatMap(g => g.items).filter(i => i.priority),
     [customerView],
   );
   const nonPriorityItems = useMemo(
@@ -111,7 +113,7 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
   );
   const moreActive = nonPriorityItems.some(i => isActive(pathname, i.href));
   const moreBadge = counts ? (counts.content + counts.total_pending) : 0;
-  const slotCount = customerView ? priorityItems.length : priorityItems.length + 1;
+  const slotCount = customerView ? (priorityItems.length + (customerHasMore ? 1 : 0)) : priorityItems.length + 1;
 
   useEffect(() => {
     if (!sheetOpen) return;
@@ -169,11 +171,21 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
                 </span>
               )}
             </button>
+          ) : customerHasMore ? (
+            <button
+              onClick={() => setSheetOpen(true)}
+              className={`flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 transition-smooth relative ${
+                sheetOpen ? 'text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <MoreHorizontal size={17} />
+              <span className="max-w-full truncate text-[10px] leading-none">Mehr</span>
+            </button>
           ) : null}
         </div>
       </nav>
 
-      {sheetOpen && !customerView && (
+      {sheetOpen && (
         <div className="md:hidden fixed inset-0 z-[60]">
           <div className="absolute inset-0 bg-black/40" />
           <div
@@ -185,42 +197,71 @@ export function MobileNav({ currentUser, appAudience }: { currentUser: { account
             </div>
 
             <div className="px-4 pb-6">
-              {sheetGroups.map((group, idx) => (
-                <div key={group.label} className={idx > 0 ? 'mt-4 pt-3 border-t border-border/60' : ''}>
+              {customerView ? (
+                <div>
                   <div className="px-1 pb-2 text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
-                    {group.label}
+                    Mehr
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
-                    {group.items.map((item) => {
-                        const active = isActive(pathname, item.href);
-                        const count = item.countKey && counts ? counts[item.countKey] : 0;
-                        const Icon = item.icon;
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setSheetOpen(false)}
-                            className={`flex items-center gap-2.5 px-3 min-h-[48px] rounded-xl transition-smooth relative ${
-                              active
-                                ? 'bg-primary/14 text-primary'
-                                : 'text-foreground hover:bg-surface-2/80'
-                            }`}
-                          >
-                            <Icon size={16} />
-                            <span className="text-xs font-medium truncate flex-1">{item.label}</span>
-                            {count > 0 && (
-                              <span className={`min-w-[16px] h-4 px-1 text-[8px] font-bold rounded-full flex items-center justify-center ${
-                                item.countKey === 'signals_today' ? 'count-badge-info' : 'count-badge'
-                              }`}>
-                                {count > 99 ? '99+' : count}
-                              </span>
-                            )}
-                          </Link>
-                        );
-                      })}
+                    {CUSTOMER_SHEET_ITEMS.map((item) => {
+                      const active = isActive(pathname, item.href);
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setSheetOpen(false)}
+                          className={`flex items-center gap-2.5 px-3 min-h-[48px] rounded-xl transition-smooth relative ${
+                            active
+                              ? 'bg-primary/14 text-primary'
+                              : 'text-foreground hover:bg-surface-2/80'
+                          }`}
+                        >
+                          <Icon size={16} />
+                          <span className="text-xs font-medium truncate flex-1">{item.label}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
+              ) : (
+                sheetGroups.map((group, idx) => (
+                  <div key={group.label} className={idx > 0 ? 'mt-4 pt-3 border-t border-border/60' : ''}>
+                    <div className="px-1 pb-2 text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                      {group.label}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {group.items.map((item) => {
+                          const active = isActive(pathname, item.href);
+                          const count = item.countKey && counts ? counts[item.countKey] : 0;
+                          const Icon = item.icon;
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={() => setSheetOpen(false)}
+                              className={`flex items-center gap-2.5 px-3 min-h-[48px] rounded-xl transition-smooth relative ${
+                                active
+                                  ? 'bg-primary/14 text-primary'
+                                  : 'text-foreground hover:bg-surface-2/80'
+                              }`}
+                            >
+                              <Icon size={16} />
+                              <span className="text-xs font-medium truncate flex-1">{item.label}</span>
+                              {count > 0 && (
+                                <span className={`min-w-[16px] h-4 px-1 text-[8px] font-bold rounded-full flex items-center justify-center ${
+                                  item.countKey === 'signals_today' ? 'count-badge-info' : 'count-badge'
+                                }`}>
+                                  {count > 99 ? '99+' : count}
+                                </span>
+                              )}
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

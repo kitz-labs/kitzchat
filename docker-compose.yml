@@ -11,22 +11,22 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: "3001"
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3001}
-      KITZCHAT_HOST_LOCK: ${KITZCHAT_HOST_LOCK:-localhost,127.0.0.1}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://dashboard.aikitz.at}
+      KITZCHAT_HOST_LOCK: ${KITZCHAT_HOST_LOCK:-dashboard.aikitz.at,nexora.aikitz.at}
       DATABASE_URL: ${DATABASE_URL:-postgres://kitzchat:widauer@db:5432/kitzchat}
       KITZCHAT_STATE_DIR: /app/state
       KITZCHAT_WORKSPACE_ROOT: /app/state/runtime/default
       KITZCHAT_DEFAULT_INSTANCE: ${KITZCHAT_DEFAULT_INSTANCE:-default}
-      KITZCHAT_ALLOW_POLICY_WRITE: ${KITZCHAT_ALLOW_POLICY_WRITE:-false}
-      KITZCHAT_ALLOW_CRON_WRITE: ${KITZCHAT_ALLOW_CRON_WRITE:-false}
-      KITZCHAT_ALLOW_WORKSPACE_WRITE: ${KITZCHAT_ALLOW_WORKSPACE_WRITE:-false}
-      KITZCHAT_USE_DEFAULT_AGENT_META: ${KITZCHAT_USE_DEFAULT_AGENT_META:-false}
+      KITZCHAT_ALLOW_POLICY_WRITE: ${KITZCHAT_ALLOW_POLICY_WRITE:-true}
+      KITZCHAT_ALLOW_CRON_WRITE: ${KITZCHAT_ALLOW_CRON_WRITE:-true}
+      KITZCHAT_ALLOW_WORKSPACE_WRITE: ${KITZCHAT_ALLOW_WORKSPACE_WRITE:-true}
+      KITZCHAT_USE_DEFAULT_AGENT_META: ${KITZCHAT_USE_DEFAULT_AGENT_META:-true}
     ports:
       - ${APP_PORT:-3001}:3001
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik
-      - traefik.http.routers.kitzchat.rule=Host(`dashboard.aikitz.at`)
+      - "traefik.http.routers.kitzchat.rule=Host(`dashboard.aikitz.at`) || Host(`nexora.aikitz.at`)"
       - traefik.http.routers.kitzchat.entrypoints=websecure
       - traefik.http.routers.kitzchat.tls=true
       - traefik.http.routers.kitzchat.tls.certresolver=letsencrypt

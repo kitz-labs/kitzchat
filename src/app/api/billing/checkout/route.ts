@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { requireUser, userHasAgentAccess } from '@/lib/auth';
 import { calculateDiscountedAmount, formatEuro, getCheckoutCopy, getNextTopupDiscountPercent, isCheckoutType, normalizeCheckoutAmount } from '@/lib/billing';
 import { createCheckoutSession as createCreditCheckoutSession } from '@/modules/billing/billing.service';
 import { hasPostgresConfig } from '@/config/env';
 import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
+import { createStripeClient } from '@/lib/stripe-client';
 
 const PLAN_CURRENCY = 'eur';
-
-function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
-  if (!key) return null;
-  return new Stripe(key);
-}
 
 export async function POST(request: Request) {
   try {
@@ -49,7 +43,9 @@ export async function POST(request: Request) {
         amountEur: amountCents / 100,
         creditAmountEur: creditAmountCents / 100,
         checkoutType,
+        discountPercent,
         returnUrlBase: `${origin}${returnPath}`,
+        returnPath,
       });
       return NextResponse.json({
         ok: true,
@@ -62,7 +58,7 @@ export async function POST(request: Request) {
     }
 
     const origin = request.headers.get('origin') || new URL(request.url).origin;
-    const stripe = getStripe();
+    const stripe = createStripeClient();
     const checkoutCopy = getCheckoutCopy(checkoutType, amountCents);
     const stripeCustomerId = await ensureStripeCustomerForUser({
       userId: user.id,

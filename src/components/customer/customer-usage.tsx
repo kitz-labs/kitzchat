@@ -8,6 +8,7 @@ import { CheckoutAmountPicker } from './checkout-amount-picker';
 import { useAudienceGuard } from '@/hooks/use-audience-guard';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
 import { CHECKOUT_PRESET_OPTIONS } from '@/lib/checkout-options';
+import { centsToCredits, creditsToCents, creditsToEur } from '@/lib/credits';
 
 type UsagePayload = {
   totals: {
@@ -168,10 +169,12 @@ export function CustomerUsage() {
 
   const planCents = me?.plan_amount_cents ?? 2000;
   const spentCents = usage?.totals.cost_30d ?? 0;
-  const fallbackCredits = Math.max(0, Math.round((me?.wallet_balance_cents ?? 0) * 10));
+  const fallbackCredits = centsToCredits(me?.wallet_balance_cents ?? 0);
   const balanceCredits = wallet?.balance ?? fallbackCredits;
-  const balanceEur = balanceCredits / 1000;
-  const loadedCents = Math.round(balanceEur * 100);
+  const loadedCents = creditsToCents(balanceCredits);
+  const walletCents = Math.max(0, Math.round(me?.wallet_balance_cents ?? loadedCents));
+  const todayCents = Math.max(0, Math.round(usage?.totals.cost_today ?? 0));
+  const restCents = Math.max(0, walletCents - todayCents);
   const hasAccess = Boolean(me?.has_agent_access);
   const isActivated = me?.payment_status === 'paid';
   const nextTopupDiscountPercent = Math.max(0, Math.round(me?.next_topup_discount_percent ?? 0));
@@ -183,10 +186,10 @@ export function CustomerUsage() {
   const checkoutPresetOptions = useMemo(() => {
     const configuredOptions = topupOffers
       .slice()
-      .sort((left, right) => (left.sortOrder - right.sortOrder) || (left.amountEur - right.amountEur))
+      .sort((left, right) => (Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0)) || (Number(left.amountEur ?? 0) - Number(right.amountEur ?? 0)))
       .map((offer) => ({
-        amountCents: Math.round(offer.amountEur * 100),
-        credits: offer.credits + offer.bonusCredits,
+        amountCents: Math.round(Number(offer.amountEur ?? 0) * 100),
+        credits: Number(offer.credits ?? 0) + Number(offer.bonusCredits ?? 0),
         marketingLabel: offer.marketingLabel || offer.name,
       }));
 
@@ -273,6 +276,21 @@ export function CustomerUsage() {
         <p className="text-xs text-muted-foreground">Verwalte Aktivierung, Guthaben, Rabatt, Onboarding und Rechnungen zentral an einem Ort.</p>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="stat-tile">
+          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Guthaben</div>
+          <div className="mt-1 text-sm font-semibold text-foreground">€{(walletCents / 100).toFixed(2)}</div>
+        </div>
+        <div className="stat-tile">
+          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Verbrauch heute</div>
+          <div className="mt-1 text-sm font-semibold text-foreground">€{(todayCents / 100).toFixed(2)}</div>
+        </div>
+        <div className="stat-tile">
+          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Restguthaben</div>
+          <div className="mt-1 text-sm font-semibold text-success">€{(restCents / 100).toFixed(2)}</div>
+        </div>
+      </div>
+
       {confirmingPayment ? (
         <div className="rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-primary">
           Zahlung erkannt. Dein Kundenkonto wird gerade aktualisiert.
@@ -282,7 +300,7 @@ export function CustomerUsage() {
       <CustomerOnboarding
         isActivated={isActivated}
         onboardingCompleted={Boolean(me?.onboarding_completed_at)}
-        walletBalanceCents={Math.round(balanceEur * 100)}
+        walletBalanceCents={loadedCents}
         onFinish={completeOnboarding}
         checkoutLoading={checkoutLoading}
         checkoutError={checkoutError}
@@ -316,7 +334,7 @@ export function CustomerUsage() {
             <div className="grid gap-4 md:grid-cols-3">
               <MetricCard icon={<CreditCard size={14} />} label="Aktivierung" value={`€${(planCents / 100).toFixed(2)}`} hint="Einmalige Freischaltung des Kundenkontos" />
               <MetricCard icon={<Wallet size={14} />} label="Verbrauch 30 Tage" value={`€${(spentCents / 100).toFixed(2)}`} hint="Auf Basis der erfassten Chat-Nutzung" />
-              <MetricCard icon={<Sparkles size={14} />} label="Verfuegbare Credits" value={`${balanceCredits.toLocaleString('de-DE')}`} hint={wallet?.premiumModeMessage || 'Geladenes Guthaben als Credit-Wallet'} />
+              <MetricCard icon={<Sparkles size={14} />} label="Guthaben" value={`€${(walletCents / 100).toFixed(2)}`} hint={wallet?.premiumModeMessage || 'Verfuegbares Guthaben im Wallet'} />
             </div>
 
             {wallet ? (
@@ -324,7 +342,7 @@ export function CustomerUsage() {
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <GaugeCircle size={16} /> Premium-Routing
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">{wallet.premiumModeMessage}. Aktuell verfuegbar: {balanceCredits.toLocaleString('de-DE')} Credits, entspricht ca. €{balanceEur.toFixed(2)} internem Wallet-Wert.</div>
+                <div className="mt-1 text-xs text-muted-foreground">{wallet.premiumModeMessage}. Aktuell verfuegbar: €{(walletCents / 100).toFixed(2)}.</div>
               </div>
             ) : null}
 
@@ -355,7 +373,7 @@ export function CustomerUsage() {
 
                 <div>
                   <div className="text-sm font-medium">Guthaben aufladen</div>
-                  <div className="mt-1 text-xs text-muted-foreground">1 Euro entspricht 1.000 Credits. Stripe kassiert, dein KitzChat-Wallet fuehrt die eigentlichen Credits separat als Ledger.</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Stripe Checkout bucht dein Guthaben automatisch in dein Wallet ein.</div>
                 </div>
 
                 <CheckoutAmountPicker
@@ -438,46 +456,30 @@ export function CustomerUsage() {
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Abrechnungsstatus</div>
                 <div className="mt-2 text-sm font-medium">{hasAccess ? 'Kundenzugang aktiv' : 'Noch nicht aktiviert'}</div>
-                <div className="mt-1 text-xs text-muted-foreground">Geladenes Guthaben: {balanceCredits.toLocaleString('de-DE')} Credits</div>
+                <div className="mt-1 text-xs text-muted-foreground">Geladenes Guthaben: €{(walletCents / 100).toFixed(2)}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          ['Heute', usage?.totals.tokens_today ?? 0],
-          ['7 Tage', usage?.totals.tokens_week ?? 0],
-          ['30 Tage', usage?.totals.tokens_30d ?? 0],
-        ].map(([label, value]) => (
-          <div key={label} className="panel">
-            <div className="panel-body space-y-1">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-              <div className="text-2xl font-semibold">{Number(value).toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">Gesamtzahl der erfassten Tokens</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
       <div className="panel">
         <div className="panel-header">
-          <h2 className="text-sm font-medium">Wallet Ledger</h2>
+          <h2 className="text-sm font-medium">Buchungen</h2>
         </div>
         <div className="panel-body space-y-3">
           {ledger.length === 0 ? (
             <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
-              Noch keine Credit-Buchungen vorhanden.
+              Noch keine Buchungen vorhanden.
             </div>
           ) : ledger.slice(0, 8).map((entry) => (
             <div key={entry.id} className="flex items-center justify-between gap-4 rounded-2xl border border-border/60 bg-muted/10 p-4 flex-wrap">
               <div>
                 <div className="text-sm font-semibold">{entry.note || entry.entry_type}</div>
-                <div className="text-xs text-muted-foreground">{new Date(entry.created_at).toLocaleString('de-DE')} · {entry.reference_type} · Saldo {entry.balance_after.toLocaleString('de-DE')} Credits</div>
+                <div className="text-xs text-muted-foreground">{new Date(entry.created_at).toLocaleString('de-DE')} · {entry.reference_type} · Saldo €{creditsToEur(Number(entry.balance_after || 0)).toFixed(2)}</div>
               </div>
               <div className={`text-sm font-semibold ${entry.credits_delta >= 0 ? 'text-success' : 'text-foreground'}`}>
-                {entry.credits_delta >= 0 ? '+' : ''}{entry.credits_delta.toLocaleString('de-DE')} Credits
+                {entry.credits_delta >= 0 ? '+' : ''}€{creditsToEur(Number(entry.credits_delta || 0)).toFixed(2)}
               </div>
             </div>
           ))}

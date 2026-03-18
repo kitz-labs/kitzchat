@@ -1,0 +1,541 @@
+{
+  "source": {
+    "repo": "public-apis/public-apis",
+    "url": "https://github.com/public-apis/public-apis",
+    "syncedAt": "2026-03-14",
+    "readme": "https://raw.githubusercontent.com/public-apis/public-apis/master/README.md"
+  },
+  "entries": [
+    {
+      "category": "Development",
+      "name": "GitHub",
+      "url": "https://docs.github.com/en/free-pro-team@latest/rest",
+      "description": "Make use of GitHub repositories, code and user info programmatically",
+      "auth": "OAuth",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Development",
+      "name": "StackExchange",
+      "url": "https://api.stackexchange.com/",
+      "description": "Q&A forum for developers",
+      "auth": "OAuth",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "Gitlab",
+      "url": "https://docs.gitlab.com/ee/api/",
+      "description": "Automate GitLab interaction programmatically",
+      "auth": "OAuth",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "Bitbucket",
+      "url": "https://developer.atlassian.com/bitbucket/api/2/reference/",
+      "description": "Bitbucket API",
+      "auth": "OAuth",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "Docker Hub",
+      "url": "https://docs.docker.com/docker-hub/api/latest/",
+      "description": "Interact with Docker Hub",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Development",
+      "name": "APIs.guru",
+      "url": "https://apis.guru/api-doc/",
+      "description": "Wikipedia for Web APIs, OpenAPI/Swagger specs for public APIs",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "CDNJS",
+      "url": "https://api.cdnjs.com/libraries/jquery",
+      "description": "Library info on CDNJS",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "npm Registry",
+      "url": "https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md",
+      "description": "Query information about your favorite Node.js libraries programatically",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "DomainDb Info",
+      "url": "https://api.domainsdb.info/",
+      "description": "Domain name search to find all domains containing particular words/phrases/etc",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "IPify",
+      "url": "https://www.ipify.org/",
+      "description": "A simple IP Address API",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "IPinfo",
+      "url": "https://ipinfo.io/developers",
+      "description": "Another simple IP Address API",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Geocoding",
+      "name": "Nominatim",
+      "url": "https://nominatim.org/release-docs/latest/api/Overview/",
+      "description": "Provides worldwide forward / reverse geocoding",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Geocoding",
+      "name": "OpenStreetMap",
+      "url": "http://wiki.openstreetmap.org/wiki/API",
+      "description": "Navigation, geolocation and geographical data",
+      "auth": "OAuth",
+      "https": "No",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Geocoding",
+      "name": "Postcodes.io",
+      "url": "https://postcodes.io",
+      "description": "Postcode lookup & Geolocation for the UK",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Geocoding",
+      "name": "Zippopotam.us",
+      "url": "http://www.zippopotam.us",
+      "description": "Get information about place such as country, city, state, etc",
+      "auth": "No",
+      "https": "No",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Geocoding",
+      "name": "REST Countries",
+      "url": "https://restcountries.com",
+      "description": "Get information about countries via a RESTful API",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Open Data",
+      "name": "OpenCorporates",
+      "url": "http://api.opencorporates.com/documentation/API-Reference",
+      "description": "Data on corporate entities and directors in many countries",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Development",
+      "name": "Hunter",
+      "url": "https://hunter.io/api",
+      "description": "API for domain search, professional email finder, author finder and email verifier",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Email",
+      "name": "MailboxValidator",
+      "url": "https://www.mailboxvalidator.com/api-email-free",
+      "description": "Validate email address to improve deliverability",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Business",
+      "name": "Clearbit Logo",
+      "url": "https://clearbit.com/docs#logo-api",
+      "description": "Search for company logos and embed them in your projects",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Phone",
+      "name": "Phone Validation",
+      "url": "https://www.abstractapi.com/phone-validation-api",
+      "description": "Validate phone numbers globally",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Phone",
+      "name": "apilayer numverify",
+      "url": "https://numverify.com",
+      "description": "Phone number validation",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Finance",
+      "name": "Binlist",
+      "url": "https://binlist.net/",
+      "description": "Public access to a database of IIN/BIN information",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Finance",
+      "name": "VAT Validation",
+      "url": "https://www.abstractapi.com/vat-validation-rates-api",
+      "description": "Validate VAT numbers and calculate VAT rates",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "News",
+      "name": "The Guardian",
+      "url": "http://open-platform.theguardian.com/",
+      "description": "Access all the content the Guardian creates, categorised by tags and section",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "News",
+      "name": "NewsData",
+      "url": "https://newsdata.io/docs",
+      "description": "News data API for live-breaking news and headlines from reputed  news sources",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "News",
+      "name": "GNews",
+      "url": "https://gnews.io/",
+      "description": "Search for news from various sources",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "News",
+      "name": "Currents",
+      "url": "https://currentsapi.services/",
+      "description": "Latest news published in various news sources, blogs and forums",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "News",
+      "name": "New York Times",
+      "url": "https://developer.nytimes.com/",
+      "description": "The New York Times Developer Network",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "News",
+      "name": "News",
+      "url": "https://newsapi.org/",
+      "description": "Headlines currently published on a range of news sources and blogs",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "News",
+      "name": "apilayer mediastack",
+      "url": "https://mediastack.com/",
+      "description": "Free, Simple REST API for Live News & Blog Articles",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Photography",
+      "name": "Pexels",
+      "url": "https://www.pexels.com/api/",
+      "description": "Free Stock Photos and Videos",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Photography",
+      "name": "Pixabay",
+      "url": "https://pixabay.com/sk/service/about/api/",
+      "description": "Photography",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Photography",
+      "name": "Unsplash",
+      "url": "https://unsplash.com/developers",
+      "description": "Photography",
+      "auth": "OAuth",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "News",
+      "name": "MarketAux",
+      "url": "https://www.marketaux.com/",
+      "description": "Live stock market news with tagged tickers + sentiment and stats JSON API",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Science & Math",
+      "name": "arXiv",
+      "url": "https://arxiv.org/help/api/user-manual",
+      "description": "Curated research-sharing platform: physics, mathematics, quantitative finance, and economics",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Science & Math",
+      "name": "CORE",
+      "url": "https://core.ac.uk/services#api",
+      "description": "Access the world's Open Access research papers",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Open Data",
+      "name": "Wikipedia",
+      "url": "https://www.mediawiki.org/wiki/API:Main_page",
+      "description": "Mediawiki Encyclopedia",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Open Data",
+      "name": "Wikidata",
+      "url": "https://www.wikidata.org/w/api.php?action=help",
+      "description": "Collaboratively edited knowledge base operated by the Wikimedia Foundation",
+      "auth": "OAuth",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Books",
+      "name": "Crossref Metadata Search",
+      "url": "https://github.com/CrossRef/rest-api-doc",
+      "description": "Books & Articles Metadata",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Books",
+      "name": "Open Library",
+      "url": "https://openlibrary.org/developers/api",
+      "description": "Books, book covers and related data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "category": "Science & Math",
+      "name": "Open Science Framework",
+      "url": "https://developer.osf.io",
+      "description": "Repository and archive for study designs, research materials, data, manuscripts, etc",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Science & Math",
+      "name": "SHARE",
+      "url": "https://share.osf.io/api/v2/",
+      "description": "A free, open, dataset about research and scholarly activities",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "category": "Science & Math",
+      "name": "World Bank",
+      "url": "https://datahelpdesk.worldbank.org/knowledgebase/topics/125589",
+      "description": "World Data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "category": "Finance",
+      "name": "FRED",
+      "url": "https://fred.stlouisfed.org/docs/api/fred/",
+      "description": "Economic data from the Federal Reserve Bank of St. Louis",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Finance",
+      "name": "Fed Treasury",
+      "url": "https://fiscaldata.treasury.gov/api-documentation/",
+      "description": "U.S. Department of the Treasury Data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Finance",
+      "name": "Econdb",
+      "url": "https://www.econdb.com/api/",
+      "description": "Global macroeconomic data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Finance",
+      "name": "SEC EDGAR Data",
+      "url": "https://www.sec.gov/edgar/sec-api-documentation",
+      "description": "API to access annual reports of public US companies",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Finance",
+      "name": "Alpha Vantage",
+      "url": "https://www.alphavantage.co/",
+      "description": "Realtime and historical stock data",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Finance",
+      "name": "Polygon",
+      "url": "https://polygon.io/",
+      "description": "Historical stock market data",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Finance",
+      "name": "OpenFIGI",
+      "url": "https://www.openfigi.com/api",
+      "description": "Equity, index, futures, options symbology from Bloomberg LP",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Weather",
+      "name": "Open-Meteo",
+      "url": "https://open-meteo.com/",
+      "description": "Global weather forecast API for non-commercial use",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Transportation",
+      "name": "transport.rest",
+      "url": "https://transport.rest",
+      "description": "Community maintained, developer-friendly public transport API",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Food & Drink",
+      "name": "Open Food Facts",
+      "url": "https://world.openfoodfacts.org/data",
+      "description": "Food Products Database",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Food & Drink",
+      "name": "Open Brewery DB",
+      "url": "https://www.openbrewerydb.org",
+      "description": "Breweries, Cideries and Craft Beer Bottle Shops",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Anti-Malware",
+      "name": "AbuseIPDB",
+      "url": "https://docs.abuseipdb.com/",
+      "description": "IP/domain/URL reputation",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Anti-Malware",
+      "name": "URLhaus",
+      "url": "https://urlhaus-api.abuse.ch/",
+      "description": "Bulk queries and Download Malware Samples",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "category": "Anti-Malware",
+      "name": "VirusTotal",
+      "url": "https://www.virustotal.com/en/documentation/public-api/",
+      "description": "VirusTotal File/URL Analysis",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "category": "Anti-Malware",
+      "name": "URLScan.io",
+      "url": "https://urlscan.io/about-api/",
+      "description": "Scan and Analyse URLs",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "Unknown"
+    }
+  ]
+}

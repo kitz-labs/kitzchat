@@ -16,7 +16,7 @@ type CustomerOnboardingProps = {
 
 const STEPS = [
   {
-    title: 'Willkommen bei KitzChat',
+    title: 'Willkommen bei Nexora',
     description: 'Hier richtest du deinen Kundenbereich Schritt fuer Schritt ein. Das Onboarding kannst du auch ohne sofortige Einzahlung abschliessen.',
     icon: Sparkles,
   },

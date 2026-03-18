@@ -1,15 +1,15 @@
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { withPgClient } from '@/config/db';
+import { updateStripeCustomer } from '@/lib/auth';
+import { recordSuccessfulPayment } from '@/modules/billing/billing.service';
+import { requireStripeClient } from '@/lib/stripe-client';
+import { amountEurToCredits, centsToCredits } from '@/config/env';
 
 const stripeKey = process.env.STRIPE_SECRET_KEY;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-const creditMultiplier = Number(process.env.CREDIT_MULTIPLIER || '1000');
-const apiBudgetRatio = Number(process.env.API_BUDGET_RATIO || '0.7');
-const reserveRatio = Number(process.env.RESERVE_RATIO || '0.3');
 
 function getStripe() {
-  if (!stripeKey) throw new Error('stripe_not_configured');
-  return new Stripe(stripeKey, { apiVersion: '2022-11-15' });
+  return requireStripeClient();
 }
 
 export function verifyStripeWebhook(payload: string, signature: string) {
@@ -20,6 +20,32 @@ export function verifyStripeWebhook(payload: string, signature: string) {
   } catch (err) {
     throw err as Error;
   }
+}
+
+export async function ensureStripeCustomerForUser(params: {
+  userId: number;
+  username: string;
+  email?: string | null;
+  stripeCustomerId?: string | null;
+}): Promise<string | null> {
+  if (params.stripeCustomerId) return params.stripeCustomerId;
+  if (!stripeKey) return null;
+  const stripe = getStripe();
+  const customer = await stripe.customers.create({
+    name: params.username,
+    email: params.email ?? undefined,
+    metadata: {
+      user_id: String(params.userId),
+      username: params.username,
+    },
+  });
+  updateStripeCustomer(params.userId, customer.id, null);
+  return customer.id;
+}
+
+export async function confirmStripeSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+  const stripe = getStripe();
+  return stripe.checkout.sessions.retrieve(sessionId, { expand: ['payment_intent', 'customer'] });
 }
 
 export async function processStripeEvent(event: Stripe.Event) {
@@ -48,6 +74,16 @@ export async function processStripeEvent(event: Stripe.Event) {
       const amountTotal = (session.amount_total ?? session.amount_subtotal) as number | undefined;
       const grossEur = amountTotal ? Number(amountTotal) / 100.0 : 0;
       const userId = session.metadata?.user_id ? Number(session.metadata.user_id) : null;
+      const metadata = session.metadata ?? {};
+      const creditAmountCents = Number(metadata.credit_amount_cents ?? 0) || 0;
+      const creditsMeta = Number(metadata.credits ?? 0) || 0;
+      const checkoutType = metadata.checkout_type === 'activation' ? 'activation' : metadata.checkout_type === 'topup' ? 'topup' : undefined;
+      const discountPercent = Number(metadata.discount_percent ?? 0) || 0;
+      const creditsIssued = creditsMeta > 0
+        ? creditsMeta
+        : creditAmountCents > 0
+          ? centsToCredits(creditAmountCents)
+          : amountEurToCredits(grossEur);
 
       if (!userId) {
         // cannot allocate without user id; mark event processed and return
@@ -55,53 +91,18 @@ export async function processStripeEvent(event: Stripe.Event) {
         return;
       }
 
-      // insert payment record if not exists
-      const p = await client.query('SELECT id FROM payments WHERE stripe_session_id = $1', [sessionId]);
-      let paymentId: number;
-      if (p.rowCount === 0) {
-        const res = await client.query(
-          'INSERT INTO payments (user_id, stripe_session_id, stripe_payment_intent_id, stripe_customer_id, gross_amount_eur, currency, status, credits_issued) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
-          [userId, sessionId, paymentIntent ?? null, stripeCustomerId, grossEur, session.currency ?? 'eur', 'completed', 0],
-        );
-        paymentId = Number(res.rows[0].id);
-      } else {
-        paymentId = Number(p.rows[0].id);
-      }
-
-      // compute credits and allocation
-      const credits = Math.floor(grossEur * creditMultiplier);
-      const apiBudgetEur = grossEur * apiBudgetRatio;
-      const reserveEur = grossEur * reserveRatio;
-
-      // ensure wallet exists
-      const w = await client.query('SELECT id, balance_credits FROM wallets WHERE user_id = $1', [userId]);
-      let walletId: number;
-      let balanceAfter = credits;
-      if (w.rowCount === 0) {
-        const wr = await client.query('INSERT INTO wallets (user_id, balance_credits) VALUES ($1,$2) RETURNING id, balance_credits', [userId, credits]);
-        walletId = Number(wr.rows[0].id);
-        balanceAfter = Number(wr.rows[0].balance_credits);
-      } else {
-        walletId = Number(w.rows[0].id);
-        const newBalance = Number(w.rows[0].balance_credits) + credits;
-        await client.query('UPDATE wallets SET balance_credits = $1, updated_at = NOW() WHERE id = $2', [newBalance, walletId]);
-        balanceAfter = newBalance;
-      }
-
-      // record wallet ledger
-      await client.query(
-        'INSERT INTO wallet_ledger (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-        [userId, walletId, 'topup', credits, balanceAfter, 'payment', String(paymentId), `Top-up via Stripe session ${sessionId}`],
-      );
-
-      // update payments with issued credits
-      await client.query('UPDATE payments SET credits_issued = $1 WHERE id = $2', [credits, paymentId]);
-
-      // allocate payment_allocations row
-      await client.query(
-        'INSERT INTO payment_allocations (payment_id, gross_amount_eur, api_budget_eur, reserve_eur, allocation_rule) VALUES ($1,$2,$3,$4,$5)',
-        [paymentId, grossEur, apiBudgetEur, reserveEur, 'default'],
-      );
+      await recordSuccessfulPayment({
+        userId,
+        sessionId,
+        paymentIntentId: paymentIntent ?? null,
+        stripeCustomerId,
+        grossAmountEur: grossEur,
+        creditAmountCents: creditAmountCents > 0 ? creditAmountCents : undefined,
+        creditsIssued: creditsIssued > 0 ? creditsIssued : undefined,
+        checkoutType,
+        discountPercent,
+        source: 'stripe_webhook',
+      });
 
       // mark event processed
       await client.query('UPDATE webhook_events SET processed = true, processed_at = NOW() WHERE stripe_event_id = $1', [stripeEventId]);

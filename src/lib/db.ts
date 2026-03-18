@@ -246,6 +246,15 @@ function migrate(db: Database.Database) {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS customer_agent_profiles (
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      agent_id TEXT NOT NULL,
+      profile_json TEXT NOT NULL DEFAULT '{}',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, agent_id)
+    );
+
     CREATE TABLE IF NOT EXISTS chat_uploads (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id),

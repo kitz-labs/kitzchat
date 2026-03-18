@@ -5,6 +5,7 @@ import { Bot, Download, FileUp, Lock, PenSquare, Plus, Save, Send, Sparkles, X }
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
+import { creditsToEur } from '@/lib/credits';
 
 type MeUser = {
   id: number;
@@ -73,6 +74,8 @@ export function CustomerWebchat() {
   const [conversationTitle, setConversationTitle] = useState('');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [awaitingAgentReply, setAwaitingAgentReply] = useState(false);
+  const [lastSentAtSec, setLastSentAtSec] = useState<number | null>(null);
   const [creatingConversation, setCreatingConversation] = useState(false);
   const [savingTitle, setSavingTitle] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -82,6 +85,7 @@ export function CustomerWebchat() {
   const [wallet, setWallet] = useState<WalletSnapshot | null>(null);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollAnchorRef = useRef<HTMLDivElement>(null);
 
   const loadMe = useCallback(async () => {
     const payload = await fetch('/api/auth/me', { cache: 'no-store' }).then((response) => response.json());
@@ -182,6 +186,26 @@ export function CustomerWebchat() {
   const messages = messagePayload?.messages || [];
   const selectedAgent = visibleAgents.find((agent) => agent.id === activeAgent) || null;
   const onboardingOpen = hasAccess && !me?.onboarding_completed_at;
+
+  useEffect(() => {
+    if (!awaitingAgentReply || !lastSentAtSec) return;
+    const resolved = messages.some((message) => {
+      if (!message || typeof message.created_at !== 'number') return false;
+      if (message.created_at < lastSentAtSec) return false;
+      const mine = me?.username === message.from_agent;
+      if (mine) return false;
+      return true;
+    });
+    if (resolved) {
+      setAwaitingAgentReply(false);
+    }
+  }, [awaitingAgentReply, lastSentAtSec, me?.username, messages]);
+
+  useEffect(() => {
+    // Auto-scroll while waiting for an agent reply, or right after sending.
+    if (!awaitingAgentReply && !sending) return;
+    scrollAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [awaitingAgentReply, sending, messages.length]);
 
   async function createConversation(prefillTitle?: string) {
     if (!activeAgent || creatingConversation) return '';
@@ -307,6 +331,13 @@ export function CustomerWebchat() {
       if (!res.ok) {
         throw new Error(String(data?.error || 'Nachricht konnte nicht gesendet werden'));
       }
+      if (typeof data?.message?.created_at === 'number') {
+        setLastSentAtSec(Number(data.message.created_at));
+        setAwaitingAgentReply(true);
+      } else {
+        setLastSentAtSec(Math.floor(Date.now() / 1000));
+        setAwaitingAgentReply(true);
+      }
       setInput('');
       setPendingFiles([]);
       await Promise.all([refetch(), refetchConversations()]);
@@ -323,11 +354,11 @@ export function CustomerWebchat() {
   }
 
   return (
-    <div className="space-y-6 animate-in">
-      <section className="panel min-h-[70vh] flex flex-col">
+    <div className="h-full flex flex-col animate-in">
+      <section className="panel flex-1 min-h-0 flex flex-col">
         <div className="panel-header flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold">Webchat</h1>
+            <h1 className="text-xl font-semibold">Chat</h1>
             <p className="text-xs text-muted-foreground">Chatte nach der Aktivierung direkt mit deinen aktivierten Agenten, speichere Chat-Namen und exportiere komplette Verlaeufe als Markdown.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -355,13 +386,13 @@ export function CustomerWebchat() {
 
         {confirmingPayment ? (
           <div className="mx-6 mt-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-primary">
-            Zahlung erkannt. Dein Dashboard und der Webchat werden gerade freigeschaltet.
+            Zahlung erkannt. Dein Dashboard und der Chat werden gerade freigeschaltet.
           </div>
         ) : null}
 
         {hasAccess && wallet ? (
           <div className={`mx-6 mt-4 rounded-2xl border px-4 py-3 text-sm ${wallet.lowBalanceWarning ? 'border-warning/40 bg-warning/5 text-warning' : 'border-border/60 bg-muted/10 text-foreground'}`}>
-            {wallet.premiumModeMessage} · Verfuegbar: {Number(wallet.balance || 0).toLocaleString('de-DE')} Credits
+            {wallet.premiumModeMessage} · Verfuegbar: €{creditsToEur(wallet.balance || 0).toFixed(2)}
           </div>
         ) : null}
 
@@ -372,7 +403,7 @@ export function CustomerWebchat() {
                 <Lock size={22} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Webchat wird erst nach Aktivierung freigeschaltet</h3>
+                <h3 className="text-lg font-semibold">Chat wird erst nach Aktivierung freigeschaltet</h3>
                 <p className="mt-2 text-sm text-muted-foreground">Dein Onboarding kannst du trotzdem schon ohne Einzahlung abschliessen. Wenn du danach alle Agenten nutzen willst, startest du die Aktivierung separat auf der Guthaben-Seite.</p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2">
@@ -392,8 +423,8 @@ export function CustomerWebchat() {
             </div>
           </div>
         ) : (
-          <div className="grid flex-1 gap-0 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="border-b border-border/50 xl:border-b-0 xl:border-r xl:border-border/50">
+          <div className="grid flex-1 min-h-0 gap-0 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="border-b border-border/50 xl:border-b-0 xl:border-r xl:border-border/50 flex flex-col min-h-0">
               <div className="flex items-center justify-between gap-2 border-b border-border/50 px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold">Gespeicherte Chats</div>
@@ -403,7 +434,7 @@ export function CustomerWebchat() {
                   <Plus size={14} /> {creatingConversation ? '...' : 'Neu'}
                 </button>
               </div>
-              <div className="max-h-[18rem] overflow-auto p-3 xl:max-h-none xl:h-full xl:min-h-[28rem]">
+              <div className="flex-1 min-h-0 overflow-y-auto p-3">
                 {filteredConversations.length === 0 ? (
                   <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
                     Noch kein gespeicherter Chat fuer diesen Agenten. Starte rechts einen neuen Chat.
@@ -461,7 +492,7 @@ export function CustomerWebchat() {
                 </div>
               </div>
 
-              <div className="panel-body flex-1 overflow-y-auto space-y-3">
+              <div className="panel-body flex-1 min-h-0 overflow-y-auto space-y-3">
                 {messages.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-center text-muted-foreground">
                     <div className="space-y-3">
@@ -480,12 +511,12 @@ export function CustomerWebchat() {
                     const attachments = Array.isArray(message.metadata?.attachments) ? message.metadata?.attachments || [] : [];
                     return (
                       <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[78%] rounded-2xl px-4 py-3 ${mine ? 'bg-primary text-primary-foreground' : 'bg-muted/40'}`}>
+                        <div className={`max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 ${mine ? 'bg-primary text-primary-foreground' : 'bg-muted/40'}`}>
                           <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{mine ? 'Du' : message.from_agent}</div>
-                          <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                          <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
                           {typeof message.metadata?.credits_charged === 'number' ? (
                             <div className={`mt-2 text-[11px] ${mine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                              {message.metadata.credits_charged.toLocaleString('de-DE')} Credits · {message.metadata.display_mode || 'Auto-Modus'} · Rest {Number(message.metadata.remaining_balance || 0).toLocaleString('de-DE')} Credits
+                              €{creditsToEur(message.metadata.credits_charged || 0).toFixed(2)} · {message.metadata.display_mode || 'Auto-Modus'} · Rest €{creditsToEur(message.metadata.remaining_balance || 0).toFixed(2)}
                             </div>
                           ) : null}
                           {attachments.length > 0 ? (
@@ -502,6 +533,23 @@ export function CustomerWebchat() {
                     );
                   })
                 )}
+
+                {awaitingAgentReply ? (
+                  <div className="flex justify-start">
+                    <div className="max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 bg-muted/40">
+                      <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{selectedAgent?.name || 'Agent'}</div>
+                      <div className="text-sm text-muted-foreground flex items-center gap-2">
+                        <span>Agent schreibt...</span>
+                        <span className="inline-flex gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:150ms]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse [animation-delay:300ms]" />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                <div ref={scrollAnchorRef} />
               </div>
 
               <div className="border-t border-border/50 p-4 space-y-3">
@@ -532,7 +580,8 @@ export function CustomerWebchat() {
                       }
                     }}
                     placeholder={selectedAgent ? `Schreibe deine Nachricht an ${selectedAgent.name}...` : 'Schreibe deine Nachricht...'}
-                    className="min-h-[52px] flex-1 resize-none bg-transparent text-sm outline-none"
+                    rows={3}
+                    className="min-h-[84px] max-h-[220px] flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
                   />
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => addFiles(event.target.files)} />
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="btn btn-ghost btn-sm">

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Pool as PgPool } from 'pg';
+import { Pool as PgPool, types as pgTypes } from 'pg';
 import mysql, { type Pool as MySqlPool, type RowDataPacket } from 'mysql2/promise';
 import { env, getBillingDbKind, hasPostgresConfig } from './env';
 
@@ -25,6 +25,19 @@ type BillingConnection = {
 let pgPool: PgPool | null = null;
 let mySqlPool: MySqlPool | null = null;
 let setupPromise: Promise<void> | null = null;
+let pgTypeParsersConfigured = false;
+
+function configurePgTypeParsers() {
+  if (pgTypeParsersConfigured) return;
+  pgTypeParsersConfigured = true;
+  try {
+    // Postgres BIGINT (INT8) is returned as string by default. Our app uses BIGINT for wallet balances,
+    // so we normalize it to number to avoid accidental string concatenation like "40000-20".
+    pgTypes.setTypeParser(pgTypes.builtins.INT8, (value) => Number(value));
+  } catch {
+    // ignore
+  }
+}
 
 function getMigrationsDir(): string {
   return path.join(process.cwd(), 'src', 'db', 'migrations');
@@ -116,6 +129,7 @@ export function getPgPool(): PgPool {
     throw new Error('Billing database is not PostgreSQL');
   }
   if (!pgPool) {
+    configurePgTypeParsers();
     pgPool = new PgPool({ connectionString: env.DATABASE_URL });
   }
   return pgPool;
@@ -150,8 +164,14 @@ async function getConnection(): Promise<BillingConnection> {
     const client = await getPgPool().connect();
     return {
       async query<T extends BillingQueryRow = BillingQueryRow>(text: string, values: unknown[] = []) {
-        const result = await client.query<T>(text, values);
-        return { rows: result.rows, rowCount: result.rowCount ?? result.rows.length };
+        if (typeof text !== 'string' || !text.trim()) {
+          throw new Error('Billing query is invalid (empty SQL)');
+        }
+        const result = await client.query(text, values);
+        const rows = (result && typeof result === 'object' && Array.isArray((result as any).rows)) ? ((result as any).rows as T[]) : [];
+        const rowCountRaw = result && typeof result === 'object' ? (result as any).rowCount : undefined;
+        const rowCount = typeof rowCountRaw === 'number' ? rowCountRaw : rows.length;
+        return { rows, rowCount };
       },
       release() {
         client.release();
@@ -210,7 +230,14 @@ export async function queryPg<T extends BillingQueryRow = BillingQueryRow>(text:
 }
 
 function listMigrationFiles(kind: BillingDbKind): string[] {
-  const files = fs.readdirSync(getMigrationsDir()).sort();
+  let files: string[] = [];
+  try {
+    files = fs.readdirSync(getMigrationsDir()).sort();
+  } catch {
+    // In production Docker images we might not ship source migrations/seeds. If the DB schema already exists,
+    // we should not crash at runtime. Missing migrations will be treated as "no-op".
+    return [];
+  }
   return kind === 'mysql'
     ? files.filter((entry) => entry.endsWith('.mysql.sql'))
     : files.filter((entry) => entry.endsWith('.sql') && !entry.endsWith('.mysql.sql'));
@@ -279,7 +306,13 @@ async function seedTableIfEmpty(client: BillingConnection, tableName: string, fi
   if (Number(existing.rows[0]?.count ?? 0) > 0) return;
 
   const filePath = path.join(getSeedsDir(), fileName);
-  const raw = fs.readFileSync(filePath, 'utf-8');
+  let raw = '';
+  try {
+    raw = fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    // Seeds are optional in production builds; skip if not present.
+    return;
+  }
   const [header, ...rows] = parseCsv(raw);
   if (!header || rows.length === 0) return;
 

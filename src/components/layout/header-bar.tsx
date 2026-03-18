@@ -26,7 +26,6 @@ interface HeaderUser {
   account_type?: 'staff' | 'customer';
   payment_status?: 'not_required' | 'pending' | 'paid';
   wallet_balance_cents?: number;
-  wallet_balance_credits?: number;
 }
 
 export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUser | null; appAudience: AppAudience }) {
@@ -46,7 +45,7 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
           <BrandLogo compact />
         </div>
         <div className="ml-auto flex min-w-0 items-center justify-end gap-2 sm:gap-3">
-          <CustomerHeaderMeta walletBalanceCents={Math.round((currentUser?.wallet_balance_credits ?? 0) / 10)} />
+          <CustomerHeaderMeta walletBalanceCents={Math.max(0, Math.round(currentUser?.wallet_balance_cents ?? 0))} />
           <CustomerSupportInboxButton />
           <ThemeToggle />
           <LogoutButton label="Abmelden" compact={false} />

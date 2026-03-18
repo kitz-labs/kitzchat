@@ -91,7 +91,7 @@ export function PwaInstallPrompt() {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold">KitzChat als App speichern</div>
+                <div className="text-sm font-semibold">Nexora als App speichern</div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {deferredPrompt
                     ? 'Zum Homescreen hinzufuegen und direkt im App-Modus starten.'
@@ -113,7 +113,7 @@ export function PwaInstallPrompt() {
             {iosHelpOpen ? (
               <div className="mt-3 rounded-2xl border border-border/60 bg-background/80 px-3 py-3 text-xs text-muted-foreground">
                 <ol className="ios-install-list space-y-1.5">
-                  <li>KitzChat in Safari geoeffnet lassen.</li>
+                  <li>Nexora in Safari geoeffnet lassen.</li>
                   <li>Unten auf Teilen tippen.</li>
                   <li>Dann "Zum Home-Bildschirm" waehlen.</li>
                 </ol>

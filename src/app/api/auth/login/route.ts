@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { authenticate, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
+import { authenticateForLogin, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
 import { getAudienceFromAccountType } from '@/lib/app-audience';
+import { resolveCookieDomain } from '@/lib/cookies';
 
 const SESSION_COOKIE = 'kitzchat-session';
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
@@ -36,10 +37,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Username and password required' }, { status: 400 });
   }
 
-  const user = authenticate(username, password);
-  if (!user) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null;
+  const userAgent = request.headers.get('user-agent') || null;
+
+  let user;
+  try {
+    user = authenticateForLogin({ identifier: username, password, ip, userAgent });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'invalid_credentials';
+    if (msg === 'email_not_verified') {
+      return NextResponse.json({ error: 'Bitte bestaetige zuerst deine E-Mail-Adresse (Link im Postfach).' }, { status: 403 });
+    }
+    if (msg === 'login_locked') {
+      return NextResponse.json({ error: 'Zu viele Fehlversuche. Bitte warte kurz und versuche es erneut.' }, { status: 429 });
+    }
+    if (msg === 'account_disabled' || msg === 'account_banned' || msg === 'account_deleted') {
+      return NextResponse.json({ error: 'Account ist deaktiviert.' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
   }
+
   const freeMessages = getCustomerFreeMessageUsage(user.id, user.username);
 
   // Invalidate any previously presented session token to reduce session fixation risk.
@@ -73,6 +90,7 @@ export async function POST(request: Request) {
     },
   });
   const secure = shouldUseSecureCookies(request);
+  const domain = resolveCookieDomain(request);
 
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -80,6 +98,7 @@ export async function POST(request: Request) {
     sameSite: 'strict',
     maxAge: SESSION_MAX_AGE,
     path: '/',
+    ...(domain ? { domain } : {}),
   });
   response.headers.set('Cache-Control', 'no-store');
 

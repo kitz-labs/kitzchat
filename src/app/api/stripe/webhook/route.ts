@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { processStripeEvent, verifyStripeWebhook } from '@/modules/stripe/stripe.service';
 
+// Alias endpoint: keep for backward compatibility. The canonical Stripe webhook is /api/billing/webhook.
 export async function POST(request: Request) {
   try {
     const signature = (await headers()).get('stripe-signature');

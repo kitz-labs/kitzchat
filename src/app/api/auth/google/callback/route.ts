@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSession, destroySession, recordGoogleLoginAttempt, upsertGoogleUser } from '@/lib/auth';
+import { resolveCookieDomain } from '@/lib/cookies';
+import { getAuthLinkBaseUrl } from '@/lib/public-url';
 
 const STATE_COOKIE = 'kitzchat-google-state';
 const SESSION_COOKIE = 'kitzchat-session';
@@ -11,25 +13,6 @@ interface GoogleUserInfo {
   sub: string;
   email?: string;
   email_verified?: boolean;
-}
-
-function getPublicOrigin(request: Request): string {
-  const configured = process.env.PUBLIC_BASE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, '');
-
-  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
-  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
-  if (forwardedProto && forwardedHost) {
-    return `${forwardedProto}://${forwardedHost}`;
-  }
-
-  const host = request.headers.get('host');
-  if (host) {
-    const proto = new URL(request.url).protocol.replace(':', '');
-    return `${proto}://${host}`;
-  }
-
-  return new URL(request.url).origin;
 }
 
 function shouldUseSecureCookies(request: Request): boolean {
@@ -108,21 +91,22 @@ async function fetchGoogleUser(accessToken: string): Promise<GoogleUserInfo> {
 
 export async function GET(request: Request) {
   const reqUrl = new URL(request.url);
-  const origin = getPublicOrigin(request);
+  const origin = getAuthLinkBaseUrl(request);
+  const cookieDomain = resolveCookieDomain(request);
   const code = reqUrl.searchParams.get('code');
   const state = reqUrl.searchParams.get('state');
   const error = reqUrl.searchParams.get('error');
 
   if (error) {
     const fail = NextResponse.redirect(new URL(`/login?error=${encodeURIComponent('Google sign-in cancelled')}`, origin));
-    fail.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/' });
+    fail.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/', ...(cookieDomain ? { domain: cookieDomain } : {}) });
     return fail;
   }
 
   const stateCookie = parseStateCookie(request);
   if (!code || !state || !stateCookie || stateCookie.state !== state) {
     const fail = NextResponse.redirect(new URL('/login?error=Google%20state%20mismatch', origin));
-    fail.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/' });
+    fail.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/', ...(cookieDomain ? { domain: cookieDomain } : {}) });
     return fail;
   }
 
@@ -160,13 +144,14 @@ export async function GET(request: Request) {
       sameSite: 'lax',
       maxAge: SESSION_MAX_AGE,
       path: '/',
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     });
-    response.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/' });
+    response.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/', ...(cookieDomain ? { domain: cookieDomain } : {}) });
     return response;
   } catch (err) {
     const message = (err as Error).message || 'Google login failed';
     const fail = NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(message)}`, origin));
-    fail.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/' });
+    fail.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/', ...(cookieDomain ? { domain: cookieDomain } : {}) });
     return fail;
   }
 }

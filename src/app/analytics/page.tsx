@@ -17,6 +17,7 @@ import {
   UserCheck,
   Compass,
   LayoutTemplate,
+  CreditCard,
 } from "lucide-react";
 import { useSmartPoll } from "@/hooks/use-smart-poll";
 import { useDashboard } from "@/store";
@@ -111,14 +112,52 @@ interface AnalyticsPayload {
   };
 }
 
+type BillingSummaryPayload = {
+  days: number;
+  totals: {
+    totalPaidEur: number;
+    grossAmountCents?: number;
+    totalUsageBudgetEur?: number;
+    totalAdminShareEur?: number;
+    totalCreditsIssued: number;
+    paymentsCount: number;
+    totalCreditsUsed: number;
+    usageRunsCount: number;
+    openAiCostEur: number;
+    totalBalanceCredits: number;
+    walletsCount: number;
+    estimatedGrossMarginEur: number;
+  };
+  topAgents: Array<{ agent_code: string; credits: number; runs: number }>;
+  series: {
+    dailyUsage: Array<{ date: string; credits: number; runs: number }>;
+    dailyPayments: Array<{ date: string; paid_eur: number; payments: number }>;
+  };
+  checked_at?: string;
+};
+
 export default function AnalyticsPage() {
   const { realOnly } = useDashboard();
   const [days, setDays] = useState(30);
 
   const url = `/api/analytics?days=${days}${realOnly ? "&real=true" : ""}`;
-  const { data, loading } = useSmartPoll<AnalyticsPayload>(
-    () => fetch(url).then((r) => r.json()),
+  const { data, loading, error } = useSmartPoll<AnalyticsPayload>(
+    () => fetch(url, { cache: 'no-store' }).then(async (r) => {
+      const payload = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(String((payload as any)?.error || `Analytics API failed (${r.status})`));
+      return payload as AnalyticsPayload;
+    }),
     { interval: 300_000, key: `${days}-${realOnly}` },
+  );
+
+  const reportingUrl = `/api/admin/reporting/summary?days=${days}`;
+  const billing = useSmartPoll<BillingSummaryPayload>(
+    () => fetch(reportingUrl, { cache: 'no-store' }).then(async (r) => {
+      const payload = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(String((payload as any)?.error || `Billing summary failed (${r.status})`));
+      return payload as BillingSummaryPayload;
+    }),
+    { interval: 300_000, key: `billing:${days}` },
   );
 
   const socialSeries = useMemo(() => data?.social?.series ?? [], [data]);
@@ -163,7 +202,7 @@ export default function AnalyticsPage() {
     };
   }, [data]);
 
-  if (!data || loading) {
+  if (loading && !data) {
     return (
       <div className="space-y-6 animate-in">
         <div className="panel">
@@ -172,6 +211,25 @@ export default function AnalyticsPage() {
           </div>
           <div className="panel-body">
             <div className="text-sm text-muted-foreground">Loading…</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-6 animate-in">
+        <div className="panel">
+          <div className="panel-header">
+            <h1 className="text-xl font-semibold">Analytics</h1>
+          </div>
+          <div className="panel-body">
+            <div className="text-sm text-warning">Analytics konnte nicht geladen werden.</div>
+            {error ? <div className="mt-1 text-xs text-muted-foreground">{error.message}</div> : null}
+            <div className="mt-1 text-xs text-muted-foreground">
+              Tipp: Prüfe Login/Session oder rufe die Seite neu auf.
+            </div>
           </div>
         </div>
       </div>
@@ -212,6 +270,130 @@ export default function AnalyticsPage() {
       </div>
 
       <SocialPanel social={data.social} series={socialSeries} />
+
+      <BillingPanel billing={billing} />
+    </div>
+  );
+}
+
+function BillingPanel({ billing }: { billing: ReturnType<typeof useSmartPoll<BillingSummaryPayload>> }) {
+  if (billing.loading && !billing.data) {
+    return (
+      <div className="panel">
+        <div className="panel-header">
+          <h3 className="section-title flex items-center gap-2">
+            <MousePointerClick size={14} /> Billing & Usage
+          </h3>
+        </div>
+        <div className="panel-body text-sm text-muted-foreground">Loading…</div>
+      </div>
+    );
+  }
+
+  if (billing.error) {
+    return (
+      <div className="panel">
+        <div className="panel-header">
+          <h3 className="section-title flex items-center gap-2">
+            <MousePointerClick size={14} /> Billing & Usage
+          </h3>
+        </div>
+        <div className="panel-body text-sm text-warning">{billing.error.message}</div>
+      </div>
+    );
+  }
+
+  if (!billing.data) return null;
+
+  const totals = billing.data.totals;
+  const topAgents = billing.data.topAgents ?? [];
+  const dailyPayments = billing.data.series?.dailyPayments ?? [];
+  const dailyUsage = billing.data.series?.dailyUsage ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div className="panel">
+        <div className="panel-header flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="section-title flex items-center gap-2">
+            <MousePointerClick size={14} /> Billing & Usage
+          </h3>
+          <div className="text-[11px] text-muted-foreground">
+            {billing.data.checked_at ? `Updated ${timeAgo(billing.data.checked_at)}` : ''}
+          </div>
+        </div>
+        <div className="panel-body">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-8">
+            <StatCard label="Paid (EUR)" value={Number(totals.totalPaidEur.toFixed(2))} icon={CreditCard} color="var(--success)" />
+            <StatCard label="Usage Budget (EUR)" value={Number((totals.totalUsageBudgetEur ?? 0).toFixed(2))} icon={Send} color="var(--info)" />
+            <StatCard label="Admin Share (EUR)" value={Number((totals.totalAdminShareEur ?? 0).toFixed(2))} icon={Users} color="var(--warning)" />
+            <StatCard label="OpenAI Cost (EUR)" value={Number(totals.openAiCostEur.toFixed(2))} icon={Activity} color="var(--warning)" />
+            <StatCard label="Gross Margin (EUR)" value={Number(totals.estimatedGrossMarginEur.toFixed(2))} icon={LineChart} color="var(--primary)" />
+            <StatCard label="Credits Issued" value={totals.totalCreditsIssued} icon={Users} color="var(--info)" />
+            <StatCard label="Credits Used" value={totals.totalCreditsUsed} icon={Send} color="var(--destructive)" />
+            <StatCard label="Wallet Balance" value={totals.totalBalanceCredits} icon={Globe} color="var(--primary)" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="panel">
+          <div className="panel-header">
+            <h4 className="section-title">Payments (daily)</h4>
+          </div>
+          <div className="panel-body">
+            {dailyPayments.length > 1 ? (
+              <TrendChart
+                data={dailyPayments as unknown as Record<string, unknown>[]}
+                xKey="date"
+                lines={[
+                  { key: 'paid_eur', color: 'var(--success)', label: 'Paid EUR' },
+                  { key: 'payments', color: 'var(--info)', label: 'Payments' },
+                ]}
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">No payment series.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <h4 className="section-title">Usage (daily)</h4>
+          </div>
+          <div className="panel-body">
+            {dailyUsage.length > 1 ? (
+              <TrendChart
+                data={dailyUsage as unknown as Record<string, unknown>[]}
+                xKey="date"
+                lines={[
+                  { key: 'credits', color: 'var(--primary)', label: 'Credits' },
+                  { key: 'runs', color: 'var(--warning)', label: 'Runs' },
+                ]}
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">No usage series.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <h4 className="section-title">Top Agents</h4>
+        </div>
+        <div className="panel-body">
+          <DataTable
+            keyField="agent_code"
+            data={topAgents}
+            emptyMessage="No agent usage"
+            columns={[
+              { key: 'agent_code', label: 'Agent', sortable: true, render: (r: any) => <span className="font-mono">{r.agent_code}</span> },
+              { key: 'credits', label: 'Credits', sortable: true },
+              { key: 'runs', label: 'Runs', sortable: true },
+            ]}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -751,7 +933,7 @@ function SocialPanel({
               <span className="font-mono text-foreground">{social.summary.emailsSent}</span>.
             </div>
             <div className="text-[11px] text-muted-foreground mt-2">
-              Diese Werte stammen aus den internen KitzChat-Rollups, nicht aus nativen Social-Plattform-APIs.
+              Diese Werte stammen aus den internen Nexora-Rollups, nicht aus nativen Social-Plattform-APIs.
             </div>
           </div>
         </div>

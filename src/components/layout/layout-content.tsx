@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { NavRail } from './nav-rail';
 import { HeaderBar } from './header-bar';
@@ -9,9 +9,11 @@ import { AppShell } from './app-shell';
 import { CommandPalette } from '../command-palette';
 import { PwaInstallPrompt } from '../pwa/pwa-install-prompt';
 import type { AppAudience } from '@/lib/app-audience';
+import { useDashboard } from '@/store';
 
 const AUTH_PATHS = ['/login', '/register'];
-const CUSTOMER_ALLOWED_PATHS = ['/', '/agents', '/usage-token', '/settings', '/hilfe', '/support-chat', '/nutzungshinweise', '/datenschutz'];
+const CUSTOMER_ALLOWED_PATHS = ['/', '/agents', '/usage-token', '/settings', '/hilfe', '/downloads', '/support-chat', '/nutzungshinweise', '/datenschutz'];
+const LIVE_FEED_AUTOSTART_KEY = 'nexora.live_feed.autostart.v1';
 
 type ShellUser = {
   id: number;
@@ -26,40 +28,75 @@ type ShellUser = {
 export function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const feedOpen = useDashboard(s => s.feedOpen);
+  const setFeedOpen = useDashboard(s => s.setFeedOpen);
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<ShellUser | null>(null);
   const [appAudience, setAppAudience] = useState<AppAudience>('admin');
 
   const isAuthPath = AUTH_PATHS.some((p) => pathname.startsWith(p));
 
+  const refreshMe = useCallback(async () => {
+    const res = await fetch('/api/auth/me', { cache: 'no-store' });
+    if (!res.ok) {
+      router.replace(`/login?from=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    const payload = await res.json().catch(() => ({}));
+    const nextUser = (payload as any)?.user || null;
+    const nextAudience = ((payload as any)?.app_audience || 'admin') as AppAudience;
+    setCurrentUser(nextUser);
+    setAppAudience(nextAudience);
+    if (nextAudience === 'customer' && !CUSTOMER_ALLOWED_PATHS.includes(pathname)) {
+      router.replace('/');
+      return;
+    }
+    setAuthChecked(true);
+  }, [pathname, router]);
+
   useEffect(() => {
     if (isAuthPath) return;
     let cancelled = false;
-    fetch('/api/auth/me', { cache: 'no-store' })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (!res.ok) {
-          router.replace(`/login?from=${encodeURIComponent(pathname)}`);
-          return;
-        }
-        const payload = await res.json();
-        const nextUser = (payload?.user || null) as ShellUser | null;
-        const nextAudience = (payload?.app_audience || 'admin') as AppAudience;
-        setCurrentUser(nextUser);
-        setAppAudience(nextAudience);
-        if (nextAudience === 'customer' && !CUSTOMER_ALLOWED_PATHS.includes(pathname)) {
-          router.replace('/');
-          return;
-        }
-        setAuthChecked(true);
-      })
+    refreshMe()
       .catch(() => {
         if (!cancelled) router.replace(`/login?from=${encodeURIComponent(pathname)}`);
       });
     return () => {
       cancelled = true;
     };
-  }, [isAuthPath, pathname, router]);
+  }, [isAuthPath, pathname, router, refreshMe]);
+
+  useEffect(() => {
+    if (isAuthPath) return;
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== 'kitzchat-payment-complete') return;
+      refreshMe().catch(() => {});
+    }
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [isAuthPath, refreshMe]);
+
+  useEffect(() => {
+    if (isAuthPath) return;
+    const handler = () => refreshMe().catch(() => {});
+    window.addEventListener('kitzchat-payment-complete', handler as any);
+    return () => window.removeEventListener('kitzchat-payment-complete', handler as any);
+  }, [isAuthPath, refreshMe]);
+
+  useEffect(() => {
+    if (isAuthPath) return;
+    if (appAudience === 'customer') return;
+    if (currentUser?.role !== 'admin') return;
+    if (feedOpen) return;
+    try {
+      const prior = window.sessionStorage.getItem(LIVE_FEED_AUTOSTART_KEY);
+      if (prior) return;
+      setFeedOpen(true);
+      window.sessionStorage.setItem(LIVE_FEED_AUTOSTART_KEY, '1');
+    } catch {
+      setFeedOpen(true);
+    }
+  }, [appAudience, currentUser?.role, feedOpen, isAuthPath, setFeedOpen]);
 
   if (isAuthPath) {
     return <>{children}</>;

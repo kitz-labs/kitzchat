@@ -1,6 +1,6 @@
-import { queryPg } from '@/config/db';
-import { env, getBillingDbKind } from '@/config/env';
-import { getEntitlements } from '@/modules/entitlements/entitlements.service';
+import { queryPg, withPgClient } from '@/config/db';
+import { centsToCredits, env, getBillingDbKind } from '@/config/env';
+import { enableCorePremiumEntitlements, getEntitlements } from '@/modules/entitlements/entitlements.service';
 import { appendWalletLedger, type WalletLedgerEntry } from './wallet.ledger.service';
 
 function getEnsureBillingUserSql() {
@@ -47,16 +47,54 @@ export async function ensureBillingUser(params: {
   await queryPg(getEnsureBillingUserSql(), [params.userId, params.email ?? null, params.name, params.stripeCustomerId ?? null, params.chatEnabled ?? false]);
 
   await queryPg(getEnsureWalletSql(), [params.userId]);
+
+  if (params.chatEnabled) {
+    await enableCorePremiumEntitlements(params.userId, 'payment_access');
+  }
+}
+
+export async function syncBillingWalletFromAppBalance(params: {
+  userId: number;
+  walletBalanceCents: number;
+  reason?: string;
+}): Promise<{ synced: boolean; desiredCredits: number; priorCredits: number; deltaCredits: number }> {
+  const desiredCredits = centsToCredits(params.walletBalanceCents);
+  const wallet = await getWalletRecord(params.userId);
+  const priorCredits = Math.max(0, Number(wallet.balance_credits ?? 0));
+
+  // Safe sync: only ever add missing balance (never auto-deduct here).
+  if (desiredCredits <= priorCredits) {
+    return { synced: false, desiredCredits, priorCredits, deltaCredits: 0 };
+  }
+
+  const deltaCredits = desiredCredits - priorCredits;
+  await queryPg('UPDATE wallets SET balance_credits = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [desiredCredits, wallet.id]);
+
+  await appendWalletLedger(params.userId, wallet.id, desiredCredits, {
+    entry_type: 'sync',
+    credits_delta: deltaCredits,
+    reference_type: 'app_db',
+    reference_id: String(params.userId),
+    note: params.reason || 'Wallet Sync aus App-DB Guthaben',
+  });
+
+  return { synced: true, desiredCredits, priorCredits, deltaCredits };
 }
 
 export async function getWalletRecord(userId: number): Promise<{ id: number; balance_credits: number; currency_display: string; status: string }> {
-  const result = await queryPg<{ id: number; balance_credits: number; currency_display: string; status: string }>(
+  // NOTE: PostgreSQL BIGINT columns often arrive as strings (node-postgres int8).
+  const result = await queryPg<{ id: any; balance_credits: any; currency_display: any; status: any }>(
     'SELECT id, balance_credits, currency_display, status FROM wallets WHERE user_id = $1',
     [userId],
   );
   const wallet = result.rows[0];
   if (!wallet) throw new Error('wallet_not_found');
-  return wallet;
+  return {
+    id: Number(wallet.id),
+    balance_credits: Number(wallet.balance_credits ?? 0),
+    currency_display: String(wallet.currency_display ?? ''),
+    status: String(wallet.status ?? ''),
+  };
 }
 
 export async function getLifetimeCredits(userId: number): Promise<number> {
@@ -91,15 +129,62 @@ export async function getWalletView(userId: number): Promise<WalletView> {
 }
 
 export async function applyWalletDelta(userId: number, entry: WalletLedgerEntry): Promise<{ balanceAfter: number; walletId: number }> {
-  const wallet = await getWalletRecord(userId);
-  const balanceAfter = wallet.balance_credits + entry.credits_delta;
-  if (balanceAfter < 0) {
-    throw new Error('insufficient_credits');
-  }
+  return withPgClient(async (client) => {
+    await client.beginTransaction?.();
+    try {
+      const kind = getBillingDbKind();
+      if (kind === 'postgres') {
+        const updated = await client.query<{ id: any; balance_credits: any }>(
+          `UPDATE wallets
+           SET balance_credits = balance_credits + $1,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = $2
+             AND balance_credits + $1 >= 0
+           RETURNING id, balance_credits`,
+          [entry.credits_delta, userId],
+        );
 
-  await queryPg('UPDATE wallets SET balance_credits = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [balanceAfter, wallet.id]);
-  await appendWalletLedger(userId, wallet.id, balanceAfter, entry);
-  return { balanceAfter, walletId: wallet.id };
+        if (updated.rowCount === 0) {
+          const existing = await client.query<{ id: any }>('SELECT id FROM wallets WHERE user_id = $1 LIMIT 1', [userId]);
+          throw new Error(existing.rowCount === 0 ? 'wallet_not_found' : 'insufficient_credits');
+        }
+
+        const walletId = Number(updated.rows[0].id);
+        const balanceAfter = Number(updated.rows[0].balance_credits ?? 0);
+        await client.query(
+          `INSERT INTO wallet_ledger
+            (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [userId, walletId, entry.entry_type, entry.credits_delta, balanceAfter, entry.reference_type, entry.reference_id, entry.note],
+        );
+        await client.commit?.();
+        return { balanceAfter, walletId };
+      }
+
+      const walletRow = await client.query<{ id: any; balance_credits: any }>(
+        'SELECT id, balance_credits FROM wallets WHERE user_id = $1 FOR UPDATE',
+        [userId],
+      );
+      if (walletRow.rowCount === 0) throw new Error('wallet_not_found');
+      const walletId = Number(walletRow.rows[0].id);
+      const prior = Number(walletRow.rows[0].balance_credits ?? 0);
+      const balanceAfter = prior + entry.credits_delta;
+      if (balanceAfter < 0) throw new Error('insufficient_credits');
+
+      await client.query('UPDATE wallets SET balance_credits = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [balanceAfter, walletId]);
+      await client.query(
+        `INSERT INTO wallet_ledger
+          (user_id, wallet_id, entry_type, credits_delta, balance_after, reference_type, reference_id, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [userId, walletId, entry.entry_type, entry.credits_delta, balanceAfter, entry.reference_type, entry.reference_id, entry.note],
+      );
+      await client.commit?.();
+      return { balanceAfter, walletId };
+    } catch (error) {
+      await client.rollback?.();
+      throw error;
+    }
+  });
 }
 
 export async function getWalletLedger(userId: number): Promise<Array<{
@@ -113,14 +198,14 @@ export async function getWalletLedger(userId: number): Promise<Array<{
   created_at: string;
 }>> {
   const rows = await queryPg<{
-    id: number;
-    entry_type: string;
-    credits_delta: number;
-    balance_after: number;
-    reference_type: string;
-    reference_id: string;
-    note: string | null;
-    created_at: string;
+    id: any;
+    entry_type: any;
+    credits_delta: any;
+    balance_after: any;
+    reference_type: any;
+    reference_id: any;
+    note: any;
+    created_at: any;
   }>(
     `SELECT id, entry_type, credits_delta, balance_after, reference_type, reference_id, note, created_at
      FROM wallet_ledger
@@ -128,5 +213,14 @@ export async function getWalletLedger(userId: number): Promise<Array<{
      ORDER BY created_at DESC, id DESC`,
     [userId],
   );
-  return rows.rows;
+  return rows.rows.map((row) => ({
+    id: Number(row.id),
+    entry_type: String(row.entry_type ?? ''),
+    credits_delta: Number(row.credits_delta ?? 0),
+    balance_after: Number(row.balance_after ?? 0),
+    reference_type: String(row.reference_type ?? ''),
+    reference_id: String(row.reference_id ?? ''),
+    note: row.note == null ? null : String(row.note),
+    created_at: String(row.created_at ?? ''),
+  }));
 }

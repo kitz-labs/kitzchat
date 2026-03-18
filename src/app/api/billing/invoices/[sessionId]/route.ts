@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { ensureBillingTables } from '@/lib/billing';
 import { getDb } from '@/lib/db';
+import { creditsToCents, hasPostgresConfig } from '@/config/env';
+import { queryPg } from '@/config/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +41,51 @@ export async function GET(request: Request, context: { params: Promise<{ session
   try {
     const user = requireUser(request);
     const { sessionId } = await context.params;
+    if (hasPostgresConfig()) {
+      const row = await queryPg<{
+        stripe_session_id: string;
+        gross_amount_eur: number;
+        status: string;
+        credits_issued: number;
+        created_at: string;
+      }>(
+        `SELECT stripe_session_id, gross_amount_eur, status, credits_issued, created_at
+         FROM payments
+         WHERE user_id = $1 AND stripe_session_id = $2
+         LIMIT 1`,
+        [user.id, sessionId],
+      );
+      const invoice = row.rows[0];
+      if (!invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+
+      const creditCents = creditsToCents(Number(invoice.credits_issued ?? 0));
+      const amountCents = Math.round(Number(invoice.gross_amount_eur ?? 0) * 100);
+      const lines = [
+        'KitzChat Rechnung',
+        '',
+        `Kunde: ${user.username}`,
+        `Rechnungsdatum: ${new Date(invoice.created_at).toLocaleString('de-DE')}`,
+        `Rechnungsnummer: ${invoice.stripe_session_id}`,
+        `Typ: Guthaben-Aufladung`,
+        `Status: ${String(invoice.status || '').toUpperCase()}`,
+        `Berechneter Betrag: EUR ${(amountCents / 100).toFixed(2)}`,
+        `Gutgeschriebenes Guthaben: EUR ${((creditCents || amountCents) / 100).toFixed(2)}`,
+        '',
+        'Vielen Dank fuer deine Zahlung bei KitzChat.',
+        'www.aikitz.at',
+      ];
+
+      const pdf = buildPdf(lines);
+      return new NextResponse(new Uint8Array(pdf), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="kitzchat-rechnung-${invoice.stripe_session_id}.pdf"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
     ensureBillingTables();
 
     const invoice = getDb()

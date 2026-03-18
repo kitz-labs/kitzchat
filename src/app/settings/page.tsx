@@ -7,8 +7,9 @@ import {
 } from 'lucide-react';
 import { toast } from '@/components/ui/toast';
 import { timeAgo } from '@/lib/utils';
-import { getRoleMatrix } from '@/lib/rbac';
 import { CustomerSettings } from '@/components/customer/customer-settings';
+import { PasskeyManager } from '@/components/auth/passkey-manager';
+import { WebsiteFtpSettings } from '@/components/admin/website-ftp-settings';
 import pkg from '../../../package.json';
 
 interface SyncInfo {
@@ -38,7 +39,7 @@ interface SyncInfo {
 }
 
 type Role = 'admin' | 'editor' | 'viewer';
-type SettingsTab = 'general' | 'memory' | 'stripe' | 'access' | 'about';
+type SettingsTab = 'general' | 'memory' | 'stripe' | 'access' | 'system' | 'website' | 'about';
 
 interface BillingConfig {
   stripe_secret_configured: boolean;
@@ -50,6 +51,59 @@ interface BillingConfig {
   success_url?: string | null;
   cancel_url?: string | null;
   webhook_url?: string | null;
+}
+
+interface EmailConfigStatus {
+  configured: boolean;
+  host: string | null;
+  port: number | null;
+  user: string | null;
+  from: string | null;
+  has_password: boolean;
+  public_base_url: string;
+  signature_configured: boolean;
+}
+
+interface EmailSettingsPayload {
+  status: EmailConfigStatus;
+  transport?: { ok: boolean; detail?: string };
+  current?: {
+    public_base_url?: string | null;
+    host?: string | null;
+    port?: number | null;
+    user?: string | null;
+    from?: string | null;
+    signature_html?: string | null;
+    signature_text?: string | null;
+  };
+}
+
+interface EmailAssetRecord {
+  name: string;
+  url: string;
+}
+
+interface BrandingStatusPayload {
+  exists: boolean;
+  url: string;
+  updated_at: string | null;
+}
+
+interface SchemaStatusPayload {
+  checked_at: string;
+  sqlite: {
+    path: string;
+    size_bytes: number | null;
+    sqlite_version: string | null;
+    tables: { name: string; count?: number }[];
+  };
+  billing: {
+    configured: boolean;
+    kind: 'postgres' | 'mysql' | null;
+    schema_migrations_applied: string[];
+    schema_migrations_pending: string[];
+    migrations_dir: string | null;
+  };
 }
 
 interface TopupOffer {
@@ -134,7 +188,6 @@ interface MemoryEffectPayload {
 
 export default function SettingsPage() {
   const dashboardVersion = pkg.version || 'dev';
-  const roleMatrix = getRoleMatrix();
   const [instances, setInstances] = useState<WorkspaceInstance[]>([]);
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -158,6 +211,38 @@ export default function SettingsPage() {
   const [savingAlertPolicy, setSavingAlertPolicy] = useState<Record<InstanceId, boolean>>({});
   const [memoryEffects, setMemoryEffects] = useState<Record<InstanceId, MemoryEffectPayload | null>>({});
   const [billingConfig, setBillingConfig] = useState<BillingConfig | null>(null);
+  const [schemaStatus, setSchemaStatus] = useState<SchemaStatusPayload | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [emailSettings, setEmailSettings] = useState<EmailSettingsPayload | null>(null);
+  const [emailDraft, setEmailDraft] = useState<{
+    public_base_url: string;
+    host: string;
+    port: number;
+    user: string;
+    from: string;
+    password: string;
+    signature_html: string;
+  }>({ public_base_url: '', host: '', port: 587, user: '', from: '', password: '', signature_html: '' });
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [emailTestTo, setEmailTestTo] = useState('');
+  const [emailAssets, setEmailAssets] = useState<EmailAssetRecord[]>([]);
+  const [emailAssetsLoading, setEmailAssetsLoading] = useState(false);
+  const [emailAssetUploading, setEmailAssetUploading] = useState(false);
+  const [emailAssetName, setEmailAssetName] = useState('');
+  const [brandingLogo, setBrandingLogo] = useState<BrandingStatusPayload | null>(null);
+  const [brandingFavicon, setBrandingFavicon] = useState<BrandingStatusPayload | null>(null);
+  const [brandingIcon, setBrandingIcon] = useState<BrandingStatusPayload | null>(null);
+  const [brandingLoading, setBrandingLoading] = useState(false);
+  const [brandingUploading, setBrandingUploading] = useState<Record<'logo' | 'favicon' | 'icon', boolean>>({ logo: false, favicon: false, icon: false });
+  const [rbacMatrix, setRbacMatrix] = useState<{
+    roles: Role[];
+    capabilities: { key: string; label: string; group?: string; description?: string }[];
+    roleCapabilities: Record<Role, string[]>;
+    roleOverrides?: Record<Role, Record<string, boolean | null>>;
+  } | null>(null);
+  const [rbacLoading, setRbacLoading] = useState(false);
   const [topupOffers, setTopupOffers] = useState<TopupOffer[]>([]);
   const [offerDraft, setOfferDraft] = useState<TopupOffer>({
     offerCode: '',
@@ -171,7 +256,14 @@ export default function SettingsPage() {
   });
   const [savingOffer, setSavingOffer] = useState(false);
   const [meResolved, setMeResolved] = useState(false);
-  const [appSettings, setAppSettings] = useState<{ allow_user_deletion?: boolean } | null>(null);
+	  const [appSettings, setAppSettings] = useState<{
+	    allow_user_deletion?: boolean;
+	    allow_policy_write?: boolean;
+	    allow_cron_write?: boolean;
+	    allow_workspace_write?: boolean;
+	    allow_user_registration?: boolean;
+	    allow_stripe_write?: boolean;
+	  } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -262,6 +354,214 @@ export default function SettingsPage() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!meResolved) return;
+    if (appAudience === 'customer') return;
+    (async () => {
+      setEmailLoading(true);
+      try {
+        const res = await fetch('/api/admin/email/settings', { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setEmailSettings(data as EmailSettingsPayload);
+          const st = (data as EmailSettingsPayload)?.status;
+          const cur = (data as EmailSettingsPayload)?.current;
+          if (st) {
+            setEmailDraft({
+              public_base_url: cur?.public_base_url || st.public_base_url || '',
+              host: cur?.host || st.host || '',
+              port: cur?.port || st.port || 587,
+              user: cur?.user || st.user || '',
+              from: cur?.from || st.from || '',
+              password: '',
+              signature_html: cur?.signature_html || '',
+            });
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        setEmailLoading(false);
+      }
+    })();
+  }, [meResolved, appAudience]);
+
+  async function refreshEmailAssets() {
+    setEmailAssetsLoading(true);
+    try {
+      const res = await fetch('/api/admin/email/assets', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String((data as any)?.error || 'Assets laden fehlgeschlagen'));
+      const files = Array.isArray((data as any)?.files) ? (data as any).files : [];
+      setEmailAssets(files.filter((f: any) => typeof f?.name === 'string' && typeof f?.url === 'string'));
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setEmailAssetsLoading(false);
+    }
+  }
+
+  async function uploadEmailAsset(file: File) {
+    setEmailAssetUploading(true);
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      if (emailAssetName.trim()) form.set('name', emailAssetName.trim());
+      const res = await fetch('/api/admin/email/assets', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String((data as any)?.error || 'Upload fehlgeschlagen'));
+      const url = String((data as any)?.url || '');
+      if (url) {
+        try {
+          await navigator.clipboard.writeText(url);
+          toast.success('Upload OK (URL kopiert)');
+        } catch {
+          toast.success('Upload OK');
+        }
+      } else {
+        toast.success('Upload OK');
+      }
+      setEmailAssetName('');
+      await refreshEmailAssets();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setEmailAssetUploading(false);
+    }
+  }
+
+  async function refreshBranding() {
+    setBrandingLoading(true);
+    try {
+      const [logoRes, favRes, iconRes] = await Promise.all([
+        fetch('/api/admin/brand/logo', { cache: 'no-store' }),
+        fetch('/api/admin/brand/favicon', { cache: 'no-store' }),
+        fetch('/api/admin/brand/icon', { cache: 'no-store' }),
+      ]);
+      const [logoData, favData, iconData] = await Promise.all([
+        logoRes.json().catch(() => ({})),
+        favRes.json().catch(() => ({})),
+        iconRes.json().catch(() => ({})),
+      ]);
+      if (!logoRes.ok) throw new Error(String((logoData as any)?.error || 'Logo laden fehlgeschlagen'));
+      if (!favRes.ok) throw new Error(String((favData as any)?.error || 'Favicon laden fehlgeschlagen'));
+      if (!iconRes.ok) throw new Error(String((iconData as any)?.error || 'Icon laden fehlgeschlagen'));
+
+      setBrandingLogo({
+        exists: Boolean((logoData as any)?.exists),
+        url: String((logoData as any)?.url || '/brand/logo.png'),
+        updated_at: (logoData as any)?.updated_at ? String((logoData as any).updated_at) : null,
+      });
+      setBrandingFavicon({
+        exists: Boolean((favData as any)?.exists),
+        url: String((favData as any)?.url || '/brand/favicon.png'),
+        updated_at: (favData as any)?.updated_at ? String((favData as any).updated_at) : null,
+      });
+      setBrandingIcon({
+        exists: Boolean((iconData as any)?.exists),
+        url: String((iconData as any)?.url || '/brand/icon.png'),
+        updated_at: (iconData as any)?.updated_at ? String((iconData as any).updated_at) : null,
+      });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBrandingLoading(false);
+    }
+  }
+
+  async function uploadBrandAsset(kind: 'logo' | 'favicon' | 'icon', file: File) {
+    setBrandingUploading((prev) => ({ ...prev, [kind]: true }));
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      const res = await fetch(`/api/admin/brand/${kind}`, { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String((data as any)?.error || 'Upload fehlgeschlagen'));
+      toast.success(kind === 'logo' ? 'Logo aktualisiert' : kind === 'favicon' ? 'Favicon aktualisiert' : 'App Icon aktualisiert');
+      await refreshBranding();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBrandingUploading((prev) => ({ ...prev, [kind]: false }));
+    }
+  }
+
+  async function refreshEmailSettings(verify = false) {
+    setEmailLoading(true);
+    try {
+      const res = await fetch(`/api/admin/email/settings${verify ? '?verify=1' : ''}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String((data as any)?.error || 'Failed to load email settings'));
+      setEmailSettings(data as EmailSettingsPayload);
+      toast.success(verify ? 'SMTP geprueft' : 'SMTP geladen');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setEmailLoading(false);
+    }
+  }
+
+  async function saveEmailSettings() {
+    setEmailSaving(true);
+    try {
+      const res = await fetch('/api/admin/email/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          public_base_url: emailDraft.public_base_url,
+          host: emailDraft.host,
+          port: emailDraft.port,
+          user: emailDraft.user,
+          from: emailDraft.from,
+          ...(emailDraft.password.trim() ? { password: emailDraft.password } : {}),
+          signature_html: emailDraft.signature_html,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String((data as any)?.error || 'Speichern fehlgeschlagen'));
+      setEmailDraft((prev) => ({ ...prev, password: '' }));
+      await refreshEmailSettings(true);
+      toast.success('SMTP gespeichert');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setEmailSaving(false);
+    }
+  }
+
+  async function sendTestEmail() {
+    setEmailTesting(true);
+    try {
+      const res = await fetch('/api/admin/email/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: emailTestTo }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String((data as any)?.error || 'Testmail fehlgeschlagen'));
+      toast.success('Testmail gesendet');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setEmailTesting(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'access') return;
+    if (!rbacMatrix && !rbacLoading) {
+      refreshRbacMatrix();
+    }
+  }, [activeTab, rbacMatrix, rbacLoading]);
+
+  useEffect(() => {
+    if (activeTab !== 'system') return;
+    if (appAudience === 'customer') return;
+    if (!brandingLogo && !brandingLoading) {
+      refreshBranding();
+    }
+  }, [activeTab, appAudience, brandingLogo, brandingLoading]);
+
   async function loadUsers() {
     if (currentUser?.role !== 'admin') return;
     setUserLoading(true);
@@ -334,6 +634,21 @@ export default function SettingsPage() {
       toast.error('Failed to clear seeds');
     }
     setClearing(false);
+  }
+
+  async function patchAdminSettings(payload: Record<string, boolean>) {
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update setting');
+      setAppSettings(data.settings || null);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   }
 
   async function createUserRecord(e: React.FormEvent) {
@@ -506,6 +821,52 @@ export default function SettingsPage() {
     }
   }
 
+  async function refreshSchemaStatus() {
+    setSchemaLoading(true);
+    try {
+      const res = await fetch('/api/admin/schema/status', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Schema status unavailable');
+      setSchemaStatus(data);
+    } catch (err) {
+      toast.error((err as Error).message || 'Schema status unavailable');
+      setSchemaStatus(null);
+    } finally {
+      setSchemaLoading(false);
+    }
+  }
+
+  async function refreshRbacMatrix() {
+    setRbacLoading(true);
+    try {
+      const res = await fetch('/api/admin/rbac', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'RBAC unavailable');
+      const matrix = data?.matrix || data;
+      setRbacMatrix(matrix);
+    } catch (err) {
+      toast.error((err as Error).message || 'RBAC unavailable');
+      setRbacMatrix(null);
+    } finally {
+      setRbacLoading(false);
+    }
+  }
+
+  async function setRoleCapability(role: Role, capability: string, enabled: boolean | null) {
+    try {
+      const res = await fetch('/api/admin/rbac', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, capability, enabled }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'RBAC update failed');
+      setRbacMatrix(data?.matrix || null);
+    } catch (err) {
+      toast.error((err as Error).message || 'RBAC update failed');
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in w-full">
       <div className="panel">
@@ -524,12 +885,19 @@ export default function SettingsPage() {
               { key: 'memory', label: 'Memory' },
               { key: 'stripe', label: 'Stripe' },
               { key: 'access', label: 'Access' },
+              { key: 'system', label: 'System' },
+              { key: 'website', label: 'Website' },
               { key: 'about', label: 'About' },
             ].map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab.key as SettingsTab)}
+                onClick={() => {
+                  setActiveTab(tab.key as SettingsTab);
+                  if (tab.key === 'system' && !schemaStatus && !schemaLoading) {
+                    refreshSchemaStatus();
+                  }
+                }}
                 className={`rounded-lg px-3 py-2 text-sm border transition-colors ${
                   activeTab === tab.key
                     ? 'bg-primary/15 border-primary/40 text-primary'
@@ -546,6 +914,18 @@ export default function SettingsPage() {
       {/* Database Info */}
       {activeTab === 'general' && (
       <>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PasskeyManager title="Passkeys (Login ohne Passwort)" />
+        <div className="panel">
+          <div className="panel-body space-y-2">
+            <div className="text-sm font-medium">Hinweis</div>
+            <div className="text-xs text-muted-foreground">
+              Passkeys sind device-gebunden (z.B. FaceID/TouchID). Du kannst mehrere Passkeys registrieren (Laptop + Smartphone) und jederzeit wieder entfernen.
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="panel p-5 space-y-4">
         <h2 className="text-sm font-medium flex items-center gap-2">
           <Database size={14} className="text-primary" /> Database
@@ -577,30 +957,58 @@ export default function SettingsPage() {
             </div>
 
             <div className="mt-4 border-t pt-4">
-              <h3 className="text-sm font-medium">Admin: User deletion</h3>
-              <p className="text-xs text-muted-foreground">Allow deleting users in the app (this will not remove Stripe customers).</p>
-              <div className="mt-2">
+              <h3 className="text-sm font-medium">Admin: Runtime Controls</h3>
+              <p className="text-xs text-muted-foreground">
+                Schalte kritische Admin-Funktionen gezielt frei. Diese Werte werden lokal im State gespeichert.
+              </p>
+              <div className="mt-3 grid gap-2 text-sm">
                 <label className="inline-flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={!!appSettings?.allow_user_deletion}
-                    onChange={async (e) => {
-                      try {
-                        const allow = e.target.checked;
-                        const res = await fetch('/api/admin/settings', {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ allow_user_deletion: allow }),
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data.error || 'Failed to update setting');
-                        setAppSettings(data.settings || null);
-                      } catch (err) {
-                        toast.error((err as Error).message);
-                      }
-                    }}
+                    onChange={(e) => patchAdminSettings({ allow_user_deletion: e.target.checked })}
                   />
-                  <span className="text-sm">Allow deleting users in app</span>
+                  <span>User-Loeschung erlauben</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!appSettings?.allow_user_registration}
+                    onChange={(e) => patchAdminSettings({ allow_user_registration: e.target.checked })}
+                  />
+                  <span>Self-Registration erlauben</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!appSettings?.allow_policy_write}
+                    onChange={(e) => patchAdminSettings({ allow_policy_write: e.target.checked })}
+                  />
+                  <span>Memory-Policy Write erlauben</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!appSettings?.allow_cron_write}
+                    onChange={(e) => patchAdminSettings({ allow_cron_write: e.target.checked })}
+                  />
+                  <span>Cron-Write erlauben</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!appSettings?.allow_workspace_write}
+                    onChange={(e) => patchAdminSettings({ allow_workspace_write: e.target.checked })}
+                  />
+                  <span>Workspace-Write erlauben</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!appSettings?.allow_stripe_write}
+                    onChange={(e) => patchAdminSettings({ allow_stripe_write: e.target.checked })}
+                  />
+                  <span>Stripe-Write erlauben (Coupons/Promotion Codes)</span>
                 </label>
               </div>
             </div>
@@ -625,6 +1033,12 @@ export default function SettingsPage() {
         )}
       </div>
       </>
+      )}
+
+      {activeTab === 'website' && (
+        <div className="space-y-4">
+          <WebsiteFtpSettings />
+        </div>
       )}
 
       {/* Memory Decay Policy */}
@@ -863,7 +1277,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between py-2">
             <span className="text-muted-foreground">Notes</span>
             <span className="text-muted-foreground">
-              Models, local workspaces, and cron wiring are defined by your KitzChat runtime config.
+              Models, local workspaces, and cron wiring are defined by your Nexora runtime config.
             </span>
           </div>
         </div>
@@ -1056,10 +1470,10 @@ export default function SettingsPage() {
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
-          {topupOffers.slice().sort((left, right) => (left.sortOrder - right.sortOrder) || (left.amountEur - right.amountEur)).slice(0, 4).map((offer, index) => (
+          {topupOffers.slice().sort((left, right) => (Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0)) || (Number(left.amountEur ?? 0) - Number(right.amountEur ?? 0))).slice(0, 4).map((offer, index) => (
             <div key={`checkout-slot-${offer.offerCode}`} className="rounded-xl border border-border/40 bg-muted/10 p-4">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Checkout Slot {index + 1}</div>
-              <div className="mt-2 text-lg font-semibold">€{offer.amountEur.toFixed(0)}</div>
+              <div className="mt-2 text-lg font-semibold">€{Number(offer.amountEur ?? 0).toFixed(0)}</div>
               <div className="mt-1 text-xs text-muted-foreground">{offer.offerCode} · {offer.marketingLabel || offer.name}</div>
             </div>
           ))}
@@ -1146,8 +1560,8 @@ export default function SettingsPage() {
                 <div className="text-xs text-muted-foreground">{offer.offerCode} · {offer.marketingLabel || 'ohne Label'}</div>
               </div>
               <div className="text-right text-xs text-muted-foreground">
-                <div>€{offer.amountEur.toFixed(2)} · {offer.credits} Credits</div>
-                <div>Bonus {offer.bonusCredits} · Sort {offer.sortOrder} · {offer.active ? 'aktiv' : 'inaktiv'}</div>
+                <div>€{Number(offer.amountEur ?? 0).toFixed(2)} · {Number(offer.credits ?? 0)} Credits</div>
+                <div>Bonus {Number(offer.bonusCredits ?? 0)} · Sort {Number(offer.sortOrder ?? 0)} · {offer.active ? 'aktiv' : 'inaktiv'}</div>
               </div>
             </div>
           ))}
@@ -1273,33 +1687,66 @@ export default function SettingsPage() {
 
             <div className="rounded-xl border border-border/40 p-4 space-y-3 bg-muted/10">
               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Role Matrix</div>
-              <div className="overflow-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-muted-foreground border-b border-border/40">
-                      <th className="text-left py-2 pr-2">Capability</th>
-                      {roleMatrix.roles.map(role => (
-                        <th key={role} className="text-left py-2 pr-2 capitalize">{role}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {roleMatrix.capabilities.map(cap => (
-                      <tr key={cap.key} className="border-b border-border/20">
-                        <td className="py-2 pr-2">{cap.label}</td>
-                        {roleMatrix.roles.map(role => {
-                          const has = roleMatrix.roleCapabilities[role].includes(cap.key);
-                          return (
-                            <td key={`${role}-${cap.key}`} className="py-2 pr-2">
-                              {has ? '✓' : '—'}
-                            </td>
-                          );
-                        })}
+              {rbacLoading ? (
+                <div className="text-xs text-muted-foreground">Loading RBAC…</div>
+              ) : !rbacMatrix ? (
+                <div className="text-xs text-muted-foreground">RBAC matrix unavailable.</div>
+              ) : (
+                <div className="overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-muted-foreground border-b border-border/40">
+                        <th className="text-left py-2 pr-2">Capability</th>
+                        {rbacMatrix.roles.map((role) => (
+                          <th key={role} className="text-left py-2 pr-2 capitalize">{role}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {rbacMatrix.capabilities
+                        .slice()
+                        .sort((a, b) => `${a.group || ''}:${a.label}`.localeCompare(`${b.group || ''}:${b.label}`))
+                        .map((cap) => (
+                          <tr key={cap.key} className="border-b border-border/20 align-top">
+                            <td className="py-2 pr-2">
+                              <div className="font-medium">{cap.label}</div>
+                              <div className="text-[10px] text-muted-foreground">{cap.group || '—'}</div>
+                            </td>
+                            {rbacMatrix.roles.map((role) => {
+                              const effective = (rbacMatrix.roleCapabilities?.[role] || []).includes(cap.key);
+                              const override = rbacMatrix.roleOverrides?.[role]?.[cap.key] ?? null;
+                              return (
+                                <td key={`${role}-${cap.key}`} className="py-2 pr-2">
+                                  <div className="flex items-center gap-2">
+                                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={effective}
+                                        onChange={(e) => setRoleCapability(role, cap.key, e.target.checked)}
+                                      />
+                                      <span className={`text-[10px] ${override === null ? 'text-muted-foreground' : 'text-primary'}`}>
+                                        {override === null ? 'default' : 'override'}
+                                      </span>
+                                    </label>
+                                    {override !== null ? (
+                                      <button
+                                        type="button"
+                                        className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                        onClick={() => setRoleCapability(role, cap.key, null)}
+                                      >
+                                        reset
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {userLoading ? (
@@ -1358,6 +1805,517 @@ export default function SettingsPage() {
       </div>
       )}
 
+      {/* System */}
+      {activeTab === 'system' && (
+      <>
+      <div className="panel p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Database size={14} className="text-primary" /> System / Schema
+          </h2>
+          <button
+            type="button"
+            onClick={() => refreshSchemaStatus()}
+            className="btn text-xs px-2 py-1 flex items-center gap-1"
+            disabled={schemaLoading}
+          >
+            <RefreshCw size={12} className={schemaLoading ? 'animate-spin' : ''} /> Refresh
+          </button>
+        </div>
+
+        {!schemaStatus ? (
+          <div className="text-xs text-muted-foreground">{schemaLoading ? 'Loading…' : 'No schema status loaded yet.'}</div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-2">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">SQLite</div>
+              <div className="text-xs space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Path</span>
+                  <code className="text-[10px] bg-muted px-2 py-1 rounded max-w-[70%] truncate">{schemaStatus.sqlite.path}</code>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Size</span>
+                  <span className="font-mono">{schemaStatus.sqlite.size_bytes ? `${Math.round(schemaStatus.sqlite.size_bytes / 1024 / 1024)} MB` : '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Version</span>
+                  <span className="font-mono">{schemaStatus.sqlite.sqlite_version || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Tables</span>
+                  <span className="font-mono">{schemaStatus.sqlite?.tables?.length ?? 0}</span>
+                </div>
+              </div>
+              <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-border/50 bg-background/50 p-2 text-[11px]">
+                {(schemaStatus.sqlite?.tables ?? []).map((t) => (
+                  <div key={t.name} className="flex items-center justify-between gap-3 py-1 border-b border-border/30 last:border-b-0">
+                    <span className="font-mono">{t.name}</span>
+                    <span className="text-muted-foreground">{typeof t.count === 'number' ? t.count : '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-2">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Billing DB</div>
+              <div className="text-xs space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Configured</span>
+                  <span className="font-mono">{schemaStatus.billing.configured ? 'yes' : 'no'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Kind</span>
+                  <span className="font-mono">{schemaStatus.billing.kind || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Applied</span>
+                  <span className="font-mono">{schemaStatus.billing?.schema_migrations_applied?.length ?? 0}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Pending</span>
+                  <span className="font-mono">{schemaStatus.billing?.schema_migrations_pending?.length ?? 0}</span>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border/50 bg-background/50 p-2 text-[11px] max-h-44 overflow-auto">
+                  <div className="text-[10px] text-muted-foreground font-semibold mb-2">Applied</div>
+                  {(schemaStatus.billing?.schema_migrations_applied ?? []).length ? (schemaStatus.billing?.schema_migrations_applied ?? []).map((v) => (
+                    <div key={v} className="font-mono py-0.5">{v}</div>
+                  )) : <div className="text-muted-foreground">—</div>}
+                </div>
+                <div className="rounded-lg border border-border/50 bg-background/50 p-2 text-[11px] max-h-44 overflow-auto">
+                  <div className="text-[10px] text-muted-foreground font-semibold mb-2">Pending</div>
+                  {(schemaStatus.billing?.schema_migrations_pending ?? []).length ? (schemaStatus.billing?.schema_migrations_pending ?? []).map((v) => (
+                    <div key={v} className="font-mono text-warning py-0.5">{v}</div>
+                  )) : <div className="text-muted-foreground">—</div>}
+                </div>
+              </div>
+              <div className="mt-2 text-[10px] text-muted-foreground">Last check: {new Date(schemaStatus.checked_at).toLocaleString()}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="panel p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <BellRing size={14} className="text-primary" /> Branding / Logo
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => refreshBranding()}
+              className="btn text-xs px-2 py-1 flex items-center gap-1"
+              disabled={brandingLoading}
+            >
+              <RefreshCw size={12} className={brandingLoading ? 'animate-spin' : ''} /> Laden
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost text-xs px-2 py-1"
+              disabled={brandingLoading}
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/admin/brand/logo', { method: 'DELETE' });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(String((data as any)?.error || 'Reset fehlgeschlagen'));
+                  toast.success('Logo zurückgesetzt');
+                  await refreshBranding();
+                } catch (err) {
+                  toast.error((err as Error).message);
+                }
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          Status: {brandingLogo?.exists ? <span className="text-success font-semibold">custom</span> : <span className="text-muted-foreground font-semibold">default</span>}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Logo (UI)</div>
+            <div className="text-[11px] text-muted-foreground">PNG, transparent empfohlen (512×512).</div>
+            <input
+              type="file"
+              accept="image/png"
+              className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+              disabled={brandingUploading.logo}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadBrandAsset('logo', f);
+                e.target.value = '';
+              }}
+            />
+            {brandingLogo?.updated_at ? (
+              <div className="text-[11px] text-muted-foreground">
+                Letztes Update: {new Date(brandingLogo.updated_at).toLocaleString()}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Favicon</div>
+                <div className="text-[11px] text-muted-foreground">PNG (empfohlen 256×256), wird für Browser-Tab genutzt.</div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost text-xs px-2 py-1"
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/admin/brand/favicon', { method: 'DELETE' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(String((data as any)?.error || 'Reset fehlgeschlagen'));
+                    toast.success('Favicon zurückgesetzt');
+                    await refreshBranding();
+                  } catch (err) {
+                    toast.error((err as Error).message);
+                  }
+                }}
+              >
+                Reset
+              </button>
+            </div>
+            <input
+              type="file"
+              accept="image/png"
+              className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+              disabled={brandingUploading.favicon}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadBrandAsset('favicon', f);
+                e.target.value = '';
+              }}
+            />
+            <div className="rounded-2xl border border-border/60 bg-background/40 p-4 flex items-center justify-center">
+              <img
+                src={brandingFavicon?.url ? `${brandingFavicon.url}${brandingFavicon.updated_at ? `?v=${encodeURIComponent(brandingFavicon.updated_at)}` : ''}` : '/brand/favicon.png'}
+                alt="Favicon"
+                className="h-10 w-10 object-contain"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">App Icon</div>
+                <div className="text-[11px] text-muted-foreground">PNG 512×512 (maskable), für PWA/Apps.</div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost text-xs px-2 py-1"
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/admin/brand/icon', { method: 'DELETE' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(String((data as any)?.error || 'Reset fehlgeschlagen'));
+                    toast.success('App Icon zurückgesetzt');
+                    await refreshBranding();
+                  } catch (err) {
+                    toast.error((err as Error).message);
+                  }
+                }}
+              >
+                Reset
+              </button>
+            </div>
+            <input
+              type="file"
+              accept="image/png"
+              className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+              disabled={brandingUploading.icon}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadBrandAsset('icon', f);
+                e.target.value = '';
+              }}
+            />
+            <div className="rounded-2xl border border-border/60 bg-background/40 p-4 flex items-center justify-center">
+              <img
+                src={brandingIcon?.url ? `${brandingIcon.url}${brandingIcon.updated_at ? `?v=${encodeURIComponent(brandingIcon.updated_at)}` : ''}` : '/brand/icon.png'}
+                alt="App Icon"
+                className="h-16 w-16 object-contain"
+              />
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Tipp: Wenn iOS cached, PWA löschen/neu hinzufügen.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Webhook size={14} className="text-primary" /> SMTP / E-Mail
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => refreshEmailSettings(false)}
+              className="btn text-xs px-2 py-1 flex items-center gap-1"
+              disabled={emailLoading}
+            >
+              <RefreshCw size={12} className={emailLoading ? 'animate-spin' : ''} /> Laden
+            </button>
+            <button
+              type="button"
+              onClick={() => refreshEmailSettings(true)}
+              className="btn text-xs px-2 py-1 flex items-center gap-1"
+              disabled={emailLoading}
+            >
+              <Shield size={12} /> Pruefen
+            </button>
+          </div>
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          Status: {emailSettings?.status?.configured ? <span className="text-success font-semibold">configured</span> : <span className="text-warning font-semibold">not configured</span>}
+          {emailSettings?.transport ? (
+            <span className="ml-2">
+              · Transport: {emailSettings.transport.ok ? <span className="text-success">ok</span> : <span className="text-warning">fail</span>}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="space-y-1 text-sm">
+                <div className="text-xs text-muted-foreground">Public Base URL</div>
+                <input
+                  value={emailDraft.public_base_url}
+                  onChange={(e) => setEmailDraft((prev) => ({ ...prev, public_base_url: e.target.value }))}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                  placeholder="https://dashboard.aikitz.at"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <div className="text-xs text-muted-foreground">From</div>
+                <input
+                  value={emailDraft.from}
+                  onChange={(e) => setEmailDraft((prev) => ({ ...prev, from: e.target.value }))}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                  placeholder="noreply@..."
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <div className="text-xs text-muted-foreground">Host</div>
+                <input
+                  value={emailDraft.host}
+                  onChange={(e) => setEmailDraft((prev) => ({ ...prev, host: e.target.value }))}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                  placeholder="smtp.example.com"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <div className="text-xs text-muted-foreground">Port</div>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={emailDraft.port}
+                  onChange={(e) => setEmailDraft((prev) => ({ ...prev, port: Number(e.target.value) || 587 }))}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm font-mono"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <div className="text-xs text-muted-foreground">User</div>
+                <input
+                  value={emailDraft.user}
+                  onChange={(e) => setEmailDraft((prev) => ({ ...prev, user: e.target.value }))}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                  placeholder="smtp-user"
+                />
+              </label>
+                  <label className="space-y-1 text-sm">
+                    <div className="text-xs text-muted-foreground">Password</div>
+                    <input
+                      type="password"
+                      value={emailDraft.password}
+                      onChange={(e) => setEmailDraft((prev) => ({ ...prev, password: e.target.value }))}
+                      className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                      placeholder={emailSettings?.status?.has_password ? '•••••••• (gesetzt)' : 'setzen…'}
+                    />
+                  </label>
+                  <label className="space-y-1 text-sm md:col-span-2">
+                    <div className="text-xs text-muted-foreground">Signature (HTML)</div>
+                    <textarea
+                      value={emailDraft.signature_html}
+                      onChange={(e) => setEmailDraft((prev) => ({ ...prev, signature_html: e.target.value }))}
+                      className="w-full min-h-[140px] rounded-xl border border-border/60 bg-background px-3 py-2 text-xs font-mono"
+                      placeholder={emailSettings?.status?.signature_configured ? 'Signature ist gesetzt (du kannst sie hier ueberschreiben)…' : 'HTML Signature einfuegen…'}
+                    />
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      Hinweis: `blob:`-Bild-URLs aus Webmail funktionieren beim Empfaenger nicht. Nutze absolute `https://` Links oder entferne Bilder.
+                    </div>
+                  </label>
+                </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => saveEmailSettings()}
+                disabled={emailSaving}
+              >
+                {emailSaving ? 'Speichert…' : 'Speichern'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/admin/email/settings', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ clear_password: true }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(String((data as any)?.error || 'Clear fehlgeschlagen'));
+                    await refreshEmailSettings(false);
+                    toast.success('Passwort entfernt');
+                  } catch (err) {
+                    toast.error((err as Error).message);
+                  }
+                }}
+              >
+                Passwort loeschen
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/admin/email/settings', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ clear_signature: true }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(String((data as any)?.error || 'Clear fehlgeschlagen'));
+                    setEmailDraft((prev) => ({ ...prev, signature_html: '' }));
+                    await refreshEmailSettings(false);
+                    toast.success('Signature entfernt');
+                  } catch (err) {
+                    toast.error((err as Error).message);
+                  }
+                }}
+              >
+                Signature loeschen
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Test</div>
+            <label className="space-y-1 text-sm">
+              <div className="text-xs text-muted-foreground">Empfaenger</div>
+              <input
+                value={emailTestTo}
+                onChange={(e) => setEmailTestTo(e.target.value)}
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="dein.email@..."
+              />
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => sendTestEmail()}
+                disabled={emailTesting || !emailTestTo.trim()}
+              >
+                {emailTesting ? 'Sende…' : 'Testmail senden'}
+              </button>
+            </div>
+            {emailSettings?.transport && !emailSettings.transport.ok && emailSettings.transport.detail ? (
+              <div className="text-xs text-warning break-words">
+                Transport Fehler: {emailSettings.transport.detail}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Assets</div>
+              <button
+                type="button"
+                className="btn text-xs px-2 py-1 flex items-center gap-1"
+                onClick={() => refreshEmailAssets()}
+                disabled={emailAssetsLoading}
+              >
+                <RefreshCw size={12} className={emailAssetsLoading ? 'animate-spin' : ''} /> Laden
+              </button>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Bilder hochladen und dann in der Signature als `https://.../email-assets/...` verwenden.
+            </div>
+            <label className="space-y-1 text-sm">
+              <div className="text-xs text-muted-foreground">Name (optional)</div>
+              <input
+                value={emailAssetName}
+                onChange={(e) => setEmailAssetName(e.target.value)}
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="logo-aikitz"
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <div className="text-xs text-muted-foreground">Upload</div>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                disabled={emailAssetUploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadEmailAsset(f);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            {emailAssets.length ? (
+              <div className="space-y-1 max-h-40 overflow-auto rounded-lg border border-border/50 bg-background/40 p-2">
+                {emailAssets.map((a) => (
+                  <div key={a.name} className="flex items-center justify-between gap-2">
+                    <div className="truncate text-xs font-mono">{a.name}</div>
+                    <div className="flex items-center gap-2">
+                      <a className="text-xs text-primary hover:underline flex items-center gap-1" href={a.url} target="_blank" rel="noreferrer">
+                        <ExternalLink size={12} /> Open
+                      </a>
+                      <button
+                        type="button"
+                        className="btn text-xs px-2 py-1"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(a.url);
+                            toast.success('URL kopiert');
+                          } catch {
+                            toast.error('Kopieren fehlgeschlagen');
+                          }
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">Noch keine Assets geladen.</div>
+            )}
+          </div>
+        </div>
+      </div>
+      </>
+      )}
+
       {/* About */}
       {activeTab === 'about' && (
       <>
@@ -1368,7 +2326,7 @@ export default function SettingsPage() {
           <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between py-1">
               <span className="text-muted-foreground">Dashboard</span>
-            <span>KitzChat v{dashboardVersion}</span>
+            <span>Nexora v{dashboardVersion}</span>
             </div>
             <div className="flex items-center justify-between py-1">
               <span className="text-muted-foreground">Runtime</span>

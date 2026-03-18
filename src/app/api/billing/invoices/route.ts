@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { ensureBillingTables } from '@/lib/billing';
 import { getDb } from '@/lib/db';
 import { getPaymentInvoices } from '@/modules/billing/billing.service';
-import { hasPostgresConfig } from '@/config/env';
+import { creditsToCents, hasPostgresConfig } from '@/config/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,10 +17,10 @@ export async function GET(request: Request) {
           session_id: invoice.stripe_session_id,
           checkout_type: 'topup',
           amount_cents: Math.round(Number(invoice.gross_amount_eur) * 100),
-          credit_amount_cents: invoice.credits_issued,
+          credit_amount_cents: creditsToCents(Number(invoice.credits_issued ?? 0)),
           discount_percent: 0,
           created_at: invoice.created_at,
-          title: invoice.status === 'paid' ? 'Guthaben-Rechnung' : 'Zahlungsbeleg',
+          title: invoice.status === 'completed' || invoice.status === 'paid' ? 'Guthaben-Rechnung' : 'Zahlungsbeleg',
           download_url: `/api/billing/invoices/${encodeURIComponent(invoice.stripe_session_id)}`,
         })),
       });

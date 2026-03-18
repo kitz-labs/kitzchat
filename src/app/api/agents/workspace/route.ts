@@ -164,7 +164,14 @@ function resolveRootFromId(req: NextRequest, rootIdRaw: string | null | undefine
 
 async function assertDirExists(abs: string): Promise<void> {
   const st = await fs.stat(abs).catch(() => null);
-  if (!st || !st.isDirectory()) throw new Error('Root not found');
+  if (st?.isDirectory()) return;
+  try {
+    await fs.mkdir(abs, { recursive: true });
+  } catch {
+    // ignore
+  }
+  const st2 = await fs.stat(abs).catch(() => null);
+  if (!st2 || !st2.isDirectory()) throw new Error('Root not found');
 }
 
 export async function GET(req: NextRequest) {

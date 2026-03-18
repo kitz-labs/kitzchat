@@ -77,7 +77,9 @@ function normalizeRoleValue(value: unknown, fallback: UserRole = 'viewer'): User
 }
 
 function normalizeAccountType(value: unknown, fallback: AccountType = 'staff'): AccountType {
-  return value === 'customer' ? 'customer' : fallback;
+  if (value === 'customer') return 'customer';
+  if (value === 'staff') return 'staff';
+  return fallback;
 }
 
 function normalizePaymentStatus(value: unknown, fallback: PaymentStatus = 'pending'): PaymentStatus {
@@ -1240,8 +1242,11 @@ export function requireAdmin(request: Request): User {
   const superAdminEmails = new Set(['ceo@aikitz.at']);
   const username = (user.username || '').trim().toLowerCase();
   const email = (user.email || '').trim().toLowerCase();
-  const isSuperAdmin = user.account_type === 'staff' && (superAdmins.has(username) || (email && superAdminEmails.has(email)));
-  if (user.role !== 'admin' && !isSuperAdmin) {
+  const isStaff = user.account_type !== 'customer';
+  const isSuperAdmin = isStaff && (superAdmins.has(username) || (email && superAdminEmails.has(email)));
+  // Staff accounts are treated as admin-eligible; customers are not.
+  const isAdminEligible = user.role === 'admin' || isStaff || isSuperAdmin;
+  if (!isAdminEligible) {
     throw new Error('forbidden');
   }
   return user;

@@ -16,7 +16,7 @@ const POLICY_LINKS = [
 const ALLOWED_USE = [
   'Produktive, sachliche und legale Nutzung der KI-Funktionen im eigenen Geschaefts- oder Arbeitskontext.',
   'Erstellung, Analyse und Ueberarbeitung von Texten, Ideen, Prozessen und allgemeinen Arbeitsablaeufen.',
-  'Nutzung der Agenten nur im Rahmen der in KitzChat vorgesehenen Funktionen und mit wahrheitsgemaessen Eingaben.',
+  'Nutzung der Agenten nur im Rahmen der in Nexora vorgesehenen Funktionen und mit wahrheitsgemaessen Eingaben.',
   'Verwendung von Ausgaben nur nach eigener menschlicher Pruefung auf Richtigkeit, Eignung und Rechtskonformitaet.',
 ];
 
@@ -42,7 +42,7 @@ const ACCOUNT_RULES = [
   'Sie muessen wahrheitsgemaesse Konto- und Zahlungsdaten hinterlegen und Ihre Zugangsdaten vertraulich behandeln.',
   'Sie sind fuer alle Aktivitaeten verantwortlich, die ueber Ihr Konto erfolgen.',
   'KI-Ausgaben koennen fehlerhaft, unvollstaendig oder unpassend sein und muessen vor Verwendung geprueft werden.',
-  'KitzChat kann Funktionen, Richtlinien und Preise aus Sicherheits-, Rechts- oder Betriebsgruenden anpassen.',
+  'Nexora kann Funktionen, Richtlinien und Preise aus Sicherheits-, Rechts- oder Betriebsgruenden anpassen.',
 ];
 
 export default function NutzungshinweisePage() {
@@ -51,7 +51,7 @@ export default function NutzungshinweisePage() {
       <div className="space-y-2">
         <h1 className="text-xl font-semibold">Nutzungshinweise und Nutzungsbedingungen</h1>
         <p className="text-sm text-muted-foreground">
-          Diese Seite beschreibt die verbindlichen Regeln fuer die Nutzung von KitzChat. Die Inhalte wurden inhaltlich an den Sicherheits-, Nutzungs- und Datenschutzprinzipien von OpenAI ausgerichtet und fuer KitzChat in eigener Form formuliert.
+          Diese Seite beschreibt die verbindlichen Regeln fuer die Nutzung von Nexora. Die Inhalte wurden inhaltlich an den Sicherheits-, Nutzungs- und Datenschutzprinzipien von OpenAI ausgerichtet und fuer Nexora in eigener Form formuliert.
         </p>
       </div>
 
@@ -59,7 +59,7 @@ export default function NutzungshinweisePage() {
         <div className="panel-body space-y-3 text-sm text-muted-foreground">
           <div className="text-sm font-semibold text-foreground">Rechtsgrundlage und Bezug</div>
           <p>
-            Fuer die Nutzung von KitzChat gelten diese projektspezifischen Regeln in Verbindung mit geltendem Recht. Die inhaltliche Ausrichtung orientiert sich an den Sicherheits- und Missbrauchsgrundsaetzen von OpenAI. Es handelt sich hier nicht um eine wortgleiche Uebernahme externer Dokumente, sondern um eigene Nutzungsbedingungen fuer KitzChat.
+            Fuer die Nutzung von Nexora gelten diese projektspezifischen Regeln in Verbindung mit geltendem Recht. Die inhaltliche Ausrichtung orientiert sich an den Sicherheits- und Missbrauchsgrundsaetzen von OpenAI. Es handelt sich hier nicht um eine wortgleiche Uebernahme externer Dokumente, sondern um eigene Nutzungsbedingungen fuer Nexora.
           </p>
           <div className="flex flex-wrap gap-2">
             {POLICY_LINKS.map((link) => (

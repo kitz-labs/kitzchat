@@ -11,7 +11,7 @@ import { buildCustomerIntegrationContext, ensureCustomerPreferences, getCustomer
 import { getAppStateDir } from '@/lib/app-state';
 import { normalizeConversationTitle } from '@/lib/chat-conversations';
 import { inspectPolicyContent, reportPolicyIncident } from '@/lib/policy-enforcement';
-import { hasPostgresConfig } from '@/config/env';
+import { creditsToCents, hasPostgresConfig } from '@/config/env';
 import { runAgentChat } from '@/modules/agents/agents.service';
 
 export const dynamic = 'force-dynamic';
@@ -263,7 +263,8 @@ async function forwardToAgent(
         prompt,
       })
     : null;
-  const response = agentResult?.answer ?? (await sendAgentMessage(agentId, prompt)).response;
+  const responseRaw = agentResult?.answer ?? (await sendAgentMessage(agentId, prompt)).response;
+  const response = typeof responseRaw === 'string' ? responseRaw : String(responseRaw ?? '');
 
   const promptTokens = Math.max(1, Math.ceil(content.length / 4));
   const completionTokens = Math.max(1, Math.ceil(response.length / 4));
@@ -294,6 +295,16 @@ async function forwardToAgent(
     db.prepare(`
       INSERT INTO chat_usage_events (user_id, username, conversation_id, agent_id, prompt_tokens, completion_tokens, total_tokens, amount_cents, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, username, conversationId, agentId, promptTokens, completionTokens, totalTokens, agentResult ? Math.round(agentResult.creditsCharged / 10) : 0, Math.floor(Date.now() / 1000));
+    `).run(
+      userId,
+      username,
+      conversationId,
+      agentId,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      agentResult ? creditsToCents(agentResult.creditsCharged) : 0,
+      Math.floor(Date.now() / 1000),
+    );
   }
 }

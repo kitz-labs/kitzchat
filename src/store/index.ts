@@ -47,6 +47,7 @@ interface DashboardState {
   setFunnel: (data: FunnelStep[]) => void;
   setLoading: (key: string, value: boolean) => void;
   setLastSynced: (ts: string) => void;
+  setFeedOpen: (open: boolean) => void;
   toggleFeed: () => void;
   toggleRealOnly: () => void;
 }
@@ -87,6 +88,7 @@ export const useDashboard = create<DashboardState>((set) => ({
   setFunnel: (data) => set({ funnel: data }),
   setLoading: (key, value) => set((s) => ({ loading: { ...s.loading, [key]: value } })),
   setLastSynced: (ts) => set({ lastSynced: ts }),
+  setFeedOpen: (open) => set({ feedOpen: open }),
   toggleFeed: () => set((s) => ({ feedOpen: !s.feedOpen })),
   toggleRealOnly: () => set((s) => ({ realOnly: !s.realOnly })),
 }));

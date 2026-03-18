@@ -6,7 +6,12 @@ export function getAudienceFromAccountType(accountType: string | null | undefine
 
 function normalizeHost(host: string): { hostname: string; port: string } {
   const raw = (host || '').trim().toLowerCase();
-  if (!raw) return { hostname: 'localhost', port: '' };
+  if (!raw) {
+    if (process.env.NODE_ENV === 'production') {
+      return { hostname: 'dashboard.aikitz.at', port: '' };
+    }
+    return { hostname: 'localhost', port: '' };
+  }
   const [hostname, port = ''] = raw.split(':');
   return { hostname, port };
 }

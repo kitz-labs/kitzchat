@@ -1,76 +1,66 @@
 import { NextResponse } from 'next/server';
-import { createCustomerUserWithEmail, createSession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
-import { getAudienceFromAccountType } from '@/lib/app-audience';
-import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
-
-const SESSION_COOKIE = 'kitzchat-session';
-const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
-
-function shouldUseSecureCookies(request: Request): boolean {
-  const forced = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
-  if (forced === 'true' || forced === '1' || forced === 'yes') return true;
-  if (forced === 'false' || forced === '0' || forced === 'no') return false;
-  try {
-    return new URL(request.url).protocol === 'https:';
-  } catch {
-    return process.env.NODE_ENV === 'production';
-  }
-}
+import { createCustomerUserWithEmail, createEmailVerificationToken, seedAdmin } from '@/lib/auth';
+import { buildPublicUrlFromRequest, isEmailConfigured, sendUserEmail } from '@/lib/mailer';
+import { getAllowUserRegistration } from '@/lib/settings';
 
 export async function POST(request: Request) {
   try {
     seedAdmin();
-    const body = (await request.json()) as { username?: string; password?: string; acceptedTerms?: boolean; email?: string };
-    if (!body.username || !body.password) {
-      return NextResponse.json({ error: 'Username and password required' }, { status: 400 });
+    if (!getAllowUserRegistration()) {
+      return NextResponse.json({ error: 'Registrierung ist aktuell deaktiviert' }, { status: 403 });
+    }
+    const body = (await request.json()) as {
+      username?: string;
+      password?: string;
+      acceptedTerms?: boolean;
+      email?: string;
+      first_name?: string;
+      last_name?: string;
+      company?: string;
+    };
+    if (!body.username || !body.password || !body.email) {
+      return NextResponse.json({ error: 'Benutzername, Passwort und E-Mail sind erforderlich' }, { status: 400 });
+    }
+    const firstName = typeof body.first_name === 'string' ? body.first_name.trim() : '';
+    const lastName = typeof body.last_name === 'string' ? body.last_name.trim() : '';
+    const company = typeof body.company === 'string' ? body.company.trim() : '';
+    if (!firstName || !lastName) {
+      return NextResponse.json({ error: 'Vorname und Nachname sind erforderlich' }, { status: 400 });
+    }
+    if (!isEmailConfigured()) {
+      return NextResponse.json({ error: 'E-Mail Versand ist nicht konfiguriert' }, { status: 500 });
     }
     const user = createCustomerUserWithEmail(body.username, body.password, {
       acceptedTerms: body.acceptedTerms === true,
-      email: typeof body.email === 'string' ? body.email : null,
+      email: body.email,
+      firstName,
+      lastName,
+      company: company || null,
     });
-    const stripeCustomerId = await ensureStripeCustomerForUser({
-      userId: user.id,
-      username: user.username,
-      email: user.email ?? null,
-      stripeCustomerId: user.stripe_customer_id ?? null,
+    const { token, expires_at } = createEmailVerificationToken({ userId: user.id, email: user.email ?? body.email });
+    const verifyUrl = buildPublicUrlFromRequest(request, '/api/auth/verify-email', { token });
+
+    await sendUserEmail({
+      to: user.email ?? body.email,
+      subject: 'KitzChat: E-Mail bestaetigen',
+      text: `Hallo ${firstName || user.username},\n\nbitte bestaetige deine E-Mail-Adresse:\n${verifyUrl}\n\nDer Link ist zeitlich begrenzt.\n`,
+      html: `<p>Hallo <b>${firstName || user.username}</b>,</p><p>bitte bestaetige deine E-Mail-Adresse:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p><p>Der Link ist zeitlich begrenzt.</p>`,
     });
-    const freeMessages = getCustomerFreeMessageUsage(user.id, user.username);
-    const token = createSession(user.id);
-    const response = NextResponse.json({
-      app_audience: getAudienceFromAccountType(user.account_type),
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        account_type: user.account_type,
-        payment_status: user.payment_status,
-        has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user),
-        email: user.email ?? null,
-        stripe_customer_id: stripeCustomerId ?? user.stripe_customer_id ?? null,
-        plan_amount_cents: user.plan_amount_cents ?? 0,
-        wallet_balance_cents: user.wallet_balance_cents ?? 0,
-        onboarding_completed_at: user.onboarding_completed_at ?? null,
-        next_topup_discount_percent: user.next_topup_discount_percent ?? 0,
-        completed_payments_count: user.completed_payments_count ?? 0,
-        accepted_terms_at: user.accepted_terms_at ?? null,
-        free_messages_limit: freeMessages.limit,
-        free_messages_used: freeMessages.used,
-        free_messages_remaining: freeMessages.remaining,
+
+    const response = NextResponse.json(
+      {
+        ok: true,
+        user: { id: user.id, username: user.username, email: user.email ?? body.email },
+        verification: { sent: true, expires_at },
       },
-    }, { status: 201 });
-    response.cookies.set(SESSION_COOKIE, token, {
-      httpOnly: true,
-      secure: shouldUseSecureCookies(request),
-      sameSite: 'strict',
-      maxAge: SESSION_MAX_AGE,
-      path: '/',
-    });
+      { status: 201 },
+    );
     response.headers.set('Cache-Control', 'no-store');
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Registration failed';
     if (message.includes('UNIQUE')) {
-      return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+      return NextResponse.json({ error: 'Username oder E-Mail ist bereits registriert' }, { status: 409 });
     }
     if (message.includes('Username') || message.includes('Password')) {
       return NextResponse.json({ error: message }, { status: 400 });

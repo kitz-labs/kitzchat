@@ -63,11 +63,13 @@ export default function SupportDbPage() {
       </div>
     );
   }
+  const sqliteTables = Array.isArray(payload.sqlite?.tables) ? payload.sqlite.tables : [];
+  const billingTables = Array.isArray(payload.billing?.tables) ? payload.billing.tables : [];
 
   return (
     <div className="space-y-6 animate-in">
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard icon={<Database size={16} />} label="SQLite-Tabellen" value={String(payload.sqlite.tables.length)} />
+        <SummaryCard icon={<Database size={16} />} label="SQLite-Tabellen" value={String(sqliteTables.length)} />
         <SummaryCard icon={<HardDrive size={16} />} label="SQLite-Groesse" value={`${payload.sqlite.db_size_mb.toFixed(2)} MB`} />
         <SummaryCard icon={<ServerCog size={16} />} label="Billing-DB" value={payload.billing.configured ? (payload.billing.kind || 'aktiv') : 'aus'} />
         <SummaryCard icon={<Database size={16} />} label="Seed-Eintraege" value={String(payload.sqlite.seed_count)} />
@@ -95,7 +97,7 @@ export default function SupportDbPage() {
             <InfoRow label="State Directory" value={payload.sqlite.state_dir} mono />
             <InfoRow label="Groesse" value={`${payload.sqlite.db_size_mb.toFixed(2)} MB`} />
             <InfoRow label="Seed-Eintraege" value={String(payload.sqlite.seed_count)} />
-            <TableGrid tables={payload.sqlite.tables} />
+            <TableGrid tables={sqliteTables} />
           </div>
         </div>
 
@@ -113,7 +115,7 @@ export default function SupportDbPage() {
             {payload.billing.error ? (
               <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">{payload.billing.error}</div>
             ) : null}
-            <TableGrid tables={payload.billing.tables} />
+            <TableGrid tables={billingTables} />
           </div>
         </div>
       </div>

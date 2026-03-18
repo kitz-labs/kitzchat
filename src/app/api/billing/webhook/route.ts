@@ -1,17 +1,12 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { applySuccessfulCheckout } from '@/lib/billing';
 import { hasPostgresConfig } from '@/config/env';
 import { processStripeEvent, verifyStripeWebhook } from '@/modules/stripe/stripe.service';
+import { createStripeClient } from '@/lib/stripe-client';
+import type Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
-
-function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
-  if (!key) return null;
-  return new Stripe(key);
-}
 
 export async function POST(request: Request) {
   if (hasPostgresConfig()) {
@@ -37,7 +32,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const stripe = getStripe();
+  const stripe = createStripeClient();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
 
   if (!stripe || !webhookSecret) {

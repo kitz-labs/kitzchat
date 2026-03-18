@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getAppStateDir } from './app-state';
+import { getAllowCronWrite, getAllowPolicyWrite, getAllowWorkspaceWrite } from './settings';
 
 export type WorkspaceInstance = {
   id: string;
@@ -159,13 +160,16 @@ export function resolveWorkspacePaths(instance: WorkspaceInstance): {
 }
 
 export function allowPolicyWrite(): boolean {
+  if (getAllowPolicyWrite()) return true;
   return String(process.env.KITZCHAT_ALLOW_POLICY_WRITE ?? '').trim().toLowerCase() === 'true';
 }
 
 export function allowCronWrite(): boolean {
+  if (getAllowCronWrite()) return true;
   return String(process.env.KITZCHAT_ALLOW_CRON_WRITE ?? '').trim().toLowerCase() === 'true';
 }
 
 export function allowWorkspaceWrite(): boolean {
+  if (getAllowWorkspaceWrite()) return true;
   return String(process.env.KITZCHAT_ALLOW_WORKSPACE_WRITE ?? '').trim().toLowerCase() === 'true';
 }

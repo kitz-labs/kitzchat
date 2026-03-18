@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Gauge, Bot, PenLine, MessageCircle, Mail, Contact, Zap,
   Search, BarChart3, LineChart, BrainCircuit, Rocket, Clock, List, Settings,
-  FolderOpen, Users, CreditCard, Database, LifeBuoy,
+  FolderOpen, Users, CreditCard, Database, LifeBuoy, Download,
 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useDashboard } from '@/store';
@@ -65,23 +65,20 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/customers', label: 'Kunden', icon: Users },
       { href: '/billing', label: 'Abrechnung', icon: CreditCard },
+      { href: '/stripe', label: 'Stripe', icon: CreditCard },
+      { href: '/website', label: 'www.aikitz.at', icon: PenLine },
+      { href: '/openai', label: 'OpenAI', icon: BrainCircuit },
+      { href: '/db/billing', label: 'DB', icon: Database },
+      { href: '/telegram', label: 'Telegram', icon: Mail },
       { href: '/compliance', label: 'Verstoesse', icon: Search },
-      { href: '/content', label: 'Content', icon: PenLine, countKey: 'content' },
       { href: '/engagement', label: 'Engagement', icon: MessageCircle },
-      { href: '/outreach', label: 'Outreach', icon: Mail, countKey: 'outreach' },
-      { href: '/crm', label: 'CRM', icon: Contact, countKey: 'new_leads' },
-      { href: '/automations', label: 'Automations', icon: Zap, countKey: 'outreach' },
     ],
   },
   {
     label: 'EINBLICKE',
     items: [
-      { href: '/research', label: 'Research', icon: Search, countKey: 'signals_today' },
-      { href: '/kpis', label: 'KPIs', icon: BarChart3 },
       { href: '/analytics', label: 'Analytics', icon: LineChart },
       { href: '/memory', label: 'Memory', icon: BrainCircuit },
-      { href: '/deploy', label: 'Deploy', icon: Rocket },
-      { href: '/cron', label: 'Cron', icon: Clock },
       { href: '/activity', label: 'Activity', icon: List },
     ],
   },
@@ -91,9 +88,10 @@ const CUSTOMER_NAV_GROUPS: NavGroup[] = [
   {
     label: 'KUNDE',
     items: [
-      { href: '/', label: 'Webchat', icon: MessageCircle },
+      { href: '/', label: 'Chat', icon: MessageCircle },
       { href: '/agents', label: 'Agenten', icon: Bot },
       { href: '/usage-token', label: 'Guthaben', icon: BarChart3 },
+      { href: '/downloads', label: 'Downloads', icon: Download },
       { href: '/support-chat', label: 'Support', icon: LifeBuoy },
       { href: '/settings', label: 'Einstellungen', icon: Settings },
       { href: '/hilfe', label: 'Hilfe', icon: Search },

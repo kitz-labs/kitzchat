@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { LayoutContent } from "@/components/layout/layout-content";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toast";
+import { SpaceBackground } from "@/components/ui/space-background";
 import "./globals.css";
 
 const inter = Inter({
@@ -18,21 +19,21 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KitzChat",
-  description: "Local-first AI team chat and operations workspace",
-  applicationName: "KitzChat",
+  title: "Nexora",
+  description: "Premium AI business workspace",
+  applicationName: "Nexora",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/kitzchat.svg", type: "image/svg+xml" },
-      { url: "/kitzchat.png", type: "image/png", sizes: "512x512" },
+      { url: "/brand/favicon.png", type: "image/png", sizes: "256x256" },
+      { url: "/brand/icon.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/kitzchat.png", sizes: "512x512", type: "image/png" }],
+    apple: [{ url: "/brand/icon.png", sizes: "512x512", type: "image/png" }],
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "KitzChat",
+    statusBarStyle: "black-translucent",
+    title: "Nexora",
   },
   formatDetection: {
     telephone: false,
@@ -43,7 +44,7 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover" as const,
-  themeColor: "#2f6bff",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -55,7 +56,10 @@ export default function RootLayout({
     <html lang="de" suppressHydrationWarning>
       <body className={`${inter.variable} ${jetbrains.variable} antialiased`}>
         <ThemeProvider>
-          <LayoutContent>{children}</LayoutContent>
+          <SpaceBackground />
+          <div className="relative z-10">
+            <LayoutContent>{children}</LayoutContent>
+          </div>
           <Toaster />
         </ThemeProvider>
       </body>

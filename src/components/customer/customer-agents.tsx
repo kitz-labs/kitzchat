@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Lock, ShieldCheck } from 'lucide-react';
+import { findPublicApisPremiumEntry } from '@/lib/public-apis-premium';
+import { getAgentProfileDefinition, profileToFormState } from '@/lib/customer-agent-profile-schema';
 
 type AgentItem = {
   id: string;
@@ -13,6 +15,18 @@ type AgentItem = {
   inspiredBy?: string;
   sourceRepo?: string;
   apiProviders?: string[];
+  inputFormat?: string;
+  outputFormat?: string;
+  limits?: string[];
+  policies?: string[];
+  modelUsage?: {
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
+    temperature?: number;
+    maxToolCalls?: number;
+    maxOutputTokens?: number;
+    maxContextMessages?: number;
+    escalationModel?: string;
+  };
   skills?: Array<{ id: string; name: string; description: string }>;
   customerVisible?: boolean;
 };
@@ -71,6 +85,11 @@ export function CustomerAgents() {
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [preferences, setPreferences] = useState<Preferences>({ enabled_agent_ids: [], instagram_connected: false, connected_integrations_count: 0 });
   const [selectedId, setSelectedId] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileUpdatedAt, setProfileUpdatedAt] = useState<string | null>(null);
+  const [profileForm, setProfileForm] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch('/api/auth/me', { cache: 'no-store' })
@@ -104,12 +123,57 @@ export function CustomerAgents() {
   const selectedEnabled = selectedAgent ? enabledAgents.has(selectedAgent.id) : false;
   const selectedBlockedReason = getBlockedReason(selectedAgent?.id, preferences);
 
+  useEffect(() => {
+    const agentId = selectedAgent?.id;
+    if (!agentId) return;
+    setProfileLoading(true);
+    setProfileError(null);
+    fetch(`/api/customer/agent-profiles/${encodeURIComponent(agentId)}`, { cache: 'no-store' })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(String((payload as any)?.error || 'Profil konnte nicht geladen werden'));
+        return payload as { profile?: Record<string, unknown>; updated_at?: string | null };
+      })
+      .then((payload) => {
+        setProfileForm(profileToFormState(agentId, payload?.profile || {}));
+        setProfileUpdatedAt(payload?.updated_at ?? null);
+      })
+      .catch((error) => {
+        setProfileError(error instanceof Error ? error.message : 'Profil konnte nicht geladen werden');
+        setProfileForm(profileToFormState(agentId, {}));
+        setProfileUpdatedAt(null);
+      })
+      .finally(() => setProfileLoading(false));
+  }, [selectedAgent?.id]);
+
+  async function saveProfile() {
+    const agentId = selectedAgent?.id;
+    if (!agentId || profileSaving) return;
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      const response = await fetch(`/api/customer/agent-profiles/${encodeURIComponent(agentId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: profileForm }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String((payload as any)?.error || 'Profil konnte nicht gespeichert werden'));
+      setProfileForm(profileToFormState(agentId, (payload as any)?.profile || {}));
+      setProfileUpdatedAt((payload as any)?.updated_at ?? null);
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Profil konnte nicht gespeichert werden');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold">Agenten</h1>
-          <p className="text-xs text-muted-foreground">Links siehst du deine Agentenliste. Rechts oeffnen sich Details, Nutzen, Verwendungen, Beispiele und Modell-Hinweise.</p>
+          <p className="text-xs text-muted-foreground">Links siehst du deine Agentenliste. Rechts oeffnen sich Details, Nutzen, Beispiele und deine Personalisierung.</p>
         </div>
         {isActivated ? (
           <div className="badge border bg-success/10 text-success"><ShieldCheck size={12} /> Aktiv</div>
@@ -181,15 +245,111 @@ export function CustomerAgents() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <InfoBlock title="Beispiele" content={(EXAMPLES[selectedAgent.id] || ['Beschreibe mir, wie dieser Agent helfen kann.']).join('\n• ')} bullet />
-                <InfoBlock title="Modelle" content={`Fuer diesen Agenten setzen wir ${modelLabel(selectedAgent.model)} ein, damit du im Kundenbereich die beste OpenAI-Variante fuer Tempo, Qualitaet und Genauigkeit bekommst.`} />
-              </div>
+                <InfoBlock
+                  title="Datenquellen"
+                  content={
+                    (selectedAgent.apiProviders || []).length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {(selectedAgent.apiProviders || []).map((provider) => {
+                          const meta = findPublicApisPremiumEntry(provider);
+                          const label = (
+                            <span className="inline-flex items-center gap-2">
+                              <span className="font-medium">{provider}</span>
+                              {meta?.auth && meta.auth !== 'No' ? (
+                                <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] text-warning">{meta.auth}</span>
+                              ) : null}
+                            </span>
+                          );
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <InfoBlock title="Datenquellen" content={(selectedAgent.apiProviders || []).length > 0 ? (selectedAgent.apiProviders || []).join(', ') : 'Keine externen Datenquellen hinterlegt.'} />
-                <InfoBlock title="Herkunft" content={`${selectedAgent.inspiredBy || 'Individuell'}${selectedAgent.sourceRepo ? ` · ${selectedAgent.sourceRepo}` : ''}`} />
+                          if (!meta?.url) {
+                            return (
+                              <span key={provider} className="rounded-full border border-border/60 bg-muted/10 px-3 py-1 text-xs">
+                                {label}
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <a
+                              key={provider}
+                              href={meta.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-full border border-border/60 bg-muted/10 px-3 py-1 text-xs hover:bg-muted/20"
+                              title={meta.description || provider}
+                            >
+                              {label}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      'Keine externen Datenquellen hinterlegt.'
+                    )
+                  }
+                />
               </div>
 
               <InfoBlock title="Kunden-Integrationen" content={preferences.connected_integrations_count > 0 ? `${preferences.connected_integrations_count} gespeicherte Verbindungen werden fuer passende Agenten automatisch als Kontext beruecksichtigt.` : 'Noch keine zusaetzlichen Integrationen gespeichert.'} />
+
+              <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Personalisierung</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{getAgentProfileDefinition(selectedAgent.id).title}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{getAgentProfileDefinition(selectedAgent.id).description}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={saveProfile} disabled={profileSaving || profileLoading} className="btn btn-primary btn-sm">
+                      {profileSaving ? 'Speichere…' : 'Speichern'}
+                    </button>
+                  </div>
+                </div>
+
+                {profileError ? <div className="text-sm text-destructive">{profileError}</div> : null}
+                {profileLoading ? <div className="text-xs text-muted-foreground">Laedt…</div> : null}
+                {profileUpdatedAt ? (
+                  <div className="text-[11px] text-muted-foreground">Zuletzt gespeichert: {new Date(profileUpdatedAt).toLocaleString('de-DE')}</div>
+                ) : (
+                  <div className="text-[11px] text-muted-foreground">Noch kein Profil gespeichert.</div>
+                )}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {getAgentProfileDefinition(selectedAgent.id).fields.map((field) => {
+                    const value = profileForm[field.key] ?? '';
+                    const common = {
+                      value,
+                      onChange: (event: any) => setProfileForm((current) => ({ ...current, [field.key]: String(event.target.value) })),
+                      placeholder: field.placeholder || '',
+                    };
+                    const controlClass = 'w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm outline-none min-h-[104px] resize-y';
+
+                    return (
+                      <label key={field.key} className="space-y-1">
+                        <div className="text-xs font-medium text-muted-foreground">{field.label}</div>
+                        {field.type === 'select' ? (
+                          <select
+                            value={value}
+                            onChange={(event) => setProfileForm((current) => ({ ...current, [field.key]: String(event.target.value) }))}
+                            className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm outline-none"
+                          >
+                            {(field.options || []).map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <textarea {...common} rows={4} className={controlClass} />
+                        )}
+                        {field.help ? <div className="text-[11px] text-muted-foreground">{field.help}</div> : null}
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <div className="text-xs text-muted-foreground">
+                  Hinweis: Diese Angaben werden bei neuen Chats automatisch als Kontext genutzt. Du kannst sie jederzeit anpassen.
+                </div>
+              </div>
 
               {selectedBlockedReason ? (
                 <div className="rounded-2xl border border-warning/40 bg-warning/5 p-4 text-sm text-warning">
@@ -204,7 +364,16 @@ export function CustomerAgents() {
   );
 }
 
-function InfoBlock({ title, content, bullet = false }: { title: string; content: string; bullet?: boolean }) {
+function InfoBlock({ title, content, bullet = false }: { title: string; content: string | ReactNode; bullet?: boolean }) {
+  if (typeof content !== 'string') {
+    return (
+      <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">{title}</div>
+        <div className="mt-2 text-sm">{content}</div>
+      </div>
+    );
+  }
+
   const body = bullet ? content.split('\n').filter(Boolean) : [content];
   return (
     <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">

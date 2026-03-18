@@ -52,7 +52,6 @@ export function CheckoutAmountPicker({
           const amountCents = option.amountCents;
           const discountedAmountCents = Math.max(MIN_CUSTOM_TOPUP_CENTS, Math.round(amountCents * (100 - discountPercent) / 100));
           const isMostUsed = amountCents === 2000;
-          const credits = option.credits ?? amountCents * 10;
           return (
             <button
               key={amountCents}
@@ -67,10 +66,10 @@ export function CheckoutAmountPicker({
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
                 {checkoutType === 'activation'
-                  ? `${credits.toLocaleString('de-DE')} Credits als Startguthaben plus direkter Zugang zu allen Agenten.`
+                  ? `Startguthaben ${formatEuro(amountCents)} plus direkter Zugang zu allen Agenten.`
                   : discountPercent > 0
-                    ? `Heute zahlst du nur ${formatEuro(discountedAmountCents)} und laedst ${credits.toLocaleString('de-DE')} Credits auf.`
-                    : `${credits.toLocaleString('de-DE')} Credits werden direkt in dein Wallet eingebucht.`}
+                    ? `Heute zahlst du nur ${formatEuro(discountedAmountCents)} und laedst ${formatEuro(amountCents)} Guthaben auf.`
+                    : `${formatEuro(amountCents)} werden direkt in dein Guthaben eingebucht.`}
               </div>
               {option.marketingLabel ? <div className="mt-1 text-[11px] text-muted-foreground">{option.marketingLabel}</div> : null}
               <div className="mt-3 text-xs font-medium text-primary">{loadingKey === amountCents ? 'Wird gestartet...' : 'Mit Stripe weiter'}</div>
@@ -102,8 +101,8 @@ export function CheckoutAmountPicker({
         </div>
         <div className="text-xs text-muted-foreground">
           {checkoutType === 'activation'
-            ? `Deine erste Einzahlung schaltet den Zugang frei und laedt ${((customAmountCents * 10)).toLocaleString('de-DE')} Credits als Startguthaben.`
-            : `Gutgeschrieben werden ${(customAmountCents * 10).toLocaleString('de-DE')} Credits.${discountPercent > 0 ? ` Durch deinen Rabatt zahlst du aktuell nur ${formatEuro(discountedCustomAmountCents)}.` : ''}`}
+            ? `Deine erste Einzahlung schaltet den Zugang frei und laedt ${formatEuro(customAmountCents)} als Startguthaben.`
+            : `Gutgeschrieben werden ${formatEuro(customAmountCents)}.${discountPercent > 0 ? ` Durch deinen Rabatt zahlst du aktuell nur ${formatEuro(discountedCustomAmountCents)}.` : ''}`}
         </div>
         <div className="text-xs text-muted-foreground">Im Stripe Checkout kannst du zusaetzlich einen Coupon-Code oder Promotion Code eingeben.</div>
       </div>

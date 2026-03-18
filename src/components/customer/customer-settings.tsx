@@ -7,6 +7,7 @@ import { CustomerSupportPanel } from './customer-support-panel';
 import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 import { INTEGRATION_CATALOG, sanitizeIntegrationProfile, type CustomerIntegrationProfile } from '@/lib/integration-catalog';
 import type { CustomerPreferences } from '@/lib/customer-preferences';
+import { PasskeyManager } from '@/components/auth/passkey-manager';
 
 type MeUser = {
   id: number;
@@ -292,6 +293,21 @@ export function CustomerSettings() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        <PasskeyManager title="Passkeys (Login ohne Passwort)" />
+        <div className="panel">
+          <div className="panel-body space-y-2">
+            <div className="text-sm font-medium">Support hilft dir</div>
+            <div className="text-xs text-muted-foreground">
+              Wenn du Passkeys nicht einrichten kannst (Browser, Device, iCloud Keychain, Windows Hello): schreibe uns im Support und wir fuehren dich Schritt fuer Schritt durch.
+            </div>
+            <a href="/support-chat" className="btn btn-primary btn-sm inline-flex items-center gap-2 w-fit">
+              Support oeffnen
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
         <div className="panel">
           <div className="panel-header">
             <div>
@@ -368,7 +384,7 @@ export function CustomerSettings() {
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Speichermodus</div>
               <select value={preferences.memory_storage_mode} onChange={(event) => setPreferences((current) => ({ ...current, memory_storage_mode: event.target.value as 'state' | 'custom' }))} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm">
-                <option value="state">Im KitzChat-State speichern</option>
+                <option value="state">Im Nexora-State speichern</option>
                 <option value="custom">Eigenen Speicherort verwenden</option>
               </select>
             </label>
@@ -376,7 +392,7 @@ export function CustomerSettings() {
             <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
               {preferences.memory_storage_mode === 'custom'
                 ? 'Neue Chat- und Agentenbeitraege werden in den angegebenen Kundenpfad gespiegelt.'
-                : 'Neue Chat- und Agentenbeitraege werden im lokalen KitzChat-State unter customer-memory abgelegt.'}
+                : 'Neue Chat- und Agentenbeitraege werden im lokalen Nexora-State unter customer-memory abgelegt.'}
             </div>
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'Memory-Speicher speichern'}

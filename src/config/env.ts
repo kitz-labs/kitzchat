@@ -3,9 +3,11 @@ type NumericEnv = {
   MIN_TOPUP_EUR: number;
   MAX_TOPUP_EUR: number;
   CREDIT_MULTIPLIER: number;
+  ADMIN_SHARE_RATIO: number;
   API_BUDGET_RATIO: number;
   RESERVE_RATIO: number;
   LOW_BALANCE_THRESHOLD_RATIO: number;
+  OPENAI_USD_TO_EUR: number;
 };
 
 type StringEnv = {
@@ -20,6 +22,7 @@ type StringEnv = {
   STRIPE_SUCCESS_URL: string;
   STRIPE_CANCEL_URL: string;
   OPENAI_API_KEY: string;
+  OPENAI_ADMIN_KEY: string;
   OPENAI_WEBHOOK_SECRET: string;
   OPENAI_ORG_ID: string;
   OPENAI_PROJECT: string;
@@ -27,6 +30,21 @@ type StringEnv = {
 
 function readString(name: keyof StringEnv, fallback = ''): string {
   return process.env[name]?.trim() || fallback;
+}
+
+function resolveDefaultBaseUrl(): string {
+  const rawBase = process.env.PUBLIC_BASE_URL?.trim() || process.env.APP_URL?.trim() || '';
+  if (rawBase) {
+    try {
+      return new URL(rawBase).origin.replace(/\/$/, '');
+    } catch {
+      // ignore
+    }
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://dashboard.aikitz.at';
+  }
+  return 'http://localhost:3000';
 }
 
 function readNumber(name: keyof NumericEnv, fallback: number): number {
@@ -45,18 +63,21 @@ export const env = {
   MYSQL_PASSWORD: readString('MYSQL_PASSWORD'),
   STRIPE_SECRET_KEY: readString('STRIPE_SECRET_KEY'),
   STRIPE_WEBHOOK_SECRET: readString('STRIPE_WEBHOOK_SECRET'),
-  STRIPE_SUCCESS_URL: readString('STRIPE_SUCCESS_URL', 'http://localhost:3000/usage-token?payment=success&session_id={CHECKOUT_SESSION_ID}'),
-  STRIPE_CANCEL_URL: readString('STRIPE_CANCEL_URL', 'http://localhost:3000/usage-token?payment=cancelled'),
+  STRIPE_SUCCESS_URL: readString('STRIPE_SUCCESS_URL', `${resolveDefaultBaseUrl()}/usage-token?payment=success&session_id={CHECKOUT_SESSION_ID}`),
+  STRIPE_CANCEL_URL: readString('STRIPE_CANCEL_URL', `${resolveDefaultBaseUrl()}/usage-token?payment=cancelled`),
   OPENAI_API_KEY: readString('OPENAI_API_KEY'),
+  OPENAI_ADMIN_KEY: readString('OPENAI_ADMIN_KEY'),
   OPENAI_WEBHOOK_SECRET: readString('OPENAI_WEBHOOK_SECRET'),
   OPENAI_ORG_ID: readString('OPENAI_ORG_ID'),
   OPENAI_PROJECT: readString('OPENAI_PROJECT'),
   MIN_TOPUP_EUR: readNumber('MIN_TOPUP_EUR', 5),
   MAX_TOPUP_EUR: readNumber('MAX_TOPUP_EUR', 500),
   CREDIT_MULTIPLIER: readNumber('CREDIT_MULTIPLIER', 1000),
+  ADMIN_SHARE_RATIO: readNumber('ADMIN_SHARE_RATIO', 0.3),
   API_BUDGET_RATIO: readNumber('API_BUDGET_RATIO', 0.7),
   RESERVE_RATIO: readNumber('RESERVE_RATIO', 0.3),
   LOW_BALANCE_THRESHOLD_RATIO: readNumber('LOW_BALANCE_THRESHOLD_RATIO', 0.2),
+  OPENAI_USD_TO_EUR: readNumber('OPENAI_USD_TO_EUR', 0.92),
 };
 
 export function hasPostgresConfig(): boolean {
@@ -86,6 +107,24 @@ export function hasOpenAiWebhookConfig(): boolean {
 
 export function amountEurToCredits(amountEur: number): number {
   return Math.round(amountEur * env.CREDIT_MULTIPLIER);
+}
+
+export function centsToCredits(amountCents: number): number {
+  const cents = Math.max(0, Math.round(amountCents));
+  if (!Number.isFinite(cents) || cents <= 0) return 0;
+  return Math.round((cents / 100) * env.CREDIT_MULTIPLIER);
+}
+
+export function creditsToCents(credits: number): number {
+  const c = Number(credits);
+  if (!Number.isFinite(c) || c <= 0) return 0;
+  return Math.round((c / env.CREDIT_MULTIPLIER) * 100);
+}
+
+export function creditsToEur(credits: number): number {
+  const c = Number(credits);
+  if (!Number.isFinite(c) || c <= 0) return 0;
+  return c / env.CREDIT_MULTIPLIER;
 }
 
 export function centsToEur(amountCents: number): number {

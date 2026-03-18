@@ -1,12 +1,13 @@
 import Stripe from 'stripe';
-import { env, hasStripeConfig } from './env';
+import { hasStripeConfig } from './env';
+import { createStripeClient } from '@/lib/stripe-client';
 
 let stripe: Stripe | null = null;
 
 export function getStripeClient(): Stripe | null {
   if (!hasStripeConfig()) return null;
   if (!stripe) {
-    stripe = new Stripe(env.STRIPE_SECRET_KEY);
+    stripe = createStripeClient();
   }
   return stripe;
 }

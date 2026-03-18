@@ -24,6 +24,8 @@
     "postbuild": "pnpm run prepare:standalone"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^10.0.0",
+    "@simplewebauthn/server": "^10.0.1",
     "better-sqlite3": "^12.6.2",
     "clsx": "^2.1.1",
     "express": "^5.1.0",

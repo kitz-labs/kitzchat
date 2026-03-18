@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { requireUser } from '@/lib/auth';
 import { applySimulatedCheckout, applySuccessfulCheckout, isCheckoutType, normalizeCheckoutAmount } from '@/lib/billing';
 import { hasPostgresConfig } from '@/config/env';
 import { getSessionStatus, recordSuccessfulPayment } from '@/modules/billing/billing.service';
 import { confirmStripeSession } from '@/modules/stripe/stripe.service';
-
-function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
-  if (!key) return null;
-  return new Stripe(key);
-}
+import { createStripeClient } from '@/lib/stripe-client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +12,9 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as { session_id?: string; mode?: string; checkout_type?: string; amount_cents?: number; credit_amount_cents?: number; discount_percent?: number };
     if (hasPostgresConfig()) {
       if (body.mode === 'dev') {
+        if (process.env.NODE_ENV === 'production') {
+          return NextResponse.json({ error: 'Unavailable' }, { status: 403 });
+        }
         const checkoutType = isCheckoutType(body.checkout_type) ? body.checkout_type : 'topup';
         const amountCents = normalizeCheckoutAmount(checkoutType, body.amount_cents);
         const creditAmountCents = Math.max(0, Math.round(Number(body.credit_amount_cents ?? amountCents)));
@@ -25,7 +22,9 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           sessionId: body.session_id || `dev-${user.id}-${Date.now()}`,
           grossAmountEur: amountCents / 100,
-          creditsIssued: creditAmountCents * 10,
+          creditAmountCents,
+          checkoutType,
+          discountPercent: Number(body.discount_percent ?? 0),
           source: 'dev_confirm',
         });
         return NextResponse.json({ ok: true, status: 'paid' });
@@ -39,14 +38,18 @@ export async function POST(request: NextRequest) {
       if (session.payment_status === 'paid' || session.status === 'complete') {
         const metadata = session.metadata || {};
         const fallbackAmountEur = (typeof session.amount_total === 'number' ? session.amount_total / 100 : 0) || Number(metadata.gross_amount || 0) || (Number(metadata.amount_cents || 0) / 100);
-        const fallbackCredits = Number(metadata.credits || 0) || Math.max(0, Math.round(Number(metadata.credit_amount_cents || metadata.amount_cents || 0) * 10));
+        const creditAmountCents = Number(metadata.credit_amount_cents || metadata.amount_cents || 0) || 0;
+        const creditsMeta = Number(metadata.credits || 0) || 0;
         await recordSuccessfulPayment({
           userId: sessionUserId || user.id,
           sessionId: session.id,
           paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
           stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
           grossAmountEur: fallbackAmountEur,
-          creditsIssued: fallbackCredits,
+          creditAmountCents: creditAmountCents > 0 ? creditAmountCents : undefined,
+          creditsIssued: creditsMeta > 0 ? creditsMeta : undefined,
+          checkoutType: isCheckoutType(metadata.checkout_type) ? metadata.checkout_type : undefined,
+          discountPercent: Number(metadata.discount_percent || 0),
           source: 'session_confirm',
         });
       }
@@ -68,7 +71,7 @@ export async function POST(request: NextRequest) {
     if (!body.session_id) {
       return NextResponse.json({ error: 'session_id is required' }, { status: 400 });
     }
-    const stripe = getStripe();
+    const stripe = createStripeClient();
     if (!stripe) {
       return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 });
     }

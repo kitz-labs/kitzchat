@@ -16,13 +16,17 @@ import { getDb, resetDbForTests } from './db';
 import {
   authenticate,
   createSession,
+  createCustomerUserWithEmail,
   destroySession,
   ensureAuthTables,
+  getUserById,
   getUserFromRequest,
   listGoogleLoginRequests,
   recordGoogleLoginAttempt,
   requireUser,
+  requireAdmin,
   reviewGoogleLoginRequest,
+  setUserWalletBalanceCents,
   seedAdmin,
   validateSession,
 } from './auth';
@@ -44,6 +48,9 @@ function resetAuthState() {
     DELETE FROM support_messages;
     DELETE FROM customer_preferences;
     DELETE FROM chat_uploads;
+    DELETE FROM email_verification_tokens;
+    DELETE FROM password_reset_tokens;
+    DELETE FROM auth_events;
     DELETE FROM sessions;
     DELETE FROM users;
     DELETE FROM google_login_requests;
@@ -102,16 +109,18 @@ test('seedAdmin does not require AUTH_USER and AUTH_PASS when users already exis
   process.env.AUTH_PASS = previousPass;
 });
 
-test('seedAdmin allows short admin password and keeps test login available in production mode', () => {
+test('seedAdmin allows short admin password in production mode without seeding test customer', () => {
   const previousNodeEnv = process.env.NODE_ENV;
   const previousUser = process.env.AUTH_USER;
   const previousPass = process.env.AUTH_PASS;
   const previousMin = process.env.AUTH_MIN_PASSWORD_LENGTH;
+  const previousSeed = process.env.KITZCHAT_SEED_TEST_CUSTOMER;
 
-  process.env.NODE_ENV = 'production';
+  (process.env as any).NODE_ENV = 'production';
   process.env.AUTH_USER = 'ceo';
   process.env.AUTH_PASS = 'widauer';
   delete process.env.AUTH_MIN_PASSWORD_LENGTH;
+  delete process.env.KITZCHAT_SEED_TEST_CUSTOMER;
 
   assert.doesNotThrow(() => seedAdmin());
 
@@ -119,13 +128,17 @@ test('seedAdmin allows short admin password and keeps test login available in pr
   const testUser = authenticate('test', 'test');
   assert.ok(admin);
   assert.equal(admin.username, 'ceo');
-  assert.ok(testUser);
-  assert.equal(testUser.username, 'test');
+  assert.equal(testUser, null);
 
-  process.env.NODE_ENV = previousNodeEnv;
+  (process.env as any).NODE_ENV = previousNodeEnv;
   process.env.AUTH_USER = previousUser;
   process.env.AUTH_PASS = previousPass;
   process.env.AUTH_MIN_PASSWORD_LENGTH = previousMin;
+  if (previousSeed === undefined) {
+    delete process.env.KITZCHAT_SEED_TEST_CUSTOMER;
+  } else {
+    process.env.KITZCHAT_SEED_TEST_CUSTOMER = previousSeed;
+  }
 });
 
 test('session lifecycle validates and invalidates correctly', () => {
@@ -149,6 +162,17 @@ test('requireUser throws on invalid session cookie', () => {
 
   assert.equal(getUserFromRequest(request), null);
   assert.throws(() => requireUser(request), /unauthorized/);
+});
+
+test('requireAdmin accepts staff users even without admin role', () => {
+  insertUser('staff-viewer', undefined, 'viewer');
+  const row = getDb().prepare('SELECT id FROM users WHERE username = ?').get('staff-viewer') as { id: number } | undefined;
+  assert.ok(row?.id);
+  const token = createSession(Number(row?.id));
+  const request = new Request('http://localhost/api/test', {
+    headers: { cookie: `kitzchat-session=${encodeURIComponent(token)}` },
+  });
+  assert.doesNotThrow(() => requireAdmin(request));
 });
 
 test('x-api-key auth only works when API_KEY is configured and matches', () => {
@@ -188,4 +212,21 @@ test('reviewing login requests clears stale pending error metadata', () => {
   assert.equal(rows[0].status, 'denied');
   assert.equal(rows[0].attempts, 0);
   assert.equal(rows[0].last_error, null);
+});
+
+test('setUserWalletBalanceCents updates wallet without changing payment status', () => {
+  const customer = createCustomerUserWithEmail('alice', 'secret', { email: 'alice@example.com' });
+  assert.equal(customer.payment_status, 'pending');
+  assert.equal(customer.wallet_balance_cents, 0);
+
+  setUserWalletBalanceCents(customer.id, 1234);
+  const refreshed = getUserById(customer.id);
+  assert.ok(refreshed);
+  assert.equal(refreshed.wallet_balance_cents, 1234);
+  assert.equal(refreshed.payment_status, 'pending');
+
+  setUserWalletBalanceCents(customer.id, -50);
+  const clamped = getUserById(customer.id);
+  assert.ok(clamped);
+  assert.equal(clamped.wallet_balance_cents, 0);
 });

@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { readSettings, setAllowUserDeletion } from '@/lib/settings';
+import {
+  readSettings,
+  setAllowCronWrite,
+  setAllowPolicyWrite,
+  setAllowStripeWrite,
+  setAllowUserDeletion,
+  setAllowUserRegistration,
+  setAllowWorkspaceWrite,
+} from '@/lib/settings';
 
 export async function GET(request: Request) {
   try {
@@ -18,9 +26,31 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     requireAdmin(request);
-    const body = (await request.json()) as { allow_user_deletion?: boolean };
+    const body = (await request.json()) as {
+      allow_user_deletion?: boolean;
+      allow_policy_write?: boolean;
+      allow_cron_write?: boolean;
+      allow_workspace_write?: boolean;
+      allow_user_registration?: boolean;
+      allow_stripe_write?: boolean;
+    };
     if (typeof body.allow_user_deletion === 'boolean') {
       setAllowUserDeletion(!!body.allow_user_deletion);
+    }
+    if (typeof body.allow_policy_write === 'boolean') {
+      setAllowPolicyWrite(!!body.allow_policy_write);
+    }
+    if (typeof body.allow_cron_write === 'boolean') {
+      setAllowCronWrite(!!body.allow_cron_write);
+    }
+    if (typeof body.allow_workspace_write === 'boolean') {
+      setAllowWorkspaceWrite(!!body.allow_workspace_write);
+    }
+    if (typeof body.allow_user_registration === 'boolean') {
+      setAllowUserRegistration(!!body.allow_user_registration);
+    }
+    if (typeof body.allow_stripe_write === 'boolean') {
+      setAllowStripeWrite(!!body.allow_stripe_write);
     }
     const settings = readSettings();
     return NextResponse.json({ settings });

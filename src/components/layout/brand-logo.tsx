@@ -10,13 +10,14 @@ type BrandLogoProps = {
 };
 
 export function BrandLogo({ compact = false, subtitle, className = '', imageClassName = '' }: BrandLogoProps) {
-  const [src, setSrc] = useState('/kitzchat.png');
+  const [src, setSrc] = useState('/brand/logo.png');
   const [imageFailed, setImageFailed] = useState(false);
-  const sizeClass = compact ? 'h-9' : 'h-12';
+  // ~30% bigger across the app
+  const sizeClass = compact ? 'h-12' : 'h-16';
 
   function handleError() {
-    if (src !== '/kitzchat.svg') {
-      setSrc('/kitzchat.svg');
+    if (src !== '/kitzchat.png') {
+      setSrc('/kitzchat.png');
       return;
     }
     setImageFailed(true);
@@ -27,20 +28,20 @@ export function BrandLogo({ compact = false, subtitle, className = '', imageClas
       {!imageFailed ? (
         <img
           src={src}
-          alt="KitzChat"
+          alt="Nexora"
           className={`${sizeClass} ${imageClassName} w-auto object-contain shrink-0`.trim()}
           onError={handleError}
         />
       ) : (
-        <div className={`${compact ? 'h-9 px-3 text-lg' : 'h-12 px-4 text-2xl'} rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-black tracking-tight shrink-0`}>
-          KitzChat
-        </div>
+        <div
+          aria-label="Nexora"
+          className={`${compact ? 'h-12 w-12' : 'h-16 w-16'} rounded-2xl bg-gradient-to-br from-cyan-400/70 to-violet-500/70 border border-white/10 shadow-2xl shrink-0`}
+        />
       )}
 
-      {!compact ? (
+      {!compact && subtitle ? (
         <div className="min-w-0">
-          <div className="text-sm font-semibold leading-none">KitzChat</div>
-          {subtitle ? <div className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wide">{subtitle}</div> : null}
+          <div className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wide">{subtitle}</div>
         </div>
       ) : null}
     </div>

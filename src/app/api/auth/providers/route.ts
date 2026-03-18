@@ -8,9 +8,17 @@ function isGoogleEnabled(): boolean {
   );
 }
 
+function isGithubEnabled(): boolean {
+  return Boolean(
+    process.env.GITHUB_CLIENT_ID?.trim() &&
+    process.env.GITHUB_CLIENT_SECRET?.trim() &&
+    process.env.GITHUB_CALLBACK_URL?.trim(),
+  );
+}
+
 export async function GET() {
   return NextResponse.json({
     google: isGoogleEnabled(),
+    github: isGithubEnabled(),
   });
 }
-

@@ -18,7 +18,12 @@ export async function POST(request: Request) {
       preset: body.preset,
       amountEur: body.amountEur,
     });
-    return NextResponse.json(result);
+    return NextResponse.json({
+      url: result.checkoutUrl,
+      id: result.sessionId,
+      credits_preview: result.creditsPreview,
+      offer_code: result.offerCode ?? null,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Checkout failed';
     if (message === 'unauthorized') return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

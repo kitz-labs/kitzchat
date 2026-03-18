@@ -5,7 +5,7 @@ import { getAgents, ACTION_TO_AGENT } from '@/lib/agent-config';
 import { requireApiUser } from '@/lib/api-auth';
 import { listUsers } from '@/lib/auth';
 import { fetchOpenAiCreditBalance } from '@/config/openai';
-import Stripe from 'stripe';
+import { createStripeClient } from '@/lib/stripe-client';
 
 interface AgentBrief {
   id: string;
@@ -191,8 +191,7 @@ async function getAdminSummary(): Promise<AdminSummary> {
      LIMIT 5`,
   ).all() as Array<{ id: number; type: string; message: string; created_at: string; read: number }>;
 
-  const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
-  const stripe = stripeKey ? new Stripe(stripeKey) : null;
+  const stripe = createStripeClient();
   let accountAvailableCents: number | null = null;
   let accountPendingCents: number | null = null;
   if (stripe) {

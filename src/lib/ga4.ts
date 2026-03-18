@@ -93,8 +93,15 @@ function parseServiceAccountJson(env: {
 }): JWTInput | null {
   const raw = (env.serviceAccountJson || "").trim();
   if (raw) {
+    const normalized = (raw.startsWith("'") && raw.endsWith("'")) ? raw.slice(1, -1).trim() : raw;
     try {
-      return JSON.parse(raw) as JWTInput;
+      const parsed = JSON.parse(normalized) as unknown;
+      if (parsed && typeof parsed === "object") return parsed as JWTInput;
+      if (typeof parsed === "string" && parsed.trim()) {
+        // Some env loaders keep the JSON as a quoted string; decode twice.
+        const parsed2 = JSON.parse(parsed) as unknown;
+        if (parsed2 && typeof parsed2 === "object") return parsed2 as JWTInput;
+      }
     } catch {
       // fall through
     }

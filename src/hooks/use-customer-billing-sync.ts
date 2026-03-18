@@ -68,6 +68,9 @@ export function useCustomerBillingSync({ enabled = true, onConfirmed }: SyncOpti
           try {
             localStorage.setItem('kitzchat-payment-complete', paymentPayload);
           } catch {}
+          try {
+            window.dispatchEvent(new CustomEvent('kitzchat-payment-complete', { detail: { redirectTo: redirectTarget } }));
+          } catch {}
 
           if (window.opener && window.opener !== window) {
             try {

@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
+import { resolveCookieDomain } from '@/lib/cookies';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const STATE_COOKIE = 'kitzchat-google-state';
@@ -46,12 +47,14 @@ export async function GET(request: Request) {
     authUrl.searchParams.set('include_granted_scopes', 'true');
 
     const response = NextResponse.redirect(authUrl);
+    const domain = resolveCookieDomain(request);
     response.cookies.set(STATE_COOKIE, `${state}:${encodeURIComponent(from)}`, {
       httpOnly: true,
       sameSite: 'lax',
       secure: shouldUseSecureCookies(request),
       maxAge: 10 * 60,
       path: '/',
+      ...(domain ? { domain } : {}),
     });
     return response;
   } catch (error) {

@@ -17,6 +17,7 @@ export async function POST(request: Request) {
       userId: user.id,
       email: user.email ?? null,
       name: user.username,
+      walletBalanceCents: user.wallet_balance_cents ?? 0,
       agentCode: body.agentCode,
       prompt: body.prompt,
     });
@@ -24,8 +25,8 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Agent chat failed';
     if (message === 'unauthorized') return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    if (message === 'chat_not_enabled') return NextResponse.json({ error: 'Webchat und Agenten sind fuer dieses Konto noch nicht freigeschaltet' }, { status: 402 });
-    if (message === 'insufficient_credits') return NextResponse.json({ error: 'Nicht genug Credits verfuegbar' }, { status: 402 });
+    if (message === 'chat_not_enabled') return NextResponse.json({ error: 'Chat und Agenten sind fuer dieses Konto noch nicht freigeschaltet' }, { status: 402 });
+    if (message === 'insufficient_credits') return NextResponse.json({ error: 'Nicht genug Guthaben verfuegbar' }, { status: 402 });
     return NextResponse.json({ error: 'Agent chat failed' }, { status: 500 });
   }
 }

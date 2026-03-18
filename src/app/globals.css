@@ -53,7 +53,7 @@
 }
 
 .dark {
-  --background: #0b0d12;
+  --background: #040406;
   --foreground: #f2f4f8;
   --card: #10131a;
   --card-foreground: #e8ebf4;
@@ -70,10 +70,11 @@
   --destructive: #e85a6b;
   --info: #3892ff;
 
-  --surface-0: #0b0d12;
-  --surface-1: #0f141d;
-  --surface-2: #131a24;
-  --surface-3: #1b2431;
+  /* Let the global space background shine through */
+  --surface-0: color-mix(in srgb, #07080c 86%, transparent);
+  --surface-1: color-mix(in srgb, #0c0f16 90%, transparent);
+  --surface-2: color-mix(in srgb, #101522 92%, transparent);
+  --surface-3: color-mix(in srgb, #151c2c 94%, transparent);
 }
 
 /* ─── Base ─────────────────────────────────────────────── */
@@ -85,7 +86,9 @@ html.dark {
 }
 
 body {
-  background: var(--background);
+  background: radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.06), transparent 60%),
+              radial-gradient(900px 520px at 20% 18%, rgba(255,255,255,0.035), transparent 60%),
+              linear-gradient(180deg, #040406 0%, #000000 72%, #040406 100%);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   font-feature-settings: "rlig" 1, "calt" 1;
@@ -93,6 +96,41 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
   overscroll-behavior-y: contain;
+}
+
+/* ─── Space Background (stars + shooting stars) ─────────── */
+.space-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: transparent;
+}
+
+.space-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.space-bg-gloss {
+  position: absolute;
+  inset: -30% -20% auto -20%;
+  height: 70%;
+  background: radial-gradient(ellipse at top, rgba(255,255,255,0.10), transparent 55%);
+  opacity: 0.9;
+}
+
+.space-bg-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(1000px 700px at 50% 35%, transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .space-bg { display: none; }
 }
 
 /* ─── Scrollbar ────────────────────────────────────────── */

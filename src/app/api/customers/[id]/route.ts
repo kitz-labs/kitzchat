@@ -13,6 +13,8 @@ import {
   setNextTopupDiscountPercent,
 } from '@/lib/auth';
 import { ensureStripeCustomerForUser } from '@/modules/stripe/stripe.service';
+import { hasPostgresConfig } from '@/config/env';
+import { queryPg } from '@/config/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,17 @@ type UsageRow = {
   total_tokens: number;
   total_cents: number;
   last_used_at: number | null;
+};
+
+type BillingPaymentRow = {
+  stripe_session_id: string;
+  stripe_payment_intent_id: string | null;
+  stripe_customer_id: string | null;
+  gross_amount_eur: number;
+  currency: string;
+  status: string;
+  credits_issued: number;
+  created_at: string;
 };
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -89,11 +102,29 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       };
     });
 
+    const payments = await (async () => {
+      if (!hasPostgresConfig()) return [] as BillingPaymentRow[];
+      try {
+        const res = await queryPg<BillingPaymentRow>(
+          `SELECT stripe_session_id, stripe_payment_intent_id, stripe_customer_id, gross_amount_eur, currency, status, credits_issued, created_at
+           FROM payments
+           WHERE user_id = $1
+           ORDER BY created_at DESC
+           LIMIT 25`,
+          [userId],
+        );
+        return res.rows ?? [];
+      } catch {
+        return [] as BillingPaymentRow[];
+      }
+    })();
+
     return NextResponse.json({
       customer,
       free_messages: getCustomerFreeMessageUsage(customer.id, customer.username),
       summary: usageSummary,
       agents,
+      payments,
     });
   } catch (err) {
     const msg = (err as Error).message;

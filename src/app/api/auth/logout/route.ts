@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { destroySession } from '@/lib/auth';
+import { resolveCookieDomain } from '@/lib/cookies';
 
 const SESSION_COOKIE = 'kitzchat-session';
 
@@ -28,12 +29,14 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({ ok: true });
   const secure = shouldUseSecureCookies(request);
+  const domain = resolveCookieDomain(request);
   response.cookies.set(SESSION_COOKIE, '', {
     httpOnly: true,
     secure,
     sameSite: 'strict',
     maxAge: 0,
     path: '/',
+    ...(domain ? { domain } : {}),
   });
   response.headers.set('Cache-Control', 'no-store');
   return response;

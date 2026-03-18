@@ -1,16 +1,62 @@
 import { randomUUID } from 'node:crypto';
 import { requestOpenAiResponse } from '@/config/openai';
+import { creditsToCents } from '@/config/env';
+import { getUserById, setUserWalletBalanceCents } from '@/lib/auth';
 import { getEntitlements } from '@/modules/entitlements/entitlements.service';
 import { calculateCreditsForUsage } from './pricing.service';
 import { classifyTask, resolveModelRoute } from './model-routing.service';
-import { applyWalletDelta, ensureBillingUser, getWalletView } from '@/modules/wallet/wallet.service';
+import { applyWalletDelta, ensureBillingUser, getWalletView, syncBillingWalletFromAppBalance } from '@/modules/wallet/wallet.service';
 import { queryPg } from '@/config/db';
-import { getAgent } from '@/lib/agent-config';
+import { getAgent, type AgentDefinition } from '@/lib/agent-config';
+import { getRecentCustomerMemorySnippet } from '@/lib/customer-memory';
+import { buildCustomerAgentProfileSnippet } from '@/lib/customer-agent-profiles';
+
+function buildAgentRuntimePrompt(
+  agent: AgentDefinition | undefined,
+  userPrompt: string,
+  opts: { memorySnippet: string; customerProfileSnippet: string },
+): string {
+  if (!agent) return userPrompt;
+
+  const policies = (agent.policies ?? []).map((p) => `- ${p}`).join('\n');
+  const limits = (agent.limits ?? []).map((l) => `- ${l}`).join('\n');
+  const tools = (agent.tools ?? []).map((t) => `- ${t}`).join('\n');
+
+  return [
+    `# SYSTEM`,
+    agent.systemPrompt?.trim() || `Du bist ${agent.name}.`,
+    '',
+    `# AGENT`,
+    `id: ${agent.id}`,
+    `role: ${agent.role}`,
+    `model: ${agent.model}`,
+    '',
+    ...(opts.customerProfileSnippet ? [opts.customerProfileSnippet.trim(), ''] : []),
+    ...(opts.memorySnippet ? [opts.memorySnippet.trim(), ''] : []),
+    `# IO`,
+    `Input Format:\n${agent.inputFormat || ''}`.trim(),
+    '',
+    `Output Format:\n${agent.outputFormat || ''}`.trim(),
+    '',
+    `# TOOLS (allowed)`,
+    tools || '- (none)',
+    '',
+    `# POLICIES`,
+    policies || '- (none)',
+    '',
+    `# LIMITS`,
+    limits || '- (none)',
+    '',
+    `# USER`,
+    userPrompt,
+  ].join('\n');
+}
 
 export async function runAgentChat(params: {
   userId: number;
   email?: string | null;
   name: string;
+  walletBalanceCents?: number;
   agentCode: string;
   prompt: string;
 }): Promise<{
@@ -21,6 +67,24 @@ export async function runAgentChat(params: {
   requestId: string;
 }> {
   await ensureBillingUser({ userId: params.userId, email: params.email, name: params.name, chatEnabled: true });
+
+  const appUser = getUserById(params.userId);
+  const appWalletCents = Math.max(0, Math.round(params.walletBalanceCents ?? appUser?.wallet_balance_cents ?? 0));
+
+  // Wenn Billing-Wallet leer ist, aber App-DB Guthaben vorhanden ist, synchronisieren wir einmalig hoch.
+  try {
+    const pre = await getWalletView(params.userId);
+    if (pre.balance <= 0 && appWalletCents > 0) {
+      await syncBillingWalletFromAppBalance({
+        userId: params.userId,
+        walletBalanceCents: appWalletCents,
+        reason: 'Auto-Sync vor Chat (Billing-Wallet leer, App-DB hat Guthaben).',
+      });
+    }
+  } catch {
+    // ignore
+  }
+
   const entitlements = await getEntitlements(params.userId);
   if (!entitlements.webchat || !entitlements.agents) {
     throw new Error('chat_not_enabled');
@@ -41,6 +105,11 @@ export async function runAgentChat(params: {
   const preferredModel = wallet.balanceRatio <= 0.15 ? route.preferredModel : agentConfig?.model || route.preferredModel;
   const fallbackModel = agentConfig?.fallbacks?.[0] || route.fallbackModel;
   const runtimeUsage = agentConfig?.modelUsage;
+  const memorySnippet = await getRecentCustomerMemorySnippet(params.userId, params.name).catch(() => '');
+  const customerProfileSnippet = appUser?.account_type === 'customer'
+    ? buildCustomerAgentProfileSnippet(params.userId, params.agentCode)
+    : '';
+  const runtimePrompt = buildAgentRuntimePrompt(agentConfig, params.prompt, { memorySnippet, customerProfileSnippet });
 
   const requestId = randomUUID();
   await queryPg(
@@ -53,10 +122,10 @@ export async function runAgentChat(params: {
   try {
     let response;
     try {
-      response = await requestOpenAiResponse(params.prompt, preferredModel, runtimeUsage);
+      response = await requestOpenAiResponse(runtimePrompt, preferredModel, runtimeUsage);
     } catch (error) {
       if (fallbackModel && fallbackModel !== preferredModel) {
-        response = await requestOpenAiResponse(params.prompt, fallbackModel, runtimeUsage);
+        response = await requestOpenAiResponse(runtimePrompt, fallbackModel, runtimeUsage);
       } else {
         throw error;
       }
@@ -69,6 +138,11 @@ export async function runAgentChat(params: {
       reference_id: requestId,
       note: `${params.agentCode} · ${route.displayMode}`,
     });
+
+    // SQLite is a UI/cache mirror only. After Billing-DB debit, mirror from the final Billing balance.
+    if (appUser?.account_type === 'customer') {
+      setUserWalletBalanceCents(params.userId, creditsToCents(walletChange.balanceAfter));
+    }
 
     await queryPg(
       `UPDATE usage_runs

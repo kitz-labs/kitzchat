@@ -1,10 +1,10 @@
 <div align="center">
 
-# KitzChat
+# Hermes Dashboard
 
-**The local-first AI workspace for chat, automation, and team operations.**
+**The open-source marketing operations control center for AI agent teams.**
 
-Run chat, CRM, outreach, content, analytics, and automation workflows from one dashboard, powered by Next.js + SQLite.
+Run CRM, outreach, content, analytics, and automation workflows from one dashboard, powered by OpenClaw + SQLite.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
@@ -12,20 +12,20 @@ Run chat, CRM, outreach, content, analytics, and automation workflows from one d
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-local-003B57?logo=sqlite&logoColor=white)](https://sqlite.org/)
 
-![KitzChat Overview](./public/kitzchat-mission-control.png)
+![Hermes Dashboard Overview](./public/hermes-dashboard-mission-control.png)
 
 </div>
 
 ---
 
-> **Alpha Software** — KitzChat is under active development. APIs, data models, and configuration behavior can change between releases.
+> **Alpha Software** — Hermes Dashboard is under active development. APIs, data models, and configuration behavior can change between releases.
 
-## Why KitzChat?
+## Why Hermes Dashboard?
 
-KitzChat is built for local-first AI teamwork where you need execution visibility and control, not disconnected tools.
+Hermes is built for operator-led AI marketing systems where you need execution visibility and control, not disconnected tools.
 
-- **Operations in one place** — Chat, CRM, outreach, content ops, analytics, experiments, and automations
-- **Local runtime by default** — Dynamic agent discovery, cron templates, workspace browsing, and comms surfaces without external runtime coupling
+- **Marketing system in one place** — CRM, outreach, content ops, analytics, experiments, and automations
+- **OpenClaw-native operations** — Dynamic agent/squad discovery, cron templates, workspace and comms surfaces
 - **Local-first stack** — Next.js + SQLite, no required external infra to run locally
 - **Secure-by-default template posture** — Session auth, API key support, host lock, and writeback controls disabled by default
 - **Production workflow support** — Deploy status, auditability, role-based access, and e2e-covered auth/API flows
@@ -33,10 +33,10 @@ KitzChat is built for local-first AI teamwork where you need execution visibilit
 ## Screenshots
 
 ### Overview
-![KitzChat CRM](./public/kitzchat-mission-control.png)
+![Hermes Dashboard CRM](./public/hermes-dashboard-mission-control.png)
 
 ### CRM
-![KitzChat Overview](./public/kitzchat-overview.png)
+![Hermes Dashboard Overview](./public/hermes-dashboard-overview.png)
 
 
 
@@ -45,16 +45,15 @@ KitzChat is built for local-first AI teamwork where you need execution visibilit
 > **Requires [pnpm](https://pnpm.io/installation)** — install with `npm install -g pnpm` or `corepack enable`.
 
 ```bash
-git clone https://github.com/kitz-labs/dashboard_template.git
-cd dashboard_template
+git clone https://github.com/builderz-labs/hermes-dashboard.git
+cd hermes-dashboard
 pnpm install
 pnpm env:bootstrap
 pnpm dev
 ```
 
-Open `http://localhost:3000`.
-
-KitzChat runs as a single Next.js app on port `3000`. Admin and customer views are selected after login from the authenticated account type, so local dev and VPS hosting only need one process.
+Production runs on `https://dashboard.aikitz.at` (primary) with `https://nexora.aikitz.at` as the secondary UI domain.
+See `docs/production.md` for the VPS configuration details.
 
 Initial admin access is seeded from `AUTH_USER` / `AUTH_PASS` on first run when the users table is empty.
 
@@ -66,281 +65,95 @@ Initial admin access is seeded from `AUTH_USER` / `AUTH_PASS` on first run when 
 - Outreach sequencing, pause/audit endpoints, and suppression workflows
 - Content operations with calendar, item, and performance APIs
 - Analytics/KPI views with optional connectors (Plausible, GA4, social)
-- Dynamic local agent discovery for agents and squads
-- Cron jobs/templates with flexible schedule variants (`cron`, `every`, `at`)
-- Deploy status endpoint with local runtime health checks
+- Dynamic OpenClaw agent discovery for agents and squads
+- Cron jobs/templates with OpenClaw-compatible schedule variants (`cron`, `every`, `at`)
+- Deploy status endpoint with OpenClaw config validation preflight
 - Session auth + API key auth with role-based access controls
 
 ### Known Limitations
 
-# KitzChat
+- Alpha surface area is still evolving; expect occasional schema/UI shifts
+- Certain integrations require external provider setup and credentials
 
-![KitzChat Hero](./public/kitzchat-readme-hero.svg)
+### Security Considerations
 
-KitzChat ist eine modulare KI-Webapp fuer Betrieb, Kundenkommunikation, Agentensteuerung und Credit-Billing in einer einzigen Next.js-Anwendung. Das Projekt kombiniert ein lokales App-State- und Workspace-Modell mit PostgreSQL fuer Wallet, Ledger und Zahlungsfluesse.
+- Change seeded credentials (`AUTH_USER`, `AUTH_PASS`, `API_KEY`) before network deployment
+- Keep host lock enabled unless you explicitly need broader access (`HERMES_HOST_LOCK=local` by default)
+- Keep writeback flags disabled unless required:
+  - `HERMES_ALLOW_POLICY_WRITE=false`
+  - `HERMES_ALLOW_CRON_WRITE=false`
+  - `HERMES_ALLOW_WORKSPACE_WRITE=false`
+- Never commit real credentials or personal data
 
-Die App ist fuer zwei Perspektiven gebaut:
+## Architecture
 
-- Admin-Oberflaeche fuer Betrieb, Reporting, Content, CRM, Automationen und Compliance
-- Customer-Oberflaeche fuer Chat, Verbrauch, Einstellungen, Billing und Self-Service
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 16 (App Router) |
+| UI | React 19 + TypeScript |
+| Data | SQLite (local state in `./state`) |
+| Agent Runtime | OpenClaw CLI + filesystem integration |
+| Auth | Session cookie + API key + optional Google OAuth |
 
-## Funktionsumfang
+## Configuration
 
-- Agenten, Kataloge und Workspace-basierte Laufzeitkonfiguration
-- CRM, Kundenlisten, Customer Detail Views und Support-Zusammenfassungen
-- Chat, Uploads, Session-Sync und agentenbezogene Konversationen
-- Automationen, Cron-Jobs, Templates und Laufprotokolle
-- Analytics, KPIs, Lead-Quellen, Benchmarks und OpenAI-Nutzungsanzeige
-- Stripe Checkout, Wallet, Ledger, Entitlements und Top-up-Angebote
-- Rollen, Session-Auth, API-Key-Zugaenge und optionales Google OAuth
-- Lokale State-Dateien, Runtime-Ordner und optionale Multi-Instance-Konfiguration
+See [`.env.example`](.env.example) for the full list.
 
-## Architektur
-
-![KitzChat Architektur](./public/kitzchat-readme-architecture.svg)
-
-KitzChat trennt bewusst zwischen operativem App-State und finanziellem Billing-State:
-
-- SQLite beziehungsweise lokale State-Dateien halten Dashboard-, Runtime- und Template-Zustand
-- PostgreSQL haelt Wallet, Ledger, Entitlements, Checkout-Ergebnisse und Reporting-Daten
-- Stripe bleibt Payment-Provider, waehrend Credits und Verrechnung intern in der App gefuehrt werden
-- OpenAI, Plausible, GA4, E-Mail, Telegram oder weitere Integrationen koennen optional zugeschaltet werden
-
-## Tech Stack
-
-| Bereich | Stack |
-|---|---|
-| Frontend | Next.js 16, React 19, TypeScript |
-| UI | App Router, Tailwind CSS 4, Recharts, Lucide |
-| Lokaler Zustand | SQLite und Dateien unter `./state` |
-| Billing | PostgreSQL, Stripe |
-| Server | Next.js Runtime plus optionale Express-basierte Billing-Helfer |
-| Tests | Node Test Runner, Playwright |
-
-## Schnellstart lokal
-
-Voraussetzungen:
-
-- Node.js 20 oder neuer
-- pnpm
-- laufendes PostgreSQL, falls Billing, Wallet und Entitlements aktiv sein sollen
-
-Installation:
-
-```bash
-git clone https://github.com/kitz-labs/kitzchat.git
-cd kitzchat
-pnpm install
-pnpm env:bootstrap
-```
-
-Danach `.env` anpassen. Die minimal sinnvollen Werte sind:
-
-```env
-AUTH_USER=admin
-AUTH_PASS=change-me-to-a-long-password
-API_KEY=change-me-to-a-random-secret
-AUTH_COOKIE_SECURE=false
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/kitzchat
-```
-
-Migrationen und Seeds fuer Billing:
-
-```bash
-pnpm billing:migrate
-pnpm billing:seed
-```
-
-Entwicklungsserver starten:
-
-```bash
-pnpm dev
-```
-
-Die App laeuft danach unter `http://localhost:3000`.
-
-## Docker-Deployment mit PostgreSQL
-
-![KitzChat Deployment](./public/kitzchat-readme-deployment.svg)
-
-Die mitgelieferte [docker-compose.yml](./docker-compose.yml) ist auf direkten VPS-Betrieb mit Docker Compose ausgelegt. Die App wird lokal aus dem Repo per [Dockerfile](./Dockerfile) gebaut, laeuft auf Container-Port `3001` und wird standardmaessig auf Host-Port `3001` veroeffentlicht.
-
-Die aktuell hinterlegte PostgreSQL-Konfiguration ist:
-
-- Datenbanktyp: PostgreSQL
-- Host im Docker-Netz: `db`
-- Port: `5432`
-- Datenbankname: `kitzchat`
-- Benutzer: `kitzchat`
-- Passwort: `widauer`
-- Connection String: `postgres://kitzchat:widauer@db:5432/kitzchat`
-
-Start mit Docker Compose:
-
-```bash
-cp .env.example .env
-docker compose up --build -d
-```
-
-Wichtig:
-
-- Der App-Container verwendet `corepack` und `pnpm`, nicht `npm ci`
-- Der Build laeuft ueber das lokale [Dockerfile](./Dockerfile); gestartet wird danach mit `sh scripts/start-standalone.sh`
-- Der Compose-Stack kann direkt auf Port `3001` laufen oder ueber einen vorhandenen Traefik-Proxy an eine Domain gehaengt werden
-- Die App laeuft im Container auf Port `3001`; extern wird standardmaessig `${APP_PORT:-3001}` nach `3001` gemappt
-- Der Postgres-Dienst nutzt das benannte Volume `kitzchat_db`
-- App-Zustand und Workspace-Runtime liegen im benannten Volume `kitzchat_state`
-
-Fuer den ersten Start solltest du in `.env` mindestens setzen:
-
-```env
-AUTH_USER=admin
-AUTH_PASS=change-me-to-a-long-password
-API_KEY=change-me-to-a-random-secret
-AUTH_COOKIE_SECURE=true
-PUBLIC_BASE_URL=https://your-domain.tld
-KITZCHAT_HOST_LOCK=your-domain.tld
-DATABASE_URL=postgres://kitzchat:widauer@db:5432/kitzchat
-```
-
-Danach ist die App direkt unter `http://SERVER_IP:3001` erreichbar. Falls auf dem VPS bereits Traefik auf `80/443` laeuft, kannst du die Domain ueber die in [docker-compose.yml](./docker-compose.yml) hinterlegten Traefik-Labels anbinden.
-
-Falls du die App zunaechst direkt ueber eine oeffentliche IP statt ueber eine Domain testest, setze zusaetzlich:
-
-```env
-PUBLIC_BASE_URL=http://187.124.23.227:8080
-KITZCHAT_HOST_LOCK=187.124.23.227,localhost,127.0.0.1
-AUTH_COOKIE_SECURE=false
-```
-
-und mappe den App-Port direkt, z. B. `8080:8080`.
-
-## Wichtige Umgebungsvariablen
-
-Die komplette Vorlage steht in [.env.example](./.env.example).
-
-Pflichtfelder fuer einen sinnvollen Start:
+### Required
 
 - `AUTH_USER`
-- `AUTH_PASS`
+- `AUTH_PASS` (minimum 10 chars)
 - `API_KEY`
-- `AUTH_COOKIE_SECURE`
+- `AUTH_COOKIE_SECURE` (`false` for HTTP local dev, `true` for HTTPS)
 
-Billing und Wallet:
+### OpenClaw / Multi-instance
 
-- `DATABASE_URL`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_SUCCESS_URL`
-- `STRIPE_CANCEL_URL`
-- `MIN_TOPUP_EUR`
-- `MAX_TOPUP_EUR`
-- `CREDIT_MULTIPLIER`
+- `HERMES_OPENCLAW_HOME`
+- `HERMES_DEFAULT_INSTANCE`
+- `HERMES_OPENCLAW_INSTANCES` (optional JSON array for multi-instance)
 
-Workspace und Laufzeit:
+### Optional 1Password Runtime Overlay
 
-- `KITZCHAT_STATE_DIR`
-- `KITZCHAT_WORKSPACE_ROOT`
-- `KITZCHAT_DEFAULT_INSTANCE`
-- `KITZCHAT_WORKSPACE_INSTANCES`
-- `KITZCHAT_HOST_LOCK`
+- `HERMES_1PASSWORD_MODE=off|auto|required` (`auto` is default behavior)
+- `HERMES_OP_ENV_FILE=/etc/hermes-dashboard/hermes-dashboard.op.env`
+- Example mapping: `ops/1password/hermes-dashboard.op.env.example`
 
-Optionale Integrationen:
+### Host Access Lock
 
-- `OPENAI_API_KEY`
-- `OPENAI_WEBHOOK_SECRET`
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `PLAUSIBLE_API_KEY`
-- `GA4_PROPERTY_ID`
-- `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASSWORD`
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+- `HERMES_HOST_LOCK=local` (default)
+- `HERMES_HOST_LOCK=off`
+- `HERMES_HOST_LOCK=host1,host2`
 
-## Billing-Modell
-
-KitzChat verwendet ein internes Credit-System:
-
-- `1 EUR = 1000 Credits`
-- Top-ups werden ueber Stripe ausgelost
-- Wallet, Ledger und Entitlements liegen in PostgreSQL
-- Kosten, Token-Nutzung und Kundenverbrauch werden im Admin-Bereich zusammengefuehrt
-
-Wenn `OPENAI_API_KEY` fehlt, bleibt die App benutzbar; bestimmte agentenbezogene Antworten koennen dann auf lokale oder Mock-Pfade zurueckfallen.
-
-Wenn OpenAI Webhooks verwendet werden, zeigt die App den Endpoint unter `/api/openai/webhook` an. Dafuer muss `OPENAI_WEBHOOK_SECRET` gesetzt sein.
-
-## Verfuegbare Skripte
+## Development
 
 ```bash
 pnpm dev
-pnpm dev:fresh
 pnpm build
-pnpm start
-pnpm lint
 pnpm typecheck
+pnpm lint
 pnpm test
 pnpm test:e2e
-pnpm billing:migrate
-pnpm billing:seed
-pnpm billing:server
-pnpm prepare:standalone
-pnpm build:standalone
 ```
 
-## Projektstruktur
+## Template Export and Hygiene
 
-```text
-src/app/                 Next.js App Router, Pages und API Routes
-src/components/          UI-Komponenten fuer Admin- und Customer-Surface
-src/lib/                 Auth, Billing, Analytics, Runtime- und DB-Helfer
-src/modules/             Domainennahe Services und Controller
-src/config/              Umgebungs- und Anbieter-Konfiguration
-src/db/                  SQL-Migrationen und Seed-Dateien
-state/                   Lokale Runtime-, Upload- und Memory-Daten
-ops/                     Deployment-Helfer, systemd und 1Password-Vorlagen
-scripts/                 Bootstrap-, Seed- und Standalone-Skripte
-tests/e2e/               End-to-End-Tests
-```
-
-## Qualitaet und Tests
-
-Empfohlener Check vor Deployment:
+Before publishing as a template or sharing broadly:
 
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
+./scripts/template-audit.sh
+./scripts/template-export.sh [output_dir]
 ```
 
-Fuer End-to-End-Tests:
+Export excludes sensitive/runtime artifacts like `.env*`, database files, `.next`, and `node_modules`.
 
-```bash
-pnpm test:e2e
-```
+## Open Source
 
-## Sicherheit
+- License: [MIT](./LICENSE)
+- Security: [SECURITY.md](./SECURITY.md)
+- Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Code of Conduct: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- Third-Party Notices: [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
 
-- Standard-Credentials aus `.env` vor jedem externen Deployment ersetzen
-- `KITZCHAT_HOST_LOCK` aktiv lassen, solange kein expliziter externer Zugriff benoetigt wird
-- Schreibzugriffe auf Runtime- oder Policy-Dateien nur aktivieren, wenn sie wirklich gewollt sind
-- Keine echten Secrets, Kundeninhalte oder Produktivdaten ins Repository committen
+## License
 
-## Deployment-Hinweise
-
-- Die App ist als einzelner Next.js-Prozess ausgelegt
-- Admin- und Customer-Flows laufen in derselben Anwendung
-- Billing und Wallet benoetigen PostgreSQL
-- Fuer einen Standalone-Betrieb stehen [scripts/start-standalone.sh](./scripts/start-standalone.sh) sowie die Vorlagen unter [ops/](./ops/) bereit
-
-## Weiterfuehrende Dateien
-
-- [CONTRIBUTING.md](./CONTRIBUTING.md)
-- [SECURITY.md](./SECURITY.md)
-- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
-- [CHANGELOG.md](./CHANGELOG.md)
-- [ops/systemd/README.md](./ops/systemd/README.md)
-
-## Lizenz
-
-[MIT](./LICENSE)
+[MIT](LICENSE) © 2026 [Builderz Labs](https://github.com/builderz-labs)

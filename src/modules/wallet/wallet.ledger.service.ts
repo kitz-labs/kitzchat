@@ -1,7 +1,7 @@
 import { queryPg } from '@/config/db';
 
 export type WalletLedgerEntry = {
-  entry_type: 'topup' | 'usage' | 'refund' | 'bonus' | 'adjustment';
+  entry_type: 'topup' | 'usage' | 'refund' | 'bonus' | 'adjustment' | 'sync';
   credits_delta: number;
   reference_type: string;
   reference_id: string;

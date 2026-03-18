@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { authenticate, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, userHasAgentAccess, userHasFreeCustomerAccess, getUserFromRequest } from '@/lib/auth';
+import { authenticate, createSession, destroySession, getCustomerFreeMessageUsage, seedAdmin, setUserWalletBalanceCents, userHasAgentAccess, userHasFreeCustomerAccess, getUserFromRequest } from '@/lib/auth';
 import { getAudienceFromAccountType } from '@/lib/app-audience';
-import { ensureBillingUser, getWalletView } from '@/modules/wallet/wallet.service';
+import { ensureBillingUser, getWalletView, syncBillingWalletFromAppBalance } from '@/modules/wallet/wallet.service';
+import { resolveCookieDomain } from '@/lib/cookies';
+import { creditsToCents } from '@/config/env';
 
 const SESSION_COOKIE = 'kitzchat-session';
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
   const freeMessages = getCustomerFreeMessageUsage(user.id, user.username);
 
   let walletBalanceCredits = 0;
+  let walletBalanceCentsFromBilling: number | null = null;
   try {
     await ensureBillingUser({
       userId: user.id,
@@ -54,8 +57,24 @@ export async function POST(request: Request) {
       stripeCustomerId: user.stripe_customer_id ?? null,
       chatEnabled: user.payment_status === 'paid',
     });
-    const wallet = await getWalletView(user.id);
+    let wallet = await getWalletView(user.id);
     walletBalanceCredits = wallet.balance;
+    if (walletBalanceCredits <= 0 && (user.wallet_balance_cents ?? 0) > 0) {
+      await syncBillingWalletFromAppBalance({
+        userId: user.id,
+        walletBalanceCents: user.wallet_balance_cents ?? 0,
+        reason: 'Auto-Sync beim Login (Billing-Wallet fehlte trotz Guthaben).',
+      });
+      wallet = await getWalletView(user.id);
+      walletBalanceCredits = wallet.balance;
+    }
+    if (user.account_type === 'customer') {
+      const cents = creditsToCents(Math.max(0, Number(walletBalanceCredits ?? 0)));
+      walletBalanceCentsFromBilling = Number.isFinite(cents) ? cents : null;
+      if (walletBalanceCentsFromBilling != null && Math.round(Number(user.wallet_balance_cents ?? 0)) !== Math.round(walletBalanceCentsFromBilling)) {
+        setUserWalletBalanceCents(user.id, walletBalanceCentsFromBilling);
+      }
+    }
   } catch {
     walletBalanceCredits = 0;
   }
@@ -79,7 +98,7 @@ export async function POST(request: Request) {
       has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user),
       email: user.email ?? null,
       plan_amount_cents: user.plan_amount_cents ?? 0,
-      wallet_balance_cents: user.wallet_balance_cents ?? 0,
+      wallet_balance_cents: walletBalanceCentsFromBilling ?? (user.wallet_balance_cents ?? 0),
       wallet_balance_credits: walletBalanceCredits,
       onboarding_completed_at: user.onboarding_completed_at ?? null,
       next_topup_discount_percent: user.next_topup_discount_percent ?? 0,
@@ -92,12 +111,14 @@ export async function POST(request: Request) {
   });
 
   const secure = shouldUseSecureCookies(request);
+  const domain = resolveCookieDomain(request);
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure,
     sameSite: 'strict',
     maxAge: SESSION_MAX_AGE,
     path: '/',
+    ...(domain ? { domain } : {}),
   });
   response.headers.set('Cache-Control', 'no-store');
 
@@ -113,6 +134,7 @@ export async function GET(request: Request) {
     const freeMessages = getCustomerFreeMessageUsage(user.id, user.username);
 
     let walletBalanceCredits = 0;
+    let walletBalanceCentsFromBilling: number | null = null;
     try {
       await ensureBillingUser({
         userId: user.id,
@@ -121,8 +143,24 @@ export async function GET(request: Request) {
         stripeCustomerId: user.stripe_customer_id ?? null,
         chatEnabled: user.payment_status === 'paid',
       });
-      const wallet = await getWalletView(user.id);
+      let wallet = await getWalletView(user.id);
       walletBalanceCredits = wallet.balance;
+      if (walletBalanceCredits <= 0 && (user.wallet_balance_cents ?? 0) > 0) {
+        await syncBillingWalletFromAppBalance({
+          userId: user.id,
+          walletBalanceCents: user.wallet_balance_cents ?? 0,
+          reason: 'Auto-Sync bei /auth/me (Billing-Wallet fehlte trotz Guthaben).',
+        });
+        wallet = await getWalletView(user.id);
+        walletBalanceCredits = wallet.balance;
+      }
+      if (user.account_type === 'customer') {
+        const cents = creditsToCents(Math.max(0, Number(walletBalanceCredits ?? 0)));
+        walletBalanceCentsFromBilling = Number.isFinite(cents) ? cents : null;
+        if (walletBalanceCentsFromBilling != null && Math.round(Number(user.wallet_balance_cents ?? 0)) !== Math.round(walletBalanceCentsFromBilling)) {
+          setUserWalletBalanceCents(user.id, walletBalanceCentsFromBilling);
+        }
+      }
     } catch {
       walletBalanceCredits = 0;
     }
@@ -138,7 +176,7 @@ export async function GET(request: Request) {
         has_agent_access: userHasAgentAccess(user) || userHasFreeCustomerAccess(user),
         email: user.email ?? null,
         plan_amount_cents: user.plan_amount_cents ?? 0,
-        wallet_balance_cents: user.wallet_balance_cents ?? 0,
+        wallet_balance_cents: walletBalanceCentsFromBilling ?? (user.wallet_balance_cents ?? 0),
         wallet_balance_credits: walletBalanceCredits,
         onboarding_completed_at: user.onboarding_completed_at ?? null,
         next_topup_discount_percent: user.next_topup_discount_percent ?? 0,

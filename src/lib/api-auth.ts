@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, requireUser, userHasAgentAccess, userHasFreeCustomerAccess } from '@/lib/auth';
-import { roleHasCapability, type Capability } from '@/lib/rbac';
+import { userHasCapability, type Capability } from '@/lib/rbac';
 
 export function requireApiUser(request: Request): NextResponse | null {
   try {
@@ -46,7 +46,7 @@ export function requireApiEditor(request: Request): NextResponse | null {
 export function requireApiCapability(request: Request, capability: Capability): NextResponse | null {
   try {
     const user = requireUser(request);
-    if (!roleHasCapability(user.role as 'admin' | 'editor' | 'viewer', capability)) {
+    if (!userHasCapability({ id: user.id, role: user.role }, capability)) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
     return null;
