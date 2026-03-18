@@ -1,47 +1,17 @@
-import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { resolveCookieDomain } from '@/lib/cookies';
 import { getAuthLinkBaseUrl } from '@/lib/public-url';
 import { getIntegrationProvider } from '@/lib/integration-catalog';
+import { getOAuthProviderDefinition, getProviderConfig } from '@/lib/integrations/oauth-providers';
+import { newNonce, normalizeReturnTo, shouldUseSecureCookies } from '@/lib/integrations/oauth';
 
-const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize';
 const STATE_COOKIE = 'kitzchat-integration-oauth-state';
-
-function shouldUseSecureCookies(request: Request): boolean {
-  const forced = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
-  if (forced === 'true' || forced === '1' || forced === 'yes') return true;
-  if (forced === 'false' || forced === '0' || forced === 'no') return false;
-  const forwardedProto = request.headers.get('x-forwarded-proto');
-  if (forwardedProto) {
-    return forwardedProto.split(',')[0].trim().toLowerCase() === 'https';
-  }
-  try {
-    return new URL(request.url).protocol === 'https:';
-  } catch {
-    return process.env.NODE_ENV === 'production';
-  }
-}
 
 function getCallbackUrl(request: Request): string {
   const configured = process.env.CUSTOMER_INTEGRATION_OAUTH_CALLBACK_URL?.trim();
   if (configured) return configured;
   return new URL('/api/customer/integrations/oauth/callback', getAuthLinkBaseUrl(request)).toString();
-}
-
-function getGoogleConfig(request: Request) {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) throw new Error('Google OAuth ist nicht konfiguriert');
-  return { clientId, clientSecret, callbackUrl: getCallbackUrl(request) };
-}
-
-function getGithubConfig(request: Request) {
-  const clientId = process.env.GITHUB_INTEGRATION_CLIENT_ID?.trim() || process.env.GITHUB_CLIENT_ID?.trim();
-  const clientSecret = process.env.GITHUB_INTEGRATION_CLIENT_SECRET?.trim() || process.env.GITHUB_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) throw new Error('GitHub OAuth ist nicht konfiguriert');
-  return { clientId, clientSecret, callbackUrl: getCallbackUrl(request) };
 }
 
 function getScopes(providerId: string): string[] {
@@ -54,8 +24,16 @@ function getScopes(providerId: string): string[] {
       return ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/spreadsheets.readonly'];
     case 'google-analytics':
       return ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/analytics.readonly'];
+    case 'onedrive':
+      return ['offline_access', 'openid', 'profile', 'email', 'User.Read', 'Files.Read'];
     case 'github':
       return ['read:user', 'user:email', 'repo'];
+    case 'slack':
+      return ['team:read', 'users:read'];
+    case 'hubspot':
+      return ['oauth'];
+    case 'xero':
+      return ['openid', 'profile', 'email', 'offline_access', 'accounting.settings'];
     default:
       return ['openid', 'email', 'profile'];
   }
@@ -71,8 +49,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const providerId = url.searchParams.get('provider')?.trim() || '';
     const profileId = url.searchParams.get('profile_id')?.trim() || '';
-    const returnToRaw = url.searchParams.get('return_to')?.trim() || '/settings';
-    const returnTo = returnToRaw.startsWith('/') ? returnToRaw : '/settings';
+    const returnTo = normalizeReturnTo(url.searchParams.get('return_to'));
     if (!providerId || !profileId) {
       return NextResponse.json({ error: 'provider and profile_id required' }, { status: 400 });
     }
@@ -82,7 +59,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'OAuth ist fuer diese Integration noch nicht verfuegbar' }, { status: 400 });
     }
 
-    const nonce = randomBytes(24).toString('hex');
+    const nonce = newNonce();
     const statePayload = {
       nonce,
       userId: user.id,
@@ -90,30 +67,14 @@ export async function GET(request: Request) {
       profileId,
       returnTo,
       scopes: getScopes(providerId),
+      createdAt: new Date().toISOString(),
     };
 
-    let targetUrl: URL;
-    if (provider.oauthProvider === 'google-workspace') {
-      const { clientId, callbackUrl } = getGoogleConfig(request);
-      targetUrl = new URL(GOOGLE_AUTH_URL);
-      targetUrl.searchParams.set('client_id', clientId);
-      targetUrl.searchParams.set('redirect_uri', callbackUrl);
-      targetUrl.searchParams.set('response_type', 'code');
-      targetUrl.searchParams.set('scope', statePayload.scopes.join(' '));
-      targetUrl.searchParams.set('state', nonce);
-      targetUrl.searchParams.set('access_type', 'offline');
-      targetUrl.searchParams.set('include_granted_scopes', 'true');
-      targetUrl.searchParams.set('prompt', 'consent');
-    } else if (provider.oauthProvider === 'github') {
-      const { clientId, callbackUrl } = getGithubConfig(request);
-      targetUrl = new URL(GITHUB_AUTH_URL);
-      targetUrl.searchParams.set('client_id', clientId);
-      targetUrl.searchParams.set('redirect_uri', callbackUrl);
-      targetUrl.searchParams.set('scope', statePayload.scopes.join(' '));
-      targetUrl.searchParams.set('state', nonce);
-    } else {
-      return NextResponse.json({ error: 'OAuth-Provider ist noch nicht aktiviert' }, { status: 400 });
-    }
+    const oauthProviderId = provider.oauthProvider as Parameters<typeof getOAuthProviderDefinition>[0];
+    const callbackUrl = getCallbackUrl(request);
+    const oauthProvider = getOAuthProviderDefinition(oauthProviderId);
+    const config = getProviderConfig(oauthProviderId, callbackUrl);
+    const targetUrl = oauthProvider.buildAuthUrl(config, { state: nonce, scopes: statePayload.scopes });
 
     const response = NextResponse.redirect(targetUrl);
     const domain = resolveCookieDomain(request);

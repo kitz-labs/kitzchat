@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { resolveCookieDomain } from '@/lib/cookies';
-import { getIntegrationProvider } from '@/lib/integration-catalog';
+import { getIntegrationProvider, type CustomerIntegrationProfile } from '@/lib/integration-catalog';
 import { getAuthLinkBaseUrl } from '@/lib/public-url';
 import { upsertCustomerIntegrationProfile } from '@/lib/customer-preferences';
+import { getOAuthProviderDefinition, getProviderConfig } from '@/lib/integrations/oauth-providers';
 
 const STATE_COOKIE = 'kitzchat-integration-oauth-state';
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const GOOGLE_USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
-const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-const GITHUB_USER_URL = 'https://api.github.com/user';
-const GITHUB_EMAILS_URL = 'https://api.github.com/user/emails';
 
 type OAuthState = {
   nonce: string;
@@ -19,6 +15,7 @@ type OAuthState = {
   profileId: string;
   returnTo: string;
   scopes: string[];
+  createdAt?: string;
 };
 
 function readStateCookie(request: Request): OAuthState | null {
@@ -48,86 +45,6 @@ function redirectWithStateCleared(request: Request, target: string) {
   return response;
 }
 
-async function exchangeGoogleCode(request: Request, code: string) {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) throw new Error('Google OAuth ist nicht konfiguriert');
-
-  const body = new URLSearchParams({
-    code,
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: getCallbackUrl(request),
-    grant_type: 'authorization_code',
-  });
-
-  const response = await fetch(GOOGLE_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error('Google Code konnte nicht eingetauscht werden');
-  return response.json() as Promise<{ access_token?: string; refresh_token?: string }>;
-}
-
-async function fetchGoogleIdentity(accessToken: string) {
-  const response = await fetch(GOOGLE_USERINFO_URL, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error('Google Profil konnte nicht geladen werden');
-  const payload = await response.json() as { email?: string; name?: string; sub?: string };
-  return {
-    accountIdentifier: payload.email || payload.name || payload.sub || 'Google Workspace',
-  };
-}
-
-async function exchangeGithubCode(request: Request, code: string) {
-  const clientId = process.env.GITHUB_INTEGRATION_CLIENT_ID?.trim() || process.env.GITHUB_CLIENT_ID?.trim();
-  const clientSecret = process.env.GITHUB_INTEGRATION_CLIENT_SECRET?.trim() || process.env.GITHUB_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) throw new Error('GitHub OAuth ist nicht konfiguriert');
-
-  const body = new URLSearchParams({
-    code,
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: getCallbackUrl(request),
-  });
-
-  const response = await fetch(GITHUB_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error('GitHub Code konnte nicht eingetauscht werden');
-  return response.json() as Promise<{ access_token?: string; refresh_token?: string }>;
-}
-
-async function fetchGithubIdentity(accessToken: string) {
-  const [userResponse, emailResponse] = await Promise.all([
-    fetch(GITHUB_USER_URL, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' },
-      cache: 'no-store',
-    }),
-    fetch(GITHUB_EMAILS_URL, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json' },
-      cache: 'no-store',
-    }),
-  ]);
-  if (!userResponse.ok) throw new Error('GitHub Profil konnte nicht geladen werden');
-  const userPayload = await userResponse.json() as { login?: string; name?: string };
-  const emailPayload = emailResponse.ok ? await emailResponse.json() as Array<{ email?: string; primary?: boolean }> : [];
-  const primaryEmail = emailPayload.find((entry) => entry.primary)?.email || emailPayload[0]?.email || '';
-  return {
-    accountIdentifier: primaryEmail || userPayload.login || userPayload.name || 'GitHub',
-  };
-}
-
 export async function GET(request: Request) {
   try {
     const user = requireUser(request);
@@ -138,7 +55,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const code = url.searchParams.get('code')?.trim();
     const state = url.searchParams.get('state')?.trim();
-    const providerError = url.searchParams.get('error')?.trim();
+    const providerError = url.searchParams.get('error')?.trim() || url.searchParams.get('error_description')?.trim();
     const oauthState = readStateCookie(request);
 
     if (providerError) {
@@ -153,40 +70,29 @@ export async function GET(request: Request) {
       return redirectWithStateCleared(request, '/settings?integration_oauth=error&reason=provider#integrations');
     }
 
-    let accessToken = '';
-    let refreshToken = '';
     let accountIdentifier = provider.name;
+    const oauthProviderId = provider.oauthProvider as Parameters<typeof getOAuthProviderDefinition>[0];
+    const callbackUrl = getCallbackUrl(request);
+    const oauthProvider = getOAuthProviderDefinition(oauthProviderId);
+    const config = getProviderConfig(oauthProviderId, callbackUrl);
+    const token = await oauthProvider.exchangeCode(config, code);
+    const identity = await oauthProvider.fetchIdentity(token.accessToken);
+    accountIdentifier = identity.accountIdentifier || provider.name;
 
-    if (provider.oauthProvider === 'google-workspace') {
-      const tokenPayload = await exchangeGoogleCode(request, code);
-      accessToken = tokenPayload.access_token || '';
-      refreshToken = tokenPayload.refresh_token || '';
-      if (!accessToken) throw new Error('Google Access Token fehlt');
-      const identity = await fetchGoogleIdentity(accessToken);
-      accountIdentifier = identity.accountIdentifier;
-    } else if (provider.oauthProvider === 'github') {
-      const tokenPayload = await exchangeGithubCode(request, code);
-      accessToken = tokenPayload.access_token || '';
-      refreshToken = tokenPayload.refresh_token || '';
-      if (!accessToken) throw new Error('GitHub Access Token fehlt');
-      const identity = await fetchGithubIdentity(accessToken);
-      accountIdentifier = identity.accountIdentifier;
-    } else {
-      throw new Error('OAuth-Provider ist noch nicht verfuegbar');
-    }
-
-    upsertCustomerIntegrationProfile(user.id, oauthState.profileId, oauthState.providerId, {
+    const patch: Partial<CustomerIntegrationProfile> = {
       provider: oauthState.providerId,
       label: provider.name,
       accountIdentifier,
-      accessToken,
-      refreshToken,
+      accessToken: token.accessToken,
       connectionType: 'oauth',
       oauthProvider: provider.oauthProvider,
       oauthConnectedAt: new Date().toISOString(),
       oauthStatus: 'connected',
       oauthScopes: oauthState.scopes,
-    });
+    };
+    if (token.refreshToken) patch.refreshToken = token.refreshToken;
+
+    upsertCustomerIntegrationProfile(user.id, oauthState.profileId, oauthState.providerId, patch);
 
     const returnTo = oauthState.returnTo?.startsWith('/') ? oauthState.returnTo : '/settings';
     return redirectWithStateCleared(request, `${returnTo.includes('?') ? returnTo : `${returnTo}?integration_oauth=success`}#integrations`);

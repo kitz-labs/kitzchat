@@ -88,6 +88,11 @@ export function CustomerSettings() {
   const [mailTesting, setMailTesting] = useState(false);
   const [mailTestResult, setMailTestResult] = useState<string | null>(null);
   const [mailTestError, setMailTestError] = useState<string | null>(null);
+  const [integrationTesting, setIntegrationTesting] = useState<string | null>(null);
+  const [integrationTestResult, setIntegrationTestResult] = useState<string | null>(null);
+  const [integrationTestError, setIntegrationTestError] = useState<string | null>(null);
+  const [integrationDisconnecting, setIntegrationDisconnecting] = useState<string | null>(null);
+  const [integrationRefreshing, setIntegrationRefreshing] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
     const res = await fetch('/api/auth/me', { cache: 'no-store' });
@@ -100,6 +105,72 @@ export function CustomerSettings() {
     const payload = await fetch('/api/customer/preferences', { cache: 'no-store' }).then((response) => response.json());
     setPreferences(payload?.preferences || EMPTY_PREFERENCES);
   }, []);
+
+  const testIntegration = useCallback(async (profileId: string) => {
+    try {
+      setIntegrationTestError(null);
+      setIntegrationTestResult(null);
+      setIntegrationTesting(profileId);
+      const response = await fetch('/api/customer/integrations/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profileId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Test fehlgeschlagen');
+      const account = typeof payload?.account === 'string' && payload.account.trim() ? ` (${payload.account})` : '';
+      setIntegrationTestResult(`Integration getestet: OK${account}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Test fehlgeschlagen';
+      setIntegrationTestError(message);
+    } finally {
+      setIntegrationTesting(null);
+    }
+  }, []);
+
+  const disconnectIntegration = useCallback(async (profileId: string) => {
+    try {
+      setIntegrationDisconnecting(profileId);
+      setIntegrationTestError(null);
+      setIntegrationTestResult(null);
+      const response = await fetch('/api/customer/integrations/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profileId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Disconnect fehlgeschlagen');
+      await loadPreferences();
+      setIntegrationTestResult('Integration getrennt.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Disconnect fehlgeschlagen';
+      setIntegrationTestError(message);
+    } finally {
+      setIntegrationDisconnecting(null);
+    }
+  }, [loadPreferences]);
+
+  const refreshIntegrationOAuth = useCallback(async (profileId: string) => {
+    try {
+      setIntegrationRefreshing(profileId);
+      setIntegrationTestError(null);
+      setIntegrationTestResult(null);
+      const response = await fetch('/api/customer/integrations/oauth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: profileId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Refresh fehlgeschlagen');
+      await loadPreferences();
+      setIntegrationTestResult('OAuth refreshed.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Refresh fehlgeschlagen';
+      setIntegrationTestError(message);
+    } finally {
+      setIntegrationRefreshing(null);
+    }
+  }, [loadPreferences]);
 
   useEffect(() => {
     loadMe().catch(() => setMe(null));
@@ -643,6 +714,16 @@ export function CustomerSettings() {
               ? `${preferences.integration_profiles.filter((profile) => profile.connected).length} von ${preferences.integration_profiles.length} Integrationen sind einsatzbereit.`
               : 'Noch keine zusaetzlichen Integrationen gespeichert.'}
           </div>
+          {integrationTestResult ? (
+            <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">
+              {integrationTestResult}
+            </div>
+          ) : null}
+          {integrationTestError ? (
+            <div className="rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-warning">
+              {integrationTestError}
+            </div>
+          ) : null}
 
           <label className="space-y-1.5 text-sm">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">Integration hinzufuegen</div>
@@ -690,6 +771,22 @@ export function CustomerSettings() {
                       <span className={`rounded-full px-3 py-1 text-xs font-medium ${profile.connected ? 'bg-success/15 text-success' : 'bg-warning/10 text-warning'}`}>
                         {profile.connected ? 'Verbunden' : 'Unvollstaendig'}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => testIntegration(profile.id)}
+                        disabled={integrationTesting === profile.id}
+                        className="btn btn-ghost text-sm"
+                      >
+                        {integrationTesting === profile.id ? 'Teste...' : 'Testen'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => disconnectIntegration(profile.id)}
+                        disabled={integrationDisconnecting === profile.id}
+                        className="btn btn-ghost text-sm"
+                      >
+                        {integrationDisconnecting === profile.id ? 'Trenne...' : 'Trennen'}
+                      </button>
                       <button type="button" onClick={() => removeIntegration(profile.id)} className="btn btn-ghost text-sm inline-flex items-center gap-2">
                         <Trash2 size={14} /> Entfernen
                       </button>
@@ -730,6 +827,16 @@ export function CustomerSettings() {
                             <button type="button" onClick={() => startIntegrationOAuth(profile.id, profile.provider)} className="btn btn-primary text-sm">
                               {oauthConnected ? 'OAuth erneuern' : 'Mit OAuth verbinden'}
                             </button>
+                            {oauthConnected && profile.refreshToken ? (
+                              <button
+                                type="button"
+                                onClick={() => refreshIntegrationOAuth(profile.id)}
+                                disabled={integrationRefreshing === profile.id}
+                                className="btn btn-ghost text-sm"
+                              >
+                                {integrationRefreshing === profile.id ? 'Refreshe...' : 'Token refresh'}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => updateIntegration(profile.id, {
