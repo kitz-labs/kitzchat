@@ -519,7 +519,7 @@ export const CSV_TEMPLATES: CsvTemplate[] = [
     tags: ['agents', 'catalog', 'admin'],
     csv: [
       'agent_id,name,customer_visible,model,reasoning_effort,max_output_tokens,tools_count,notes',
-      'main,"Leitstand",true,"gpt-5.4","high",1900,4,"default orchestrator"',
+      'main,"Meister",true,"gpt-5.4","high",1900,4,"default orchestrator"',
       'marketing,"MarketingAgent",true,"gpt-4.1","medium",1200,3,"campaigns + copy"',
       'codepilot,"CodePilot",false,"gpt-4.1","high",1500,5,"hide for customers if not needed"',
     ].join('\n'),

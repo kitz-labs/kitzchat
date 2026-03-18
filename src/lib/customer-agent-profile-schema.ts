@@ -188,7 +188,7 @@ const AGENT_PROFILES: Record<string, AgentProfileDefinition> = {
   main: {
     agentId: 'main',
     title: 'Workspace-Kontext',
-    description: 'Allgemeiner Kontext für den Leitstand (Routing/Planung). Leitstand orchestriert Agenten und kann auch wie ein normaler Chat arbeiten.',
+    description: 'Allgemeiner Kontext für den Meister (Routing/Planung). Meister orchestriert Agenten und kann auch wie ein normaler Chat arbeiten.',
     fields: [
       { key: 'company', label: 'Firma', type: 'text', help: 'Optional. Firma/Marke. Hilft für passende Beispiele.' },
       { key: 'goals_primary', label: 'Hauptziel', type: 'textarea', placeholder: 'Was soll heute erreicht werden?', help: 'Das wichtigste Ziel für heute. Beispiel: “Angebot finalisieren und 3 LinkedIn-Posts planen”.' },

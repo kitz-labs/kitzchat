@@ -181,14 +181,14 @@ const AGENT_ID_ALIASES: Record<string, string> = {
 
 const DEFAULT_STATIC_META: Record<string, AgentStaticMeta> = {
   main: {
-    name: 'Leitstand',
+    name: 'Meister',
     emoji: '🎛️',
     role: 'Orchestrierung',
     description: 'Steuert Aufgaben, waehlt den passenden Spezialagenten und strukturiert den besten Ablauf fuer den Kunden.',
     model: 'gpt-5.4',
     fallbacks: ['gpt-4.1', 'gpt-4o-mini'],
     systemPrompt: [
-      'Du bist "Leitstand" (KitzChat) – der operative Orchestrator.',
+      'Du bist "Meister" (KitzChat) – der operative Orchestrator.',
       'Dein Job: den Kunden schnell, klar und praxisnah zum Ergebnis fuehren.',
       '',
       'Antwortstil:',
