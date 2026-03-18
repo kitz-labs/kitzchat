@@ -27,7 +27,8 @@
   --font-jetbrains: "SFMono-Regular", "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --nav-width: 220px;
   --nav-width-collapsed: 84px;
-  --header-height: 48px;
+  /* Includes iOS notch safe-area so fixed headers don't overlap the status bar. */
+  --header-height: calc(48px + env(safe-area-inset-top, 0px));
   --radius: 1rem;
   --radius-sm: 0.8rem;
   --shadow-soft: 0 8px 28px color-mix(in srgb, var(--foreground) 7%, transparent);
@@ -409,6 +410,11 @@ textarea:focus {
 
 .header-height {
   height: var(--header-height);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
 }
 
 .header-offset-top {

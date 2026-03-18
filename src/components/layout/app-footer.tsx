@@ -9,7 +9,7 @@ export function AppFooter({ variant = 'default' }: { variant?: 'default' | 'auth
     : 'hover:text-foreground transition-colors';
 
   return (
-    <footer className={`border-t py-2 text-xs ${baseClass} ${variant === 'auth' ? 'pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]' : ''} fixed bottom-0 left-0 right-0 z-[70] bg-card/95 backdrop-blur-lg`}>
+    <footer className={`hidden md:block border-t py-2 text-xs ${baseClass} ${variant === 'auth' ? 'pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]' : ''} fixed bottom-0 left-0 right-0 z-[70] bg-card/95 backdrop-blur-lg`}>
       <div className="mx-auto w-full max-w-6xl px-4">
         <div className="grid grid-cols-3 items-center gap-2">
           <div className="text-left truncate">

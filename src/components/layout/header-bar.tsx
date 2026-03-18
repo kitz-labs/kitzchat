@@ -40,7 +40,7 @@ export function HeaderBar({ currentUser, appAudience, navCollapsed = false, onTo
 
   if (customerView) {
     return (
-      <header className="fixed top-0 left-0 right-0 header-height bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center gap-3 px-3 sm:px-4 z-50">
+      <header className="fixed top-0 left-0 right-0 header-height safe-area-top bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center gap-3 px-3 sm:px-4 z-50">
         <div className="flex min-w-0 items-center gap-3">
           <div className="shrink-0 md:hidden">
             <BrandLogo compact />
@@ -79,7 +79,7 @@ export function HeaderBar({ currentUser, appAudience, navCollapsed = false, onTo
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 header-height bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center justify-between px-3 sm:px-4 z-50">
+    <header className="fixed top-0 left-0 right-0 header-height safe-area-top bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center justify-between px-3 sm:px-4 z-50">
       <div className="flex items-center gap-2.5 min-w-0">
         <button
           type="button"

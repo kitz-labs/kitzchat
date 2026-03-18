@@ -238,7 +238,7 @@ export default function LoginPage() {
         <AppFooter variant="auth" />
       </div>
 
-      <div className="fixed left-4 bottom-[calc(2.25rem+env(safe-area-inset-bottom,0px)+8rem)] sm:bottom-[calc(2.25rem+env(safe-area-inset-bottom,0px)+12rem)] z-20 pointer-events-none select-none">
+      <div className="hidden sm:block fixed left-4 bottom-[calc(2.25rem+env(safe-area-inset-bottom,0px)+8rem)] sm:bottom-[calc(2.25rem+env(safe-area-inset-bottom,0px)+12rem)] z-20 pointer-events-none select-none">
         <TokenUsageTicker variant="compact" className="w-[320px] max-w-[calc(100vw-2rem)]" />
       </div>
     </div>

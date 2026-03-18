@@ -35,9 +35,18 @@ export async function POST(request: Request) {
     const defaults = resolveProviderDefaults(provider || '');
     const imapHost = preferences.mail_imap_host || defaults.imapHost;
     const smtpHost = preferences.mail_smtp_host || defaults.smtpHost;
-    const useSsl = provider === 'gmail' ? true : (provider === 'outlook' ? false : Boolean(preferences.mail_use_ssl || defaults.secure));
+    const imapPort = Number(preferences.mail_imap_port || defaults.imapPort || 993);
+    // IMAP: 993 is implicit TLS. For 143 you'd typically use STARTTLS, but we keep it simple here.
+    const imapSecure = provider === 'gmail'
+      ? true
+      : Boolean(preferences.mail_use_ssl || imapPort === 993);
 
-    const results: Record<string, unknown> = {
+    const results: {
+      checked_at: string;
+      provider: string;
+      imap: null | { ok: true; host: string; messages: number; unseen: number } | { ok: false; host: string; error: string };
+      smtp: null | { ok: true; host: string; port: number; secure: boolean } | { ok: false; host: string; error: string };
+    } = {
       checked_at: new Date().toISOString(),
       provider: provider || 'custom',
       imap: null,
@@ -48,8 +57,8 @@ export async function POST(request: Request) {
       try {
         const client = new ImapFlow({
           host: imapHost,
-          port: Number(preferences.mail_imap_port || defaults.imapPort || 993),
-          secure: useSsl,
+          port: imapPort,
+          secure: imapSecure,
           auth: { user: mailAddress, pass: mailPassword },
           logger: false,
         });
@@ -83,13 +92,11 @@ export async function POST(request: Request) {
       }
     }
 
-    const ok = Boolean((results.imap as any)?.ok || (results.smtp as any)?.ok);
+    const ok = Boolean(results.imap?.ok || results.smtp?.ok);
     if (!ok) {
       return NextResponse.json({ ok: false, error: 'Mailbox Test fehlgeschlagen.', ...results }, { status: 200 });
     }
     return NextResponse.json({ ok: true, ...results }, { status: 200 });
-
-    return NextResponse.json({ ok: false, error: 'IMAP- oder SMTP-Host fehlt.' }, { status: 400 });
   } catch (error) {
     console.error('POST /api/customer/mail/test error:', error);
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });

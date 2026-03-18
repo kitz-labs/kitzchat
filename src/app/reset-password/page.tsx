@@ -100,7 +100,7 @@ export default function ResetPasswordPage() {
         <AppFooter variant="auth" />
       </div>
 
-      <div className="fixed left-5 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-20 pointer-events-none select-none">
+      <div className="hidden sm:block fixed left-5 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-20 pointer-events-none select-none">
         <TokenUsageTicker />
       </div>
     </div>

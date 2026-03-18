@@ -5,6 +5,7 @@ export type CustomerSmtpConfig = {
   host: string;
   port: number;
   secure: boolean;
+  requireTLS?: boolean;
   user: string;
   pass: string;
   from: string;
@@ -35,7 +36,12 @@ export function resolveCustomerSmtpConfig(preferences: Pick<CustomerPreferences,
   const defaults = resolveDefaults(provider);
   const smtpHost = normalizeText(preferences.mail_smtp_host) || defaults.smtpHost;
   const smtpPort = Math.max(1, Math.round(Number(preferences.mail_smtp_port || defaults.smtpPort)));
-  const secure = provider === 'gmail' ? true : (provider === 'outlook' ? false : Boolean(preferences.mail_use_ssl || defaults.secure || smtpPort === 465));
+  const wantsTls = provider === 'gmail'
+    ? true
+    : (provider === 'outlook' ? true : Boolean(preferences.mail_use_ssl || defaults.secure));
+  // Implicit TLS is only correct on port 465. For 587/25 it's STARTTLS (secure=false + requireTLS=true).
+  const secure = provider === 'gmail' ? true : (smtpPort === 465 ? wantsTls : false);
+  const requireTLS = wantsTls && smtpPort !== 465 ? true : undefined;
 
   if (!smtpHost) throw new Error('SMTP-Host fehlt.');
   const displayName = normalizeText(preferences.mail_display_name);
@@ -45,6 +51,7 @@ export function resolveCustomerSmtpConfig(preferences: Pick<CustomerPreferences,
     host: smtpHost,
     port: smtpPort,
     secure,
+    requireTLS,
     user: address,
     pass: password,
     from,
@@ -61,6 +68,7 @@ export function createCustomerSmtpTransport(config: CustomerSmtpConfig) {
     host: config.host,
     port: config.port,
     secure: config.secure,
+    requireTLS: Boolean(config.requireTLS),
     auth: { user: config.user, pass: config.pass },
     connectionTimeout,
     greetingTimeout,
@@ -71,4 +79,3 @@ export function createCustomerSmtpTransport(config: CustomerSmtpConfig) {
     },
   });
 }
-
