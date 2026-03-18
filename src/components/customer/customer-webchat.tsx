@@ -205,6 +205,7 @@ export function CustomerWebchat() {
     me?.payment_status === 'paid' ||
     (me?.wallet_balance_cents ?? 0) > 0 ||
     (wallet?.balance ?? 0) > 0;
+  const chatLocked = !hasAccess && me?.account_type !== 'customer';
   const messages = messagePayload?.messages || [];
   const selectedAgent = visibleAgents.find((agent) => agent.id === activeAgent) || null;
   const onboardingOpen = hasAccess && !me?.onboarding_completed_at;
@@ -509,7 +510,7 @@ export function CustomerWebchat() {
           </div>
         ) : null}
 
-        {!hasAccess ? (
+        {chatLocked ? (
           <div className="panel-body flex-1 flex items-center justify-center">
             <div className="max-w-md rounded-2xl border border-warning/40 bg-warning/5 p-6 text-center space-y-4">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-warning/15 text-warning">
