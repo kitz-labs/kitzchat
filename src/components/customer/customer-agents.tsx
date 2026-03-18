@@ -109,7 +109,7 @@ export function CustomerAgents() {
   }, []);
 
   const hasAccess = Boolean(me?.has_agent_access);
-  const isActivated = me?.payment_status === 'paid';
+  const isActivated = me?.payment_status === 'paid' || (me?.wallet_balance_cents ?? 0) > 0;
   const visibleAgents = agents;
 
   useEffect(() => {

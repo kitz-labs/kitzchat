@@ -175,8 +175,8 @@ export function CustomerUsage() {
   const walletCents = Math.max(0, Math.round(me?.wallet_balance_cents ?? loadedCents));
   const todayCents = Math.max(0, Math.round(usage?.totals.cost_today ?? 0));
   const restCents = Math.max(0, walletCents - todayCents);
-  const hasAccess = Boolean(me?.has_agent_access);
-  const isActivated = me?.payment_status === 'paid';
+  const hasAccess = Boolean(me?.has_agent_access) || walletCents > 0;
+  const isActivated = me?.payment_status === 'paid' || walletCents > 0;
   const nextTopupDiscountPercent = Math.max(0, Math.round(me?.next_topup_discount_percent ?? 0));
   const onboardingSteps = [
     { label: 'Onboarding', value: Boolean(me?.onboarding_completed_at) ? 1 : 0, color: '#0f766e' },

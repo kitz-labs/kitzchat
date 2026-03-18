@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
 import { requireApiAdmin } from '@/lib/api-auth';
-import { sendOrchestratorMessage } from '@/lib/command';
+import { requestOpenAiResponse } from '@/config/openai';
 import { logAudit } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -68,8 +68,24 @@ export async function POST(request: NextRequest) {
        VALUES (?, ?, ?, ?, 'text', ?, ?)`,
     ).run(CONVERSATION_ID, actor.username, 'maestro', content, metadata, now);
 
-    const result = await sendOrchestratorMessage(content);
-    const responseText = result.response || '';
+    const maestroPrompt = [
+      '# SYSTEM',
+      'Du bist MAESTRO, der Admin-Agent fuer Nexora.',
+      'Aufgabe: Admin operativ unterstuetzen (Bugfix-Plan, UX-Verbesserung, Agenten-Optimierung, Datenchecks).',
+      'Regeln:',
+      '- Antworte klar, kompakt, umsetzbar.',
+      '- Nenne moegliche Risiken.',
+      '- Wenn eine Aktion mit Risiko verbunden ist, schlage zuerst einen sicheren Vorschlag vor.',
+      '- Keine Geheimnisse, keine Tokens, keine Passwoerter ausgeben.',
+      '',
+      '# USER',
+      content,
+    ].join('\n');
+    const result = await requestOpenAiResponse(maestroPrompt, 'gpt-5.4', {
+      temperature: 0.2,
+      maxOutputTokens: 900,
+    });
+    const responseText = result.answer || '';
 
     if (responseText) {
       db.prepare(

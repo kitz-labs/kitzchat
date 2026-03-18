@@ -81,6 +81,9 @@ export function CustomerSettings() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [mailTesting, setMailTesting] = useState(false);
+  const [mailTestResult, setMailTestResult] = useState<string | null>(null);
+  const [mailTestError, setMailTestError] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
     const res = await fetch('/api/auth/me', { cache: 'no-store' });
@@ -173,7 +176,7 @@ export function CustomerSettings() {
     if (me?.payment_status === 'pending') return 'Zahlung ausstehend';
     return 'Nicht erforderlich';
   }, [me?.payment_status]);
-  const isActivated = me?.payment_status === 'paid';
+  const isActivated = me?.payment_status === 'paid' || (me?.wallet_balance_cents ?? 0) > 0;
   const integrationOptions = useMemo(
     () => INTEGRATION_CATALOG.filter((provider) => provider.popular).concat(INTEGRATION_CATALOG.filter((provider) => !provider.popular)),
     [],
@@ -226,6 +229,26 @@ export function CustomerSettings() {
       setPreferences(data?.preferences || preferences);
     } finally {
       setPreferencesSaving(false);
+    }
+  }
+
+  async function testMailAgent() {
+    setMailTesting(true);
+    setMailTestError(null);
+    setMailTestResult(null);
+    try {
+      const response = await fetch('/api/customer/mail/test', { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(String(payload?.error || 'MailAgent Test fehlgeschlagen'));
+      }
+      setMailTestResult(payload?.source === 'imap'
+        ? `IMAP OK · ${payload?.messages ?? 0} Messages`
+        : 'SMTP OK');
+    } catch (error) {
+      setMailTestError(error instanceof Error ? error.message : 'MailAgent Test fehlgeschlagen');
+    } finally {
+      setMailTesting(false);
     }
   }
 
@@ -466,6 +489,16 @@ export function CustomerSettings() {
           <div className={`rounded-2xl border px-4 py-3 text-sm ${preferences.mail_connected ? 'border-success/40 bg-success/5 text-success' : 'border-warning/40 bg-warning/5 text-warning'}`}>
             {preferences.mail_connected ? 'MailAgent ist verbunden und kann mit deinem Postfach arbeiten.' : 'Es fehlen noch Mail-Zugangsdaten oder Serverangaben fuer den MailAgent.'}
           </div>
+          {mailTestResult ? (
+            <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">
+              MailAgent Test erfolgreich: {mailTestResult}
+            </div>
+          ) : null}
+          {mailTestError ? (
+            <div className="rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-warning">
+              {mailTestError}
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Provider</div>
@@ -493,9 +526,14 @@ export function CustomerSettings() {
             </div>
             <input type="checkbox" checked={preferences.mail_use_ssl} onChange={(event) => setPreferences((current) => ({ ...current, mail_use_ssl: event.target.checked }))} />
           </label>
-          <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
-            <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'MailAgent speichern'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
+              <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'MailAgent speichern'}
+            </button>
+            <button type="button" onClick={testMailAgent} disabled={mailTesting} className="btn btn-ghost text-sm inline-flex items-center gap-2">
+              {mailTesting ? 'Teste...' : 'MailAgent testen'}
+            </button>
+          </div>
         </div>
       </div>
 
