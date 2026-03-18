@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 import { requireApiAdmin } from '@/lib/api-auth';
 import { requestOpenAiResponse } from '@/config/openai';
 import { logAudit } from '@/lib/audit';
+import { normalizeConversationTitle } from '@/lib/chat-conversations';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,27 +20,36 @@ interface MessageRow {
   created_at: number;
 }
 
-const CONVERSATION_ID = 'maestro:admin';
+const LEGACY_CONVERSATION_ID = 'maestro:admin';
+
+function resolveConversationId(input: string | null): string {
+  const raw = (input || '').trim();
+  if (!raw) return LEGACY_CONVERSATION_ID;
+  if (raw === LEGACY_CONVERSATION_ID || raw.startsWith(`${LEGACY_CONVERSATION_ID}:`)) return raw;
+  // Don’t allow arbitrary conversation access from this endpoint.
+  return LEGACY_CONVERSATION_ID;
+}
 
 export async function GET(request: NextRequest) {
   const auth = requireApiAdmin(request as Request);
   if (auth) return auth;
   try {
     const db = getDb();
+    const conversationId = resolveConversationId(request.nextUrl.searchParams.get('conversation_id'));
     const rows = db.prepare(
       `SELECT id, conversation_id, from_agent, to_agent, content, message_type, metadata, read_at, created_at
        FROM messages
        WHERE conversation_id = ?
        ORDER BY created_at ASC
        LIMIT 200`,
-    ).all(CONVERSATION_ID) as MessageRow[];
+    ).all(conversationId) as MessageRow[];
 
     const messages = rows.map((row) => ({
       ...row,
       metadata: row.metadata ? JSON.parse(row.metadata) : null,
     }));
 
-    return NextResponse.json({ conversation_id: CONVERSATION_ID, messages });
+    return NextResponse.json({ conversation_id: conversationId, messages });
   } catch (error) {
     return NextResponse.json({ error: `Failed to fetch maestro chat: ${String(error)}` }, { status: 500 });
   }
@@ -50,7 +60,7 @@ export async function POST(request: NextRequest) {
   if (auth) return auth;
   try {
     const actor = requireAdmin(request as Request);
-    const body = (await request.json().catch(() => ({}))) as { content?: string };
+    const body = (await request.json().catch(() => ({}))) as { content?: string; conversation_id?: string };
     const content = (body.content || '').trim();
     if (!content) {
       return NextResponse.json({ error: 'content required' }, { status: 400 });
@@ -58,15 +68,28 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const now = Math.floor(Date.now() / 1000);
+    const conversationId = resolveConversationId(body.conversation_id || null);
     const metadata = JSON.stringify({
       source: 'maestro',
       actor: actor.username,
     });
 
+    const fallbackTitle = normalizeConversationTitle(content.slice(0, 48), 'Neuer Chat');
+    db.prepare(`
+      INSERT INTO chat_conversations (conversation_id, owner_user_id, owner_username, agent_id, title, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(conversation_id) DO UPDATE SET
+        owner_user_id = excluded.owner_user_id,
+        owner_username = excluded.owner_username,
+        agent_id = COALESCE(chat_conversations.agent_id, excluded.agent_id),
+        title = CASE WHEN chat_conversations.title = '' OR chat_conversations.title = 'Neuer Chat' THEN excluded.title ELSE chat_conversations.title END,
+        updated_at = excluded.updated_at
+    `).run(conversationId, actor.id, actor.username, 'maestro', fallbackTitle, now, now);
+
     db.prepare(
       `INSERT INTO messages (conversation_id, from_agent, to_agent, content, message_type, metadata, created_at)
        VALUES (?, ?, ?, ?, 'text', ?, ?)`,
-    ).run(CONVERSATION_ID, actor.username, 'maestro', content, metadata, now);
+    ).run(conversationId, actor.username, 'maestro', content, metadata, now);
 
     const maestroPrompt = [
       '# SYSTEM',
@@ -110,17 +133,17 @@ export async function POST(request: NextRequest) {
       db.prepare(
         `INSERT INTO messages (conversation_id, from_agent, to_agent, content, message_type, metadata, created_at)
          VALUES (?, ?, ?, ?, 'text', ?, ?)`,
-      ).run(CONVERSATION_ID, 'maestro', actor.username, responseText, metadata, Math.floor(Date.now() / 1000));
+      ).run(conversationId, 'maestro', actor.username, responseText, metadata, Math.floor(Date.now() / 1000));
     }
 
     logAudit({
       actor,
       action: 'maestro.message',
-      target: CONVERSATION_ID,
+      target: conversationId,
       detail: { preview: content.slice(0, 180) },
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, conversation_id: conversationId });
   } catch (error) {
     return NextResponse.json({ error: `Maestro send failed: ${String(error)}` }, { status: 500 });
   }
