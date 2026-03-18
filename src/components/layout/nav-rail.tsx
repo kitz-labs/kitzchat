@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Gauge, Bot, PenLine, MessageCircle, Mail, Contact, Zap,
   Search, BarChart3, LineChart, BrainCircuit, Rocket, Clock, List, Settings,
-  FolderOpen, Users, CreditCard, Database, LifeBuoy, Download,
+  FolderOpen, Users, CreditCard, Database, LifeBuoy, Download, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useSmartPoll } from '@/hooks/use-smart-poll';
 import { useDashboard } from '@/store';
@@ -99,7 +99,7 @@ const CUSTOMER_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export function NavRail({ currentUser, appAudience }: { currentUser: { account_type?: 'staff' | 'customer'; username?: string } | null; appAudience: AppAudience }) {
+export function NavRail({ currentUser, appAudience, collapsed = false, onToggleCollapsed }: { currentUser: { account_type?: 'staff' | 'customer'; username?: string } | null; appAudience: AppAudience; collapsed?: boolean; onToggleCollapsed?: () => void }) {
   const pathname = usePathname();
   const realOnly = useDashboard(s => s.realOnly);
   const customerView = appAudience === 'customer';
@@ -120,6 +120,7 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
       <div key={item.href} className="space-y-0.5">
         <Link
           href={item.href}
+          title={collapsed ? item.label : undefined}
           className={`relative w-full flex items-center gap-2 rounded-xl text-sm transition-smooth ${
             customerView
               ? (active
@@ -129,7 +130,7 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
                   ? 'bg-primary/14 text-primary'
                   : 'text-muted-foreground hover:text-foreground hover:bg-surface-2/80')
           }`}
-          style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: '8px', paddingTop: '6px', paddingBottom: '6px' }}
+          style={{ paddingLeft: `${collapsed ? 8 : 8 + depth * 14}px`, paddingRight: '8px', paddingTop: '6px', paddingBottom: '6px' }}
         >
           {active && <span className="absolute left-0 w-0.5 h-5 bg-primary rounded-r" />}
           <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${
@@ -139,7 +140,7 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
           }`}>
             <Icon size={depth > 0 ? 14 : 16} />
           </span>
-          <span className="flex-1 truncate">{item.label}</span>
+          {!collapsed ? <span className="flex-1 truncate">{item.label}</span> : null}
           {!customerView && count > 0 && (
             <span className={`min-w-[18px] h-4 px-1 text-[9px] font-bold rounded-full flex items-center justify-center ${
               item.countKey === 'signals_today' ? 'count-badge-info' : 'count-badge'
@@ -154,16 +155,19 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
   }
 
   return (
-    <nav className="nav-rail fixed left-0 header-offset-top bottom-0 nav-width bg-card/92 backdrop-blur-lg border-r border-border/70 z-40 hidden md:flex flex-col">
+    <nav className={`nav-rail fixed left-0 header-offset-top bottom-0 bg-card/92 backdrop-blur-lg border-r border-border/70 z-40 hidden md:flex flex-col transition-[width] duration-300 ${collapsed ? 'nav-width-collapsed' : 'nav-width'}`}>
       <div className="px-3 py-4 border-b border-border/60">
         {customerView ? (
           <div className="flex flex-col items-center text-center gap-2">
             <BrandLogo compact className="justify-center" imageClassName="h-[47px]" />
-            <div className="text-sm font-semibold">{currentUser?.username || 'Kunde'}</div>
+            {!collapsed ? <div className="text-sm font-semibold">{currentUser?.username || 'Kunde'}</div> : null}
           </div>
         ) : (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-between gap-2.5">
             <BrandLogo compact />
+            <button type="button" onClick={onToggleCollapsed} className="hidden lg:inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-muted-foreground hover:text-foreground hover:bg-muted/40">
+              {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+            </button>
           </div>
         )}
       </div>
@@ -174,9 +178,11 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
       >
         {groups.map((group, idx) => (
           <div key={group.label} className={idx > 0 ? 'mt-3 pt-3 border-t border-border/50' : ''}>
-            <div className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
-              {group.label}
-            </div>
+            {!collapsed ? (
+              <div className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                {group.label}
+              </div>
+            ) : null}
             <div className="space-y-0.5">
               {group.items.map((item) => renderNavItem(item))}
             </div>
@@ -185,8 +191,15 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
       </div>
 
       <div className="px-2 py-2 border-t border-border/60">
+        {!collapsed && !customerView ? (
+          <div className="mb-2 rounded-2xl border border-border/60 bg-muted/10 px-3 py-3 text-xs text-muted-foreground">
+            <div className="font-medium text-foreground">Ops Focus</div>
+            <div className="mt-1">Kunden, Billing, Support und OpenAI direkt im Blick.</div>
+          </div>
+        ) : null}
         <Link
           href="/settings"
+          title={collapsed ? 'Einstellungen' : undefined}
           className={`relative w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-smooth ${
             pathname === '/settings'
               ? 'bg-primary/14 text-primary'
@@ -195,7 +208,7 @@ export function NavRail({ currentUser, appAudience }: { currentUser: { account_t
         >
           {pathname === '/settings' && <span className="absolute left-0 w-0.5 h-5 bg-primary rounded-r" />}
           <Settings size={16} />
-          <span>Einstellungen</span>
+          {!collapsed ? <span>Einstellungen</span> : null}
         </Link>
       </div>
     </nav>

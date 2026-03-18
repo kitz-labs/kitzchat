@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       .map((id) => ({ id }));
 
     const options = await generateRegistrationOptions({
-      rpName: 'Nexora',
+      rpName: 'KitzChat',
       rpID: rpId,
       userID: isoUint8Array.fromUTF8String(String(user.id)),
       userName: full.email || full.username,

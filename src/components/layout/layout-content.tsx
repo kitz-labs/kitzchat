@@ -14,6 +14,7 @@ import { useDashboard } from '@/store';
 const AUTH_PATHS = ['/login', '/register'];
 const CUSTOMER_ALLOWED_PATHS = ['/', '/agents', '/usage-token', '/settings', '/hilfe', '/downloads', '/support-chat', '/nutzungshinweise', '/datenschutz'];
 const LIVE_FEED_AUTOSTART_KEY = 'nexora.live_feed.autostart.v1';
+const NAV_COLLAPSED_KEY = 'kitzchat.nav.collapsed.v1';
 
 type ShellUser = {
   id: number;
@@ -33,6 +34,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<ShellUser | null>(null);
   const [appAudience, setAppAudience] = useState<AppAudience>('admin');
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   const isAuthPath = AUTH_PATHS.some((p) => pathname.startsWith(p));
 
@@ -53,6 +55,14 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     }
     setAuthChecked(true);
   }, [pathname, router]);
+
+  useEffect(() => {
+    try {
+      setNavCollapsed(window.localStorage.getItem(NAV_COLLAPSED_KEY) === '1');
+    } catch {
+      setNavCollapsed(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (isAuthPath) return;
@@ -107,13 +117,22 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   const customerView = appAudience === 'customer';
+  const toggleNavCollapsed = () => {
+    setNavCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(NAV_COLLAPSED_KEY, next ? '1' : '0');
+      } catch {}
+      return next;
+    });
+  };
 
   return (
     <>
-      <HeaderBar currentUser={currentUser} appAudience={appAudience} />
+      <HeaderBar currentUser={currentUser} appAudience={appAudience} navCollapsed={navCollapsed} onToggleNav={toggleNavCollapsed} />
       <div className="flex header-offset-min-height">
-        <NavRail currentUser={currentUser} appAudience={appAudience} />
-        <AppShell customerView={customerView}>{children}</AppShell>
+        <NavRail currentUser={currentUser} appAudience={appAudience} collapsed={navCollapsed} onToggleCollapsed={toggleNavCollapsed} />
+        <AppShell customerView={customerView} navCollapsed={navCollapsed}>{children}</AppShell>
       </div>
       <PwaInstallPrompt />
       <MobileNav currentUser={currentUser} appAudience={appAudience} />

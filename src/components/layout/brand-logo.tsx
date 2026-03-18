@@ -28,13 +28,13 @@ export function BrandLogo({ compact = false, subtitle, className = '', imageClas
       {!imageFailed ? (
         <img
           src={src}
-          alt="Nexora"
+          alt="KitzChat"
           className={`${sizeClass} ${imageClassName} w-auto object-contain shrink-0`.trim()}
           onError={handleError}
         />
       ) : (
         <div
-          aria-label="Nexora"
+          aria-label="KitzChat"
           className={`${compact ? 'h-12 w-12' : 'h-16 w-16'} rounded-2xl bg-gradient-to-br from-cyan-400/70 to-violet-500/70 border border-white/10 shadow-2xl shrink-0`}
         />
       )}

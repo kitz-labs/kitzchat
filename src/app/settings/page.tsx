@@ -263,6 +263,10 @@ export default function SettingsPage() {
 	    allow_workspace_write?: boolean;
 	    allow_user_registration?: boolean;
 	    allow_stripe_write?: boolean;
+      security_status?: {
+        customer_secret_encryption_available?: boolean;
+        customer_secret_encryption_source?: 'dedicated' | 'api_key' | 'missing';
+      };
 	  } | null>(null);
 
   useEffect(() => {
@@ -1150,6 +1154,19 @@ export default function SettingsPage() {
 
       {activeTab === 'general' && (
       <>
+      <div className={`panel p-5 space-y-3 ${appSettings?.security_status?.customer_secret_encryption_available ? 'border-success/30 bg-success/5' : 'border-warning/30 bg-warning/5'}`}>
+        <h2 className="text-sm font-medium flex items-center gap-2">
+          <Shield size={14} className={appSettings?.security_status?.customer_secret_encryption_available ? 'text-success' : 'text-warning'} /> Kundendaten-Schutz
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          {appSettings?.security_status?.customer_secret_encryption_source === 'dedicated'
+            ? 'Kunden-Integrationsdaten werden mit einem dedizierten KITZCHAT_SETTINGS_ENCRYPTION_KEY verschluesselt gespeichert.'
+            : appSettings?.security_status?.customer_secret_encryption_source === 'api_key'
+              ? 'Kunden-Integrationsdaten werden verschluesselt gespeichert, aktuell aber ueber API_KEY abgesichert. Empfohlen: dedizierten KITZCHAT_SETTINGS_ENCRYPTION_KEY setzen.'
+              : 'Kunden-Integrationsdaten werden aktuell noch nicht verschluesselt gespeichert. Empfohlen: KITZCHAT_SETTINGS_ENCRYPTION_KEY auf dem Server setzen.'}
+        </p>
+      </div>
+
       {/* Sync Controls */}
       <div className="panel p-5 space-y-4">
         <h2 className="text-sm font-medium flex items-center gap-2">

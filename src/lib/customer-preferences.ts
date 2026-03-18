@@ -6,11 +6,13 @@ import {
   INTEGRATION_CATALOG,
   sanitizeIntegrationProfile,
 } from './integration-catalog';
+import { decryptSecret, encryptSecret, isEncryptedSecret, isSecretEncryptionAvailable } from './secret-store';
 
 export type CustomerPreferences = {
   enabled_agent_ids: string[];
   usage_alert_enabled: boolean;
   usage_alert_daily_tokens: number;
+  secure_storage_enabled: boolean;
   memory_storage_mode: 'state' | 'custom';
   memory_storage_path: string;
   docu_provider: string;
@@ -112,10 +114,29 @@ function normalizePort(value: unknown, fallback: number): number {
   return numberValue;
 }
 
+function decryptStoredText(value: string | null): string {
+  if (!value) return '';
+  try {
+    return decryptSecret(value);
+  } catch {
+    return '';
+  }
+}
+
+function encryptStoredText(value: string): string | null {
+  const encrypted = encryptSecret(value);
+  return encrypted || null;
+}
+
+function hasLegacyPlaintext(value: string | null): boolean {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return Boolean(normalized) && !isEncryptedSecret(normalized);
+}
+
 function parseIntegrationProfiles(value: string | null): CustomerIntegrationProfile[] {
   if (!value) return [];
   try {
-    const parsed = JSON.parse(value) as unknown;
+    const parsed = JSON.parse(decryptSecret(value)) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed
       .map((item, index) => sanitizeIntegrationProfile(typeof item === 'object' && item !== null ? item as Partial<CustomerIntegrationProfile> : {}, index))
@@ -173,19 +194,20 @@ function mapRow(row: CustomerPreferencesRow): CustomerPreferences {
     enabled_agent_ids: parseEnabledAgentIds(row.enabled_agent_ids),
     usage_alert_enabled: row.usage_alert_enabled === 1,
     usage_alert_daily_tokens: Math.max(1000, row.usage_alert_daily_tokens || 50000),
+    secure_storage_enabled: isSecretEncryptionAvailable(),
     memory_storage_mode: normalizeStorageMode(row.memory_storage_mode),
     memory_storage_path: row.memory_storage_path ?? '',
     docu_provider: row.docu_provider ?? '',
     docu_root_path: row.docu_root_path ?? '',
     docu_account_email: row.docu_account_email ?? '',
-    docu_app_password: row.docu_app_password ?? '',
-    docu_api_key: row.docu_api_key ?? '',
-    docu_access_token: row.docu_access_token ?? '',
+    docu_app_password: decryptStoredText(row.docu_app_password),
+    docu_api_key: decryptStoredText(row.docu_api_key),
+    docu_access_token: decryptStoredText(row.docu_access_token),
     docu_connected: false,
     mail_provider: row.mail_provider ?? '',
     mail_display_name: row.mail_display_name ?? '',
     mail_address: row.mail_address ?? '',
-    mail_password: row.mail_password ?? '',
+    mail_password: decryptStoredText(row.mail_password),
     mail_imap_host: row.mail_imap_host ?? '',
     mail_imap_port: normalizePort(row.mail_imap_port, 993),
     mail_smtp_host: row.mail_smtp_host ?? '',
@@ -195,9 +217,9 @@ function mapRow(row: CustomerPreferencesRow): CustomerPreferences {
     mail_use_ssl: row.mail_use_ssl === 1,
     mail_connected: false,
     instagram_username: row.instagram_username ?? '',
-    instagram_password: row.instagram_password ?? '',
+    instagram_password: decryptStoredText(row.instagram_password),
     instagram_graph_api: row.instagram_graph_api ?? '',
-    instagram_user_access_token: row.instagram_user_access_token ?? '',
+    instagram_user_access_token: decryptStoredText(row.instagram_user_access_token),
     instagram_user_id: row.instagram_user_id ?? '',
     facebook_page_id: row.facebook_page_id ?? '',
     instagram_connected: false,
@@ -208,6 +230,44 @@ function mapRow(row: CustomerPreferencesRow): CustomerPreferences {
   preferences.mail_connected = isMailAgentConnected(preferences);
   preferences.instagram_connected = isInstagramConnected(preferences);
   return preferences;
+}
+
+function hasLegacySensitiveStorage(row: CustomerPreferencesRow): boolean {
+  return (
+    hasLegacyPlaintext(row.docu_app_password) ||
+    hasLegacyPlaintext(row.docu_api_key) ||
+    hasLegacyPlaintext(row.docu_access_token) ||
+    hasLegacyPlaintext(row.mail_password) ||
+    hasLegacyPlaintext(row.instagram_password) ||
+    hasLegacyPlaintext(row.instagram_user_access_token) ||
+    hasLegacyPlaintext(row.integration_profiles)
+  );
+}
+
+function persistProtectedPreferences(userId: number, preferences: CustomerPreferences): void {
+  getDb()
+    .prepare(
+      `UPDATE customer_preferences
+       SET docu_app_password = ?,
+           docu_api_key = ?,
+           docu_access_token = ?,
+           mail_password = ?,
+           instagram_password = ?,
+           instagram_user_access_token = ?,
+           integration_profiles = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ?`,
+    )
+    .run(
+      encryptStoredText(preferences.docu_app_password),
+      encryptStoredText(preferences.docu_api_key),
+      encryptStoredText(preferences.docu_access_token),
+      encryptStoredText(preferences.mail_password),
+      encryptStoredText(preferences.instagram_password),
+      encryptStoredText(preferences.instagram_user_access_token),
+      encryptStoredText(JSON.stringify(preferences.integration_profiles)),
+      userId,
+    );
 }
 
 export function ensureCustomerPreferences(userId: number): CustomerPreferences {
@@ -275,6 +335,9 @@ export function ensureCustomerPreferences(userId: number): CustomerPreferences {
     db.prepare('UPDATE customer_preferences SET enabled_agent_ids = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?').run(JSON.stringify(normalizedEnabled), userId);
     mapped.enabled_agent_ids = normalizedEnabled;
   }
+  if (isSecretEncryptionAvailable() && hasLegacySensitiveStorage(row)) {
+    persistProtectedPreferences(userId, mapped);
+  }
   return mapped;
 }
 
@@ -288,6 +351,7 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
     enabled_agent_ids: normalizeEnabledAgentIds(updates.enabled_agent_ids ?? current.enabled_agent_ids),
     usage_alert_enabled: typeof updates.usage_alert_enabled === 'boolean' ? updates.usage_alert_enabled : current.usage_alert_enabled,
     usage_alert_daily_tokens: Math.max(1000, Math.round(Number(updates.usage_alert_daily_tokens ?? current.usage_alert_daily_tokens ?? 50000))),
+    secure_storage_enabled: isSecretEncryptionAvailable(),
     memory_storage_mode: normalizeStorageMode(updates.memory_storage_mode ?? current.memory_storage_mode),
     memory_storage_path: normalizeText(updates.memory_storage_path ?? current.memory_storage_path),
     docu_provider: normalizeText(updates.docu_provider ?? current.docu_provider),
@@ -367,13 +431,13 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
       next.docu_provider || null,
       next.docu_root_path || null,
       next.docu_account_email || null,
-      next.docu_app_password || null,
-      next.docu_api_key || null,
-      next.docu_access_token || null,
+      encryptStoredText(next.docu_app_password),
+      encryptStoredText(next.docu_api_key),
+      encryptStoredText(next.docu_access_token),
       next.mail_provider || null,
       next.mail_display_name || null,
       next.mail_address || null,
-      next.mail_password || null,
+      encryptStoredText(next.mail_password),
       next.mail_imap_host || null,
       next.mail_imap_port,
       next.mail_smtp_host || null,
@@ -382,16 +446,52 @@ export function updateCustomerPreferences(userId: number, updates: Partial<Custo
       next.mail_pop3_port,
       next.mail_use_ssl ? 1 : 0,
       next.instagram_username || null,
-      next.instagram_password || null,
+      encryptStoredText(next.instagram_password),
       next.instagram_graph_api || null,
-      next.instagram_user_access_token || null,
+      encryptStoredText(next.instagram_user_access_token),
       next.instagram_user_id || null,
       next.facebook_page_id || null,
-      JSON.stringify(next.integration_profiles),
+      encryptStoredText(JSON.stringify(next.integration_profiles)),
       userId,
     );
 
   return next;
+}
+
+export function upsertCustomerIntegrationProfile(
+  userId: number,
+  profileId: string,
+  provider: string,
+  patch: Partial<CustomerIntegrationProfile>,
+): CustomerPreferences {
+  const current = ensureCustomerPreferences(userId);
+  const existingIndex = current.integration_profiles.findIndex((item) => item.id === profileId);
+  const nextProfiles = current.integration_profiles.slice();
+
+  if (existingIndex >= 0) {
+    nextProfiles[existingIndex] = sanitizeIntegrationProfile(
+      {
+        ...nextProfiles[existingIndex],
+        ...patch,
+        id: profileId,
+        provider: provider || nextProfiles[existingIndex].provider,
+      },
+      existingIndex,
+    );
+  } else {
+    nextProfiles.push(
+      sanitizeIntegrationProfile(
+        {
+          id: profileId,
+          provider,
+          ...patch,
+        },
+        nextProfiles.length,
+      ),
+    );
+  }
+
+  return updateCustomerPreferences(userId, { integration_profiles: nextProfiles });
 }
 
 export function getCustomerAgentBlockReason(agentId: string | undefined, preferences: CustomerPreferences): string | null {

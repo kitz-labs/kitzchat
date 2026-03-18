@@ -223,7 +223,7 @@ function RegisterCard() {
               className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
               required
             />
-            <p className="mt-1 text-[11px] text-white/50">Für die lokale Entwicklung reichen 4+ Zeichen.</p>
+            <p className="mt-1 text-[11px] text-white/50">Mindestens 10 Zeichen empfohlen und jetzt standardmaessig erforderlich.</p>
           </div>
           {error ? <p className="text-sm text-red-200 bg-red-500/10 px-3 py-2 rounded-xl">{error}</p> : null}
           <button type="submit" disabled={loading} className="w-full py-2.5 rounded-xl bg-white text-black text-sm font-semibold disabled:opacity-50">

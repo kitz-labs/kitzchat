@@ -7,8 +7,12 @@ import { CheckoutAmountPicker } from './checkout-amount-picker';
 type CustomerOnboardingProps = {
   isActivated: boolean;
   onboardingCompleted: boolean;
+  acceptedTerms: boolean;
   walletBalanceCents: number;
   onFinish: () => Promise<void> | void;
+  onAcceptTerms: () => Promise<void> | void;
+  termsLoading: boolean;
+  termsError: string | null;
   checkoutLoading: number | 'custom' | null;
   checkoutError: string | null;
   onStartCheckout: (amountCents: number, key: number | 'custom') => void;
@@ -16,9 +20,14 @@ type CustomerOnboardingProps = {
 
 const STEPS = [
   {
-    title: 'Willkommen bei Nexora',
+    title: 'Willkommen bei KitzChat',
     description: 'Hier richtest du deinen Kundenbereich Schritt fuer Schritt ein. Das Onboarding kannst du auch ohne sofortige Einzahlung abschliessen.',
     icon: Sparkles,
+  },
+  {
+    title: 'Rechtliches kurz bestaetigen',
+    description: 'Bevor du Onboarding oder Aktivierung abschliesst, bestaetigst du einmal Nutzungshinweise und Datenschutz.',
+    icon: CheckCircle2,
   },
   {
     title: 'So funktioniert dein Guthaben',
@@ -32,7 +41,19 @@ const STEPS = [
   },
 ];
 
-export function CustomerOnboarding({ isActivated, onboardingCompleted, walletBalanceCents, onFinish, checkoutLoading, checkoutError, onStartCheckout }: CustomerOnboardingProps) {
+export function CustomerOnboarding({
+  isActivated,
+  onboardingCompleted,
+  acceptedTerms,
+  walletBalanceCents,
+  onFinish,
+  onAcceptTerms,
+  termsLoading,
+  termsError,
+  checkoutLoading,
+  checkoutError,
+  onStartCheckout,
+}: CustomerOnboardingProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [customAmount, setCustomAmount] = useState('20');
 
@@ -42,6 +63,7 @@ export function CustomerOnboarding({ isActivated, onboardingCompleted, walletBal
 
   const current = STEPS[stepIndex];
   const Icon = current.icon;
+  const isTermsStep = stepIndex === 1;
   const isLastStep = stepIndex === STEPS.length - 1;
 
   return (
@@ -77,11 +99,14 @@ export function CustomerOnboarding({ isActivated, onboardingCompleted, walletBal
           </button>
         ) : (
           <div className="space-y-2">
-            <button type="button" onClick={() => void onFinish()} className="btn btn-primary text-sm inline-flex items-center gap-2">
+            <button type="button" onClick={() => void onFinish()} disabled={!acceptedTerms} className="btn btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-60">
               <CheckCircle2 size={14} /> Onboarding ohne Einzahlung abschliessen
             </button>
+            {!acceptedTerms ? (
+              <div className="text-xs text-warning">Bitte akzeptiere zuerst Nutzungshinweise und Datenschutz.</div>
+            ) : null}
 
-            {!isActivated ? (
+            {!isActivated && acceptedTerms ? (
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
                 <div className="text-sm font-medium">Danach optional Aktivierung starten</div>
                 <p className="text-xs text-muted-foreground">Wenn du direkt alle Agenten freischalten willst, waehle jetzt 10, 20, 50, 100 Euro oder deinen Wunschbetrag. Du kannst das aber jederzeit spaeter nachholen.</p>
@@ -97,6 +122,23 @@ export function CustomerOnboarding({ isActivated, onboardingCompleted, walletBal
             ) : null}
           </div>
         )}
+
+        {isTermsStep ? (
+          <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
+            <div className="text-sm font-medium">Nutzungshinweise und Datenschutz</div>
+            <p className="text-xs text-muted-foreground">
+              Bitte lies die rechtlichen Hinweise einmal durch und bestaetige sie, bevor du fortfaehrst.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a href="/nutzungshinweise" className="btn btn-ghost btn-sm">Nutzungshinweise</a>
+              <a href="/datenschutz" className="btn btn-ghost btn-sm">Datenschutz</a>
+              <button type="button" onClick={() => void onAcceptTerms()} disabled={acceptedTerms || termsLoading} className="btn btn-primary btn-sm">
+                {acceptedTerms ? 'Bereits akzeptiert' : termsLoading ? 'Speichere...' : 'Jetzt akzeptieren'}
+              </button>
+            </div>
+            {termsError ? <div className="text-xs text-destructive">{termsError}</div> : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -9,12 +9,23 @@ import {
   setAllowUserRegistration,
   setAllowWorkspaceWrite,
 } from '@/lib/settings';
+import { getSecretEncryptionSource, isSecretEncryptionAvailable } from '@/lib/secret-store';
+
+function serializeAdminSettings() {
+  const settings = readSettings();
+  return {
+    ...settings,
+    security_status: {
+      customer_secret_encryption_available: isSecretEncryptionAvailable(),
+      customer_secret_encryption_source: getSecretEncryptionSource(),
+    },
+  };
+}
 
 export async function GET(request: Request) {
   try {
     requireAdmin(request);
-    const settings = readSettings();
-    return NextResponse.json({ settings });
+    return NextResponse.json({ settings: serializeAdminSettings() });
   } catch (err) {
     const msg = (err as Error).message;
     if (msg === 'unauthorized') return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -52,8 +63,7 @@ export async function PATCH(request: Request) {
     if (typeof body.allow_stripe_write === 'boolean') {
       setAllowStripeWrite(!!body.allow_stripe_write);
     }
-    const settings = readSettings();
-    return NextResponse.json({ settings });
+    return NextResponse.json({ settings: serializeAdminSettings() });
   } catch (err) {
     const msg = (err as Error).message;
     if (msg === 'unauthorized') return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

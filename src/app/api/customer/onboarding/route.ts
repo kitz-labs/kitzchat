@@ -7,6 +7,9 @@ export async function POST(request: Request) {
     if (user.account_type !== 'customer') {
       return NextResponse.json({ error: 'Customer access required' }, { status: 403 });
     }
+    if (!user.accepted_terms_at) {
+      return NextResponse.json({ error: 'Bitte akzeptiere zuerst Nutzungshinweise und Datenschutz.' }, { status: 409 });
+    }
 
     completeCustomerOnboarding(user.id);
     return NextResponse.json({ ok: true });

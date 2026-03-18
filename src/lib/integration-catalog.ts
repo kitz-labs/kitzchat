@@ -22,6 +22,11 @@ export type CustomerIntegrationProfile = {
   username: string;
   password: string;
   notes: string;
+  connectionType: 'manual' | 'oauth';
+  oauthProvider: string;
+  oauthConnectedAt: string;
+  oauthStatus: 'disconnected' | 'connected' | 'expired';
+  oauthScopes: string[];
   connected: boolean;
 };
 
@@ -33,6 +38,8 @@ export type IntegrationProviderDefinition = {
   credentialHint: string;
   popular: boolean;
   agentIds: string[];
+  oauthSupported?: boolean;
+  oauthProvider?: string;
 };
 
 export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
@@ -53,6 +60,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'OAuth-Token oder Service-Account',
     popular: true,
     agentIds: ['docu-agent', 'athena', 'kb-manager'],
+    oauthSupported: true,
+    oauthProvider: 'google-workspace',
   },
   {
     id: 'google-calendar',
@@ -62,6 +71,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'OAuth-Token',
     popular: true,
     agentIds: ['main', 'support-concierge', 'apollo'],
+    oauthSupported: true,
+    oauthProvider: 'google-workspace',
   },
   {
     id: 'google-sheets',
@@ -71,6 +82,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'OAuth-Token oder Service-Account',
     popular: true,
     agentIds: ['metis', 'athena', 'apollo', 'marketing'],
+    oauthSupported: true,
+    oauthProvider: 'google-workspace',
   },
   {
     id: 'google-analytics',
@@ -80,6 +93,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'Measurement-API oder OAuth-Token',
     popular: true,
     agentIds: ['metis', 'marketing', 'campaign-studio'],
+    oauthSupported: true,
+    oauthProvider: 'google-workspace',
   },
   {
     id: 'booking-com',
@@ -134,6 +149,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'OAuth-Token',
     popular: true,
     agentIds: ['docu-agent', 'kb-manager', 'main'],
+    oauthSupported: true,
+    oauthProvider: 'microsoft-graph',
   },
   {
     id: 'whatsapp-business',
@@ -152,6 +169,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'Bot Token',
     popular: true,
     agentIds: ['main', 'kb-manager', 'metis', 'support-concierge'],
+    oauthSupported: true,
+    oauthProvider: 'slack',
   },
   {
     id: 'hubspot',
@@ -161,6 +180,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'Private App Token',
     popular: true,
     agentIds: ['apollo', 'support-concierge', 'main'],
+    oauthSupported: true,
+    oauthProvider: 'hubspot',
   },
   {
     id: 'salesforce',
@@ -260,6 +281,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'OAuth-Token',
     popular: true,
     agentIds: ['metis', 'main'],
+    oauthSupported: true,
+    oauthProvider: 'xero',
   },
   {
     id: 'datev',
@@ -305,6 +328,8 @@ export const INTEGRATION_CATALOG: IntegrationProviderDefinition[] = [
     credentialHint: 'Personal Access Token',
     popular: true,
     agentIds: ['codepilot', 'athena', 'main'],
+    oauthSupported: true,
+    oauthProvider: 'github',
   },
   {
     id: 'gitlab',
@@ -322,6 +347,9 @@ export function getIntegrationProvider(id: string): IntegrationProviderDefinitio
 }
 
 export function isIntegrationProfileConnected(profile: Omit<CustomerIntegrationProfile, 'connected'> | CustomerIntegrationProfile): boolean {
+  if (profile.connectionType === 'oauth') {
+    return profile.oauthStatus === 'connected' && Boolean(profile.oauthProvider.trim());
+  }
   return Boolean(
     profile.apiKey.trim() ||
       profile.accessToken.trim() ||
@@ -348,6 +376,11 @@ export function sanitizeIntegrationProfile(profile: Partial<CustomerIntegrationP
     username: typeof profile.username === 'string' ? profile.username.trim() : '',
     password: typeof profile.password === 'string' ? profile.password.trim() : '',
     notes: typeof profile.notes === 'string' ? profile.notes.trim() : '',
+    connectionType: profile.connectionType === 'oauth' ? 'oauth' : 'manual',
+    oauthProvider: typeof profile.oauthProvider === 'string' ? profile.oauthProvider.trim() : (getIntegrationProvider(provider)?.oauthProvider || ''),
+    oauthConnectedAt: typeof profile.oauthConnectedAt === 'string' ? profile.oauthConnectedAt.trim() : '',
+    oauthStatus: profile.oauthStatus === 'connected' || profile.oauthStatus === 'expired' ? profile.oauthStatus : 'disconnected',
+    oauthScopes: Array.isArray(profile.oauthScopes) ? profile.oauthScopes.filter((scope): scope is string => typeof scope === 'string' && scope.trim().length > 0).map((scope) => scope.trim()) : [],
     connected: false,
   };
   sanitized.connected = isIntegrationProfileConnected(sanitized);

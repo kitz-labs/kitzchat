@@ -9,6 +9,7 @@ import { useAudienceGuard } from '@/hooks/use-audience-guard';
 import { normalizeWalletPayload, type WalletPayloadBase } from '@/lib/wallet-payload';
 import { CHECKOUT_PRESET_OPTIONS } from '@/lib/checkout-options';
 import { centsToCredits, creditsToCents, creditsToEur } from '@/lib/credits';
+import type { CustomerPreferences } from '@/lib/customer-preferences';
 
 type UsagePayload = {
   totals: {
@@ -31,11 +32,13 @@ type UsagePayload = {
 type MeUser = {
   username?: string;
   email?: string | null;
+  email_verified_at?: string | null;
   payment_status?: 'not_required' | 'pending' | 'paid';
   has_agent_access?: boolean;
   plan_amount_cents?: number;
   wallet_balance_cents?: number;
   onboarding_completed_at?: string | null;
+  accepted_terms_at?: string | null;
   next_topup_discount_percent?: number;
   completed_payments_count?: number;
 };
@@ -81,6 +84,13 @@ type TopupOffer = {
   marketingLabel?: string | null;
 };
 
+type PreferencesSummary = Pick<CustomerPreferences, 'secure_storage_enabled' | 'docu_connected' | 'mail_connected' | 'instagram_connected' | 'integration_profiles' | 'connected_integrations_count'>;
+
+type SupportSummary = {
+  unread_count: number;
+  latest_reply_at: string | null;
+};
+
 export function CustomerUsage() {
   const { ready, appAudience } = useAudienceGuard({ redirectAdminTo: '/' });
   const canLoadCustomerData = ready && appAudience === 'customer';
@@ -92,6 +102,10 @@ export function CustomerUsage() {
   const [wallet, setWallet] = useState<WalletPayload | null>(null);
   const [ledger, setLedger] = useState<WalletLedgerItem[]>([]);
   const [topupOffers, setTopupOffers] = useState<TopupOffer[]>([]);
+  const [preferences, setPreferences] = useState<PreferencesSummary | null>(null);
+  const [supportSummary, setSupportSummary] = useState<SupportSummary | null>(null);
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
   const [activationAmount, setActivationAmount] = useState('20');
   const [customAmount, setCustomAmount] = useState('35');
   const [checkoutLoading, setCheckoutLoading] = useState<number | 'custom' | null>(null);
@@ -128,6 +142,19 @@ export function CustomerUsage() {
     setTopupOffers(Array.isArray(payload?.offers) ? payload.offers : []);
   }
 
+  async function loadPreferences() {
+    const payload = await fetch('/api/customer/preferences', { cache: 'no-store' }).then((response) => response.json());
+    setPreferences(payload?.preferences || null);
+  }
+
+  async function loadSupportSummary() {
+    const payload = await fetch('/api/customer/support/summary', { cache: 'no-store' }).then((response) => response.json());
+    setSupportSummary({
+      unread_count: Number(payload?.unread_count ?? 0),
+      latest_reply_at: typeof payload?.latest_reply_at === 'string' ? payload.latest_reply_at : null,
+    });
+  }
+
   useEffect(() => {
     if (!canLoadCustomerData) return;
     loadUsage().catch(() => setUsage(null));
@@ -136,13 +163,15 @@ export function CustomerUsage() {
     loadWallet().catch(() => setWallet(null));
     loadLedger().catch(() => setLedger([]));
     loadTopupOffers().catch(() => setTopupOffers([]));
+    loadPreferences().catch(() => setPreferences(null));
+    loadSupportSummary().catch(() => setSupportSummary(null));
   }, [canLoadCustomerData]);
 
   useCustomerBillingSync({
     enabled: canLoadCustomerData,
     onConfirmed: async () => {
       setConfirmingPayment(true);
-      await Promise.all([loadUsage(), loadMe(), loadInvoices(), loadWallet(), loadLedger(), loadTopupOffers()]);
+      await Promise.all([loadUsage(), loadMe(), loadInvoices(), loadWallet(), loadLedger(), loadTopupOffers(), loadPreferences(), loadSupportSummary()]);
       setConfirmingPayment(false);
     },
   });
@@ -158,7 +187,7 @@ export function CustomerUsage() {
         return;
       }
       setConfirmingPayment(true);
-      Promise.all([loadUsage(), loadMe(), loadInvoices(), loadWallet(), loadLedger(), loadTopupOffers()])
+      Promise.all([loadUsage(), loadMe(), loadInvoices(), loadWallet(), loadLedger(), loadTopupOffers(), loadPreferences(), loadSupportSummary()])
         .catch(() => {})
         .finally(() => setConfirmingPayment(false));
     }
@@ -178,11 +207,41 @@ export function CustomerUsage() {
   const hasAccess = Boolean(me?.has_agent_access) || walletCents > 0;
   const isActivated = me?.payment_status === 'paid' || walletCents > 0;
   const nextTopupDiscountPercent = Math.max(0, Math.round(me?.next_topup_discount_percent ?? 0));
+  const averageDailySpendCents = spentCents > 0 ? Math.max(1, Math.round(spentCents / 30)) : todayCents > 0 ? todayCents : 0;
+  const projectedDaysLeft = averageDailySpendCents > 0 ? Math.max(0, Math.floor(walletCents / averageDailySpendCents)) : null;
+  const forecastTone = walletCents <= 0 || wallet?.lowBalanceWarning
+    ? 'warning'
+    : projectedDaysLeft == null || projectedDaysLeft >= 21
+      ? 'success'
+      : projectedDaysLeft >= 7
+        ? 'info'
+        : 'warning';
+  const activationChecklist = [
+    { label: 'E-Mail bestaetigt', done: Boolean(me?.email_verified_at) || !me?.email },
+    { label: 'Hinweise akzeptiert', done: Boolean(me?.accepted_terms_at) },
+    { label: 'Onboarding abgeschlossen', done: Boolean(me?.onboarding_completed_at) },
+    { label: 'Billing aktiv', done: isActivated },
+    { label: 'Agentenzugang aktiv', done: hasAccess },
+  ];
+  const readinessChecklist = [
+    { label: 'Dokumente', done: Boolean(preferences?.docu_connected) },
+    { label: 'Mail', done: Boolean(preferences?.mail_connected) },
+    { label: 'Instagram', done: Boolean(preferences?.instagram_connected) },
+    { label: 'Weitere Integrationen', done: Boolean((preferences?.connected_integrations_count ?? 0) > 0) },
+  ];
+  const setupRecommendations = [
+    !me?.accepted_terms_at ? 'Rechtliche Hinweise abschliessen' : null,
+    me?.email && !me?.email_verified_at ? 'E-Mail-Verifizierung pruefen' : null,
+    !me?.onboarding_completed_at ? 'Onboarding finalisieren' : null,
+    !isActivated ? 'Erste Aktivierung oder Einzahlung starten' : null,
+    !preferences?.mail_connected ? 'MailAgent verbinden' : null,
+  ].filter(Boolean) as string[];
   const onboardingSteps = [
     { label: 'Onboarding', value: Boolean(me?.onboarding_completed_at) ? 1 : 0, color: '#0f766e' },
     { label: 'Aktivierung', value: isActivated ? 1 : 0, color: '#2563eb' },
     { label: 'Rabatt vorbereitet', value: nextTopupDiscountPercent > 0 || (me?.completed_payments_count ?? 0) > 1 ? 1 : 0, color: '#f59e0b' },
   ];
+  const readinessDoneCount = readinessChecklist.filter((item) => item.done).length;
   const checkoutPresetOptions = useMemo(() => {
     const configuredOptions = topupOffers
       .slice()
@@ -211,10 +270,28 @@ export function CustomerUsage() {
   async function completeOnboarding() {
     setSavingOnboarding(true);
     try {
-      await fetch('/api/customer/onboarding', { method: 'POST' });
+      const response = await fetch('/api/customer/onboarding', { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(payload?.error || 'Onboarding konnte nicht gespeichert werden'));
       await loadMe();
+      setTermsError(null);
     } finally {
       setSavingOnboarding(false);
+    }
+  }
+
+  async function acceptTerms() {
+    setTermsLoading(true);
+    setTermsError(null);
+    try {
+      const response = await fetch('/api/customer/terms', { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(payload?.error || 'Rechtliche Hinweise konnten nicht gespeichert werden'));
+      await loadMe();
+    } catch (error) {
+      setTermsError(error instanceof Error ? error.message : 'Rechtliche Hinweise konnten nicht gespeichert werden');
+    } finally {
+      setTermsLoading(false);
     }
   }
 
@@ -276,6 +353,31 @@ export function CustomerUsage() {
         <p className="text-xs text-muted-foreground">Verwalte Aktivierung, Guthaben, Rabatt, Onboarding und Rechnungen zentral an einem Ort.</p>
       </div>
 
+      <div className="grid gap-3 lg:hidden">
+        <div className="rounded-[1.6rem] border border-border/70 bg-card/95 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Mobile Control Center</div>
+              <div className="mt-1 text-base font-semibold text-foreground">
+                {isActivated ? 'Konto aktiv und einsatzbereit' : 'Konto noch in Einrichtung'}
+              </div>
+            </div>
+            <span className={`status-pill ${isActivated ? 'status-ok' : 'status-warn'}`}>
+              {isActivated ? 'aktiv' : 'setup'}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <MetricCard icon={<Wallet size={14} />} label="Wallet" value={`€${(walletCents / 100).toFixed(2)}`} hint="Aktuell" />
+            <MetricCard icon={<CheckCircle2 size={14} />} label="Readiness" value={`${readinessDoneCount}/${readinessChecklist.length}`} hint="Verbunden" />
+            <MetricCard icon={<CreditCard size={14} />} label="Support" value={supportSummary?.unread_count ? `${supportSummary.unread_count}` : '0'} hint="Offen" />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <a href="#topup" className="btn btn-primary w-full text-sm">Top-up starten</a>
+            <a href="/settings#integrations" className="btn btn-ghost w-full text-sm">Integrationen</a>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="stat-tile">
           <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Guthaben</div>
@@ -300,8 +402,12 @@ export function CustomerUsage() {
       <CustomerOnboarding
         isActivated={isActivated}
         onboardingCompleted={Boolean(me?.onboarding_completed_at)}
+        acceptedTerms={Boolean(me?.accepted_terms_at)}
         walletBalanceCents={loadedCents}
         onFinish={completeOnboarding}
+        onAcceptTerms={acceptTerms}
+        termsLoading={termsLoading}
+        termsError={termsError}
         checkoutLoading={checkoutLoading}
         checkoutError={checkoutError}
         onStartCheckout={startActivation}
@@ -318,6 +424,83 @@ export function CustomerUsage() {
         </div>
       ) : null}
 
+      <div className="grid gap-4 xl:grid-cols-3" id="activation">
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="text-sm font-medium">Aktivierungsstatus</h2>
+              <p className="text-xs text-muted-foreground">Klare Checkliste fuer Zugang, Rechtliches und Startbereitschaft.</p>
+            </div>
+          </div>
+          <div className="panel-body space-y-3">
+            {activationChecklist.map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/10 px-4 py-3 text-sm">
+                <span>{item.label}</span>
+                <span className={`inline-flex items-center gap-1 text-xs font-medium ${item.done ? 'text-success' : 'text-warning'}`}>
+                  <CheckCircle2 size={14} /> {item.done ? 'Erfuellt' : 'Offen'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="text-sm font-medium">Wallet-Prognose</h2>
+              <p className="text-xs text-muted-foreground">Einfache Vorschau aus verfuegbarem Guthaben und 30-Tage-Verbrauch.</p>
+            </div>
+          </div>
+          <div className="panel-body space-y-4">
+            <div className={`rounded-2xl border px-4 py-3 ${forecastTone === 'success' ? 'border-success/30 bg-success/5' : forecastTone === 'info' ? 'border-primary/30 bg-primary/5' : 'border-warning/40 bg-warning/5'}`}>
+              <div className="text-sm font-medium">
+                {projectedDaysLeft == null
+                  ? 'Noch zu wenig Verbrauch fuer eine Prognose'
+                  : projectedDaysLeft >= 21
+                    ? 'Guthaben wirkt stabil'
+                    : projectedDaysLeft >= 7
+                      ? 'Guthaben beobachten'
+                      : 'Top-up bald empfohlen'}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {projectedDaysLeft == null
+                  ? 'Sobald mehr Verbrauchsdaten vorliegen, schaetzen wir die Restlaufzeit automatisch.'
+                  : `Bei deinem aktuellen 30-Tage-Schnitt reicht das Wallet voraussichtlich noch etwa ${projectedDaysLeft} Tage.`}
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MetricCard icon={<Wallet size={14} />} label="Wallet" value={`€${(walletCents / 100).toFixed(2)}`} hint="Aktuell verfuegbar" />
+              <MetricCard icon={<GaugeCircle size={14} />} label="Tagesschnitt" value={`€${(averageDailySpendCents / 100).toFixed(2)}`} hint="Aus 30-Tage-Verbrauch" />
+            </div>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="text-sm font-medium">Integrations-Readiness</h2>
+              <p className="text-xs text-muted-foreground">Zeigt dir sofort, welche Agenten-Kontexte schon einsatzbereit sind.</p>
+            </div>
+          </div>
+          <div className="panel-body space-y-3">
+            {readinessChecklist.map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/10 px-4 py-3 text-sm">
+                <span>{item.label}</span>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${item.done ? 'bg-success/15 text-success' : 'bg-warning/10 text-warning'}`}>
+                  {item.done ? 'Bereit' : 'Offen'}
+                </span>
+              </div>
+            ))}
+            <div className="rounded-2xl border border-border/60 bg-muted/10 px-4 py-3 text-xs text-muted-foreground">
+              {supportSummary?.unread_count
+                ? `Support hat ${supportSummary.unread_count} ungelesene Antwort(en) fuer dich bereit.`
+                : 'Aktuell keine offenen Support-Antworten.'}
+            </div>
+            <a href="/settings" className="btn btn-ghost text-sm w-full">Integrationen und Konto oeffnen</a>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1.25fr_0.95fr]">
         <div className="panel">
           <div className="panel-header flex items-center justify-between gap-3 flex-wrap">
@@ -330,7 +513,7 @@ export function CustomerUsage() {
             </div>
           </div>
 
-          <div className="panel-body space-y-5">
+          <div className="panel-body space-y-5" id="topup">
             <div className="grid gap-4 md:grid-cols-3">
               <MetricCard icon={<CreditCard size={14} />} label="Aktivierung" value={`€${(planCents / 100).toFixed(2)}`} hint="Einmalige Freischaltung des Kundenkontos" />
               <MetricCard icon={<Wallet size={14} />} label="Verbrauch 30 Tage" value={`€${(spentCents / 100).toFixed(2)}`} hint="Auf Basis der erfassten Chat-Nutzung" />
@@ -435,6 +618,11 @@ export function CustomerUsage() {
                   {savingOnboarding ? 'Wird gespeichert...' : 'Onboarding ohne Einzahlung abschliessen'}
                 </button>
               ) : null}
+              {setupRecommendations.length > 0 ? (
+                <div className="rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-xs text-warning">
+                  Naechste sinnvolle Schritte: {setupRecommendations.join(' · ')}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -452,11 +640,19 @@ export function CustomerUsage() {
                 </div>
                 <div className="mt-2 text-sm font-medium">{me?.username || 'Kundenkonto'}</div>
                 <div className="mt-1 text-xs text-muted-foreground">{me?.email || 'Keine E-Mail-Adresse hinterlegt'}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {me?.email
+                    ? me?.email_verified_at
+                      ? 'E-Mail bestaetigt'
+                      : 'E-Mail noch nicht bestaetigt'
+                    : 'Keine E-Mail fuer Verifizierung hinterlegt'}
+                </div>
               </div>
               <div className="rounded-2xl border border-border/60 bg-muted/10 p-4">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Abrechnungsstatus</div>
                 <div className="mt-2 text-sm font-medium">{hasAccess ? 'Kundenzugang aktiv' : 'Noch nicht aktiviert'}</div>
                 <div className="mt-1 text-xs text-muted-foreground">Geladenes Guthaben: €{(walletCents / 100).toFixed(2)}</div>
+                <div className="mt-1 text-xs text-muted-foreground">Integrationen bereit: {(readinessChecklist.filter((item) => item.done).length)}/{readinessChecklist.length}</div>
               </div>
             </div>
           </div>

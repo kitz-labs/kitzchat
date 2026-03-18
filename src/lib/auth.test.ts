@@ -118,13 +118,13 @@ test('seedAdmin allows short admin password in production mode without seeding t
 
   (process.env as any).NODE_ENV = 'production';
   process.env.AUTH_USER = 'ceo';
-  process.env.AUTH_PASS = 'widauer';
+  process.env.AUTH_PASS = 'widauer-secure';
   delete process.env.AUTH_MIN_PASSWORD_LENGTH;
   delete process.env.KITZCHAT_SEED_TEST_CUSTOMER;
 
   assert.doesNotThrow(() => seedAdmin());
 
-  const admin = authenticate('ceo', 'widauer');
+  const admin = authenticate('ceo', 'widauer-secure');
   const testUser = authenticate('test', 'test');
   assert.ok(admin);
   assert.equal(admin.username, 'ceo');
@@ -215,7 +215,7 @@ test('reviewing login requests clears stale pending error metadata', () => {
 });
 
 test('setUserWalletBalanceCents updates wallet without changing payment status', () => {
-  const customer = createCustomerUserWithEmail('alice', 'secret', { email: 'alice@example.com' });
+  const customer = createCustomerUserWithEmail('alice', 'secret-1234', { email: 'alice@example.com' });
   assert.equal(customer.payment_status, 'pending');
   assert.equal(customer.wallet_balance_cents, 0);
 

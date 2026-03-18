@@ -1,5 +1,5 @@
 const PRIVACY_POINTS = [
-  'Wir sehen keine privaten Inhalte aktiv mit. Nexora ist darauf ausgelegt, Kundendaten nur fuer den technischen Betrieb und die Bereitstellung der Funktionen zu verarbeiten.',
+  'Wir sehen keine privaten Inhalte aktiv mit. KitzChat ist darauf ausgelegt, Kundendaten nur fuer den technischen Betrieb und die Bereitstellung der Funktionen zu verarbeiten.',
   'Private Angaben, Kontodaten, Uploads und Integrationsdaten werden nicht fuer fremde Zwecke verkauft oder weitergegeben.',
   'Wir greifen nicht ohne Anlass manuell in private Kundendaten ein. Zugriff erfolgt nur, wenn dies fuer Support, Sicherheit, Missbrauchspruefung oder gesetzliche Pflichten erforderlich ist.',
   'Bei Missbrauch, akuter Gefahr oder rechtlicher Verpflichtung koennen relevante Daten gesichert, geprueft und an zustaendige Stellen weitergegeben werden.',
@@ -7,7 +7,7 @@ const PRIVACY_POINTS = [
 ];
 
 const BUSINESS_POINTS = [
-  'Nexora wird von AI Kitz Art & Labs als eingetragenes Unternehmen betrieben.',
+  'KitzChat wird von AI Kitz Art & Labs als eingetragenes Unternehmen betrieben.',
   'Wir verarbeiten nur die Daten, die fuer Konto, Abrechnung, Support, Uploads, Integrationen und den technischen Betrieb der Webapp erforderlich sind.',
   'Sicherheits- und Betriebsprotokolle koennen gespeichert werden, um Missbrauch zu verhindern, Fehler zu analysieren und den Dienst zu schuetzen.',
   'Wenn Sie Fragen zu Datenschutz, Konto oder Datenverarbeitung haben, kontaktieren Sie uns unter ceo@aikitz.at.',
@@ -19,7 +19,7 @@ export default function DatenschutzPage() {
       <div className="space-y-2">
         <h1 className="text-xl font-semibold">Datenschutz</h1>
         <p className="text-sm text-muted-foreground">
-          Diese Datenschutzhinweise erklaeren in knapper Form, wie Nexora mit Kunden- und Systemdaten umgeht.
+          Diese Datenschutzhinweise erklaeren in knapper Form, wie KitzChat mit Kunden- und Systemdaten umgeht.
         </p>
       </div>
 

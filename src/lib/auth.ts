@@ -90,9 +90,9 @@ function normalizePaymentStatus(value: unknown, fallback: PaymentStatus = 'pendi
 function minimumPasswordLength(): number {
   const configured = Number(process.env.AUTH_MIN_PASSWORD_LENGTH);
   if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(1, Math.round(configured));
+    return Math.max(10, Math.round(configured));
   }
-  return 4;
+  return 10;
 }
 
 function assertPasswordLength(password: string): void {

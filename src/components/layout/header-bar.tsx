@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  Activity, Search, Sun, Moon, Radio, PenLine, Mail, Users, LogOut,
-  Bell, Eye, EyeOff, Check, CheckCheck, ShieldAlert, LifeBuoy,
+  Activity, Search, Sun, Moon, Monitor, Radio, PenLine, Mail, Users, LogOut,
+  Bell, Eye, EyeOff, Check, CheckCheck, ShieldAlert, LifeBuoy, PanelLeft, Sparkles,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState, useRef } from 'react';
@@ -28,7 +28,7 @@ interface HeaderUser {
   wallet_balance_cents?: number;
 }
 
-export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUser | null; appAudience: AppAudience }) {
+export function HeaderBar({ currentUser, appAudience, navCollapsed = false, onToggleNav }: { currentUser: HeaderUser | null; appAudience: AppAudience; navCollapsed?: boolean; onToggleNav?: () => void }) {
   const { feedOpen, toggleFeed, realOnly, toggleRealOnly } = useDashboard();
   const customerView = appAudience === 'customer';
 
@@ -46,8 +46,8 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
             <BrandLogo compact />
           </div>
           <div className="flex items-baseline gap-2 min-w-0">
-            <span className="text-sm font-semibold tracking-tight text-foreground">Nexora</span>
-            <span className="hidden sm:inline truncate text-xs text-muted-foreground">ein Chat Assistent den du lieben wirst.</span>
+            <span className="text-sm font-semibold tracking-tight text-foreground">KitzChat</span>
+            <span className="hidden sm:inline truncate text-xs text-muted-foreground">dein AI Workspace fuer Chat, Agenten und Support.</span>
           </div>
         </div>
 
@@ -64,6 +64,14 @@ export function HeaderBar({ currentUser, appAudience }: { currentUser: HeaderUse
   return (
     <header className="fixed top-0 left-0 right-0 header-height bg-card/90 backdrop-blur-sm border-b border-border/70 flex items-center justify-between px-3 sm:px-4 z-50">
       <div className="flex items-center gap-2.5 min-w-0">
+        <button
+          type="button"
+          onClick={onToggleNav}
+          className="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          title={navCollapsed ? 'Seitenleiste erweitern' : 'Seitenleiste einklappen'}
+        >
+          <PanelLeft size={16} />
+        </button>
         <div className="md:hidden">
           <BrandLogo compact />
         </div>
@@ -335,17 +343,62 @@ function SearchTrigger() {
 }
 
 function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  const currentTheme = theme === 'dark' ? 'dark' : 'light';
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const options = [
+    { value: 'light', label: 'Light', icon: Sun },
+    { value: 'dark', label: 'Dark', icon: Moon },
+    { value: 'system', label: 'System', icon: Monitor },
+  ] as const;
+  const activeValue = theme === 'system' ? 'system' : resolvedTheme === 'dark' ? 'dark' : 'light';
+  const ActiveIcon = activeValue === 'dark' ? Moon : activeValue === 'light' ? Sun : Monitor;
 
   return (
-    <button
-      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-      onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
-      title={`Switch to ${currentTheme === 'dark' ? 'light' : 'dark'} mode`}
-    >
-      {currentTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-    </button>
+    <div className="relative" ref={ref}>
+      <button
+        className="h-9 inline-flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+        onClick={() => setOpen((current) => !current)}
+        title="Theme waehlen"
+      >
+        <ActiveIcon size={15} />
+        <span className="hidden sm:inline text-xs font-medium">{theme === 'system' ? 'System' : activeValue === 'dark' ? 'Dark' : 'Light'}</span>
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-full mt-2 w-40 rounded-2xl border border-border/70 bg-card/95 p-2 shadow-xl shadow-black/10 backdrop-blur-xl animate-slide-in z-50">
+          {options.map((option) => {
+            const Icon = option.icon;
+            const active = theme === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  setTheme(option.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${active ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}
+              >
+                <Icon size={15} />
+                <span className="flex-1 text-left">{option.label}</span>
+                {active ? <Sparkles size={13} /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

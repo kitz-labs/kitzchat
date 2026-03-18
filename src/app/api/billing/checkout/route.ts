@@ -20,6 +20,9 @@ export async function POST(request: Request) {
     if (user.role === 'admin' || user.role === 'editor') {
       return NextResponse.json({ error: 'Billing is not required for admin accounts' }, { status: 400 });
     }
+    if (!user.accepted_terms_at) {
+      return NextResponse.json({ error: 'Bitte akzeptiere zuerst Nutzungshinweise und Datenschutz.' }, { status: 409 });
+    }
     if (checkoutType === 'activation' && userHasAgentAccess(user)) {
       return NextResponse.json({ ok: true, status: 'paid', redirect_url: null });
     }
