@@ -153,8 +153,15 @@ export function CustomerWebchat() {
     { interval: 15_000, enabled: Boolean(me?.id) },
   );
 
+  const enabledAgentIds = useMemo(() => {
+    const explicit = Array.isArray(preferences.enabled_agent_ids) ? preferences.enabled_agent_ids.filter(Boolean) : [];
+    if (explicit.length > 0) return new Set(explicit);
+    // If the customer has no explicit preferences yet (fresh account), default to all available agents.
+    return new Set(Array.isArray(agents) ? agents.map((a) => a.id) : []);
+  }, [agents, preferences.enabled_agent_ids]);
+
   const visibleAgents = Array.isArray(agents)
-    ? agents.filter((agent) => preferences.enabled_agent_ids.includes(agent.id) && (agent.id !== 'insta-agent' || preferences.instagram_connected))
+    ? agents.filter((agent) => enabledAgentIds.has(agent.id) && (agent.id !== 'insta-agent' || preferences.instagram_connected))
     : [];
 
   const allConversations = conversationPayload?.conversations || [];
@@ -206,9 +213,7 @@ export function CustomerWebchat() {
       const template = url.searchParams.get('template');
       const promptParam = url.searchParams.get('prompt');
 
-      if (agentParam && visibleAgents.some((a) => a.id === agentParam)) {
-        setActiveAgent(agentParam);
-      }
+      if (agentParam && enabledAgentIds.has(agentParam)) setActiveAgent(agentParam);
 
       const templates: Record<string, string> = {
         quickstart: 'Ich will heute ein klares Ergebnis: (1) Ziel, (2) Plan in 5 Schritten, (3) sofortiger erster Output. Frage maximal 1 Rueckfrage und starte dann.',
@@ -226,7 +231,7 @@ export function CustomerWebchat() {
     } catch {
       // ignore
     }
-  }, [hasAccess, visibleAgents, input]);
+  }, [hasAccess, enabledAgentIds, input]);
 
   useEffect(() => {
     if (!awaitingAgentReply || !lastSentAtSec) return;
@@ -515,18 +520,21 @@ export function CustomerWebchat() {
               </div>
             </div>
           </div>
-        ) : onboardingOpen ? (
-          <div className="panel-body flex-1 flex items-center justify-center">
-            <div className="max-w-lg rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold">Schliesse dein Kunden-Onboarding ab</h3>
-                <p className="mt-2 text-sm text-muted-foreground">Oeffne Guthaben, pruefe deinen Guthabenstand und schliesse danach dein Onboarding ab.</p>
-              </div>
-              <a href="/usage-token" className="btn btn-primary text-sm">Guthaben oeffnen</a>
-            </div>
-          </div>
         ) : (
-          <div className="grid flex-1 min-h-0 gap-0 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="flex-1 min-h-0 flex flex-col">
+            {onboardingOpen ? (
+              <div className="mx-6 mt-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-medium">Tipp: Onboarding abschliessen</div>
+                  <a href="/usage-token" className="btn btn-primary btn-sm">Guthaben &amp; Onboarding</a>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Du kannst schon chatten – mit abgeschlossenem Onboarding werden deine Ergebnisse noch stärker.
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid flex-1 min-h-0 gap-0 xl:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="border-b border-border/50 xl:border-b-0 xl:border-r xl:border-border/50 flex flex-col min-h-0 bg-surface-1/35">
               <div className="flex items-center justify-between gap-2 border-b border-border/50 px-4 py-3 bg-surface-1/60">
                 <div>
@@ -696,11 +704,12 @@ export function CustomerWebchat() {
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
+	              </div>
+	            </div>
+	          </div>
+	          </div>
+	        )}
+	      </section>
     </div>
   );
 }
