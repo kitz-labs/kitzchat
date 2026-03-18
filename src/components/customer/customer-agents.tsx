@@ -46,15 +46,6 @@ type Preferences = {
 };
 
 function getBlockedReason(agentId: string | undefined, preferences: Preferences): string | null {
-  if (agentId === 'insta-agent' && !preferences.instagram_connected) {
-    return 'Der Insta Agent wird erst aktiv, wenn alle Instagram-Zugangsdaten in den Einstellungen gespeichert sind';
-  }
-  if (agentId === 'docu-agent' && !preferences.docu_connected) {
-    return 'Der DocuAgent wird erst aktiv, wenn in den Einstellungen ein Speicherziel oder eine Cloud-Verbindung gespeichert ist';
-  }
-  if (agentId === 'mail-agent' && !preferences.mail_connected) {
-    return 'Der MailAgent wird erst aktiv, wenn ein Mail-Konto in den Einstellungen verbunden wurde';
-  }
   return null;
 }
 

@@ -78,14 +78,33 @@ export async function POST(request: NextRequest) {
       '- Wenn eine Aktion mit Risiko verbunden ist, schlage zuerst einen sicheren Vorschlag vor.',
       '- Keine Geheimnisse, keine Tokens, keine Passwoerter ausgeben.',
       '',
+      'Optional: Wenn du eine sichere, whitelisted Admin-Aktion vorschlagen willst, fuege exakt EINEN JSON-Block hinzu, eingeschlossen von',
+      '<maestro_actions> ... </maestro_actions>.',
+      'Erlaubte Actions (type):',
+      '- settings.merge (payload: { patch: object }) -> merged in app-settings.json',
+      'Keine anderen Action-Typen verwenden. Keine Shell-Commands, kein Code-Write.',
+      '',
       '# USER',
       content,
     ].join('\n');
-    const result = await requestOpenAiResponse(maestroPrompt, 'gpt-5.4', {
-      temperature: 0.2,
-      maxOutputTokens: 900,
-    });
-    const responseText = result.answer || '';
+    const responseText = await (async () => {
+      try {
+        const result = await requestOpenAiResponse(maestroPrompt, 'gpt-5.4', {
+          temperature: 0.2,
+          maxOutputTokens: 900,
+        });
+        return result.answer || '';
+      } catch (err) {
+        const msg = String((err as Error)?.message || err || '').trim();
+        return [
+          'MAESTRO konnte OpenAI aktuell nicht erreichen.',
+          '',
+          msg ? `Fehler: ${msg}` : 'Fehler: Unbekannt',
+          '',
+          'Naechster Schritt (sicher): Bitte pruefe, ob OPENAI_API_KEY oder OPENAI_ADMIN_KEY im Container gesetzt ist und der Key Zugriff auf /v1/responses hat.',
+        ].join('\n');
+      }
+    })();
 
     if (responseText) {
       db.prepare(
