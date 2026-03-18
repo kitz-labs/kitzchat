@@ -440,8 +440,22 @@ export function seedAdmin(): void {
     if (configuredUsername.length < 3) {
       throw new Error('AUTH_USER must be at least 3 characters');
     }
-    const configuredUser = db.prepare('SELECT id FROM users WHERE username = ?').get(configuredUsername) as { id?: number } | undefined;
+    const configuredUser = db
+      .prepare("SELECT id, role, account_type, payment_status FROM users WHERE username = ? AND deleted_at IS NULL")
+      .get(configuredUsername) as
+      | { id?: number; role?: UserRole | null; account_type?: AccountType | null; payment_status?: PaymentStatus | null }
+      | undefined;
     if (configuredUser?.id) {
+      // Ensure the configured operator account can always access admin endpoints, even if it was previously created via
+      // customer registration or had inconsistent fields.
+      const role = (configuredUser.role || 'admin') as UserRole;
+      const accountType = (configuredUser.account_type || 'staff') as AccountType;
+      const paymentStatus = (configuredUser.payment_status || 'not_required') as PaymentStatus;
+      if (role !== 'admin' || accountType !== 'staff' || paymentStatus !== 'not_required') {
+        db.prepare("UPDATE users SET role = 'admin', account_type = 'staff', payment_status = 'not_required' WHERE id = ?").run(
+          configuredUser.id,
+        );
+      }
       if (seedTestCustomer) seedLocalTestCustomer();
       return;
     }
