@@ -45,6 +45,11 @@ type ChatMessage = {
     credits_charged?: number;
     remaining_balance?: number;
     display_mode?: string;
+    mail_draft?: {
+      to: string[];
+      subject: string;
+      text: string;
+    };
   } | null;
 };
 
@@ -83,6 +88,8 @@ export function CustomerWebchat() {
   const [preferences, setPreferences] = useState<Preferences>({ enabled_agent_ids: [], instagram_connected: false });
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [mailSendingId, setMailSendingId] = useState<number | null>(null);
+  const [mailSendError, setMailSendError] = useState<string | null>(null);
   const [wallet, setWallet] = useState<WalletSnapshot | null>(null);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [quickStartOpen, setQuickStartOpen] = useState(true);
@@ -427,6 +434,27 @@ export function CustomerWebchat() {
     }
   }
 
+  async function sendDraftMail(message: ChatMessage) {
+    const draft = message?.metadata?.mail_draft;
+    if (!draft || mailSendingId) return;
+    setMailSendError(null);
+    setMailSendingId(message.id);
+    try {
+      const response = await fetch('/api/customer/mail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: draft.to, subject: draft.subject, text: draft.text }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(String(payload?.error || 'Mail konnte nicht gesendet werden'));
+      await Promise.all([refetch(), refetchConversations()]);
+    } catch (error) {
+      setMailSendError(error instanceof Error ? error.message : 'Mail konnte nicht gesendet werden');
+    } finally {
+      setMailSendingId(null);
+    }
+  }
+
   function addFiles(fileList: FileList | null) {
     if (!fileList) return;
     setPendingFiles((current) => [...current, ...Array.from(fileList)]);
@@ -673,11 +701,28 @@ export function CustomerWebchat() {
                     messages.map((message) => {
                       const mine = me?.username === message.from_agent;
                       const attachments = Array.isArray(message.metadata?.attachments) ? message.metadata?.attachments || [] : [];
+                      const mailDraft = message.metadata?.mail_draft;
                       return (
                         <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[92%] md:max-w-[78%] rounded-2xl px-4 py-3 ${mine ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-background/40 border border-border/60 shadow-sm'}`}>
                             <div className="mb-1 text-[10px] uppercase tracking-wide opacity-70">{mine ? 'Du' : message.from_agent}</div>
                             <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
+                            {!mine && mailDraft ? (
+                              <div className="mt-3 rounded-xl border border-border/60 bg-muted/10 p-3 space-y-2">
+                                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">E-Mail Entwurf</div>
+                                <div className="text-xs text-muted-foreground">An: {mailDraft.to.join(', ')}</div>
+                                <div className="text-xs text-muted-foreground">Betreff: {mailDraft.subject}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => sendDraftMail(message)}
+                                  disabled={mailSendingId === message.id}
+                                  className="btn btn-primary btn-sm"
+                                >
+                                  {mailSendingId === message.id ? 'Sende...' : 'E-Mail senden'}
+                                </button>
+                                {mailSendError ? <div className="text-xs text-destructive">{mailSendError}</div> : null}
+                              </div>
+                            ) : null}
                             {typeof message.metadata?.credits_charged === 'number' ? (
                               <div className={`mt-2 text-[11px] ${mine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                                 €{creditsToEur(message.metadata.credits_charged || 0).toFixed(2)} · {message.metadata.display_mode || 'Auto-Modus'} · Rest €{creditsToEur(message.metadata.remaining_balance || 0).toFixed(2)}

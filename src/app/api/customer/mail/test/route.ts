@@ -1,11 +1,22 @@
 import { NextResponse } from 'next/server';
 import { ImapFlow } from 'imapflow';
-import nodemailer from 'nodemailer';
 import { requireApiUser } from '@/lib/api-auth';
 import { requireUser } from '@/lib/auth';
 import { ensureCustomerPreferences } from '@/lib/customer-preferences';
+import { createCustomerSmtpTransport, resolveCustomerSmtpConfig } from '@/lib/customer-mailer';
 
 export const dynamic = 'force-dynamic';
+
+function resolveProviderDefaults(provider: string) {
+  const id = provider.trim().toLowerCase();
+  if (id === 'gmail') {
+    return { imapHost: 'imap.gmail.com', smtpHost: 'smtp.gmail.com', imapPort: 993, smtpPort: 465, secure: true };
+  }
+  if (id === 'outlook') {
+    return { imapHost: 'outlook.office365.com', smtpHost: 'smtp.office365.com', imapPort: 993, smtpPort: 587, secure: false };
+  }
+  return { imapHost: '', smtpHost: '', imapPort: 993, smtpPort: 587, secure: false };
+}
 
 export async function POST(request: Request) {
   const auth = requireApiUser(request);
@@ -21,52 +32,66 @@ export async function POST(request: Request) {
     }
 
     const provider = preferences.mail_provider?.trim().toLowerCase();
-    const imapHost = preferences.mail_imap_host || (provider === 'gmail' ? 'imap.gmail.com' : '');
-    const smtpHost = preferences.mail_smtp_host || (provider === 'gmail' ? 'smtp.gmail.com' : '');
-    const useSsl = provider === 'gmail' ? true : Boolean(preferences.mail_use_ssl);
+    const defaults = resolveProviderDefaults(provider || '');
+    const imapHost = preferences.mail_imap_host || defaults.imapHost;
+    const smtpHost = preferences.mail_smtp_host || defaults.smtpHost;
+    const useSsl = provider === 'gmail' ? true : (provider === 'outlook' ? false : Boolean(preferences.mail_use_ssl || defaults.secure));
+
+    const results: Record<string, unknown> = {
+      checked_at: new Date().toISOString(),
+      provider: provider || 'custom',
+      imap: null,
+      smtp: null,
+    };
 
     if (imapHost) {
-      const client = new ImapFlow({
-        host: imapHost,
-        port: Number(preferences.mail_imap_port || 993),
-        secure: useSsl,
-        auth: { user: mailAddress, pass: mailPassword },
-      });
       try {
-        await client.connect();
-        const lock = await client.getMailboxLock('INBOX');
+        const client = new ImapFlow({
+          host: imapHost,
+          port: Number(preferences.mail_imap_port || defaults.imapPort || 993),
+          secure: useSsl,
+          auth: { user: mailAddress, pass: mailPassword },
+          logger: false,
+        });
         try {
-          const status = await client.status('INBOX', { messages: true, unseen: true });
-          return NextResponse.json({
-            ok: true,
-            source: 'imap',
-            messages: status.messages ?? 0,
-            unseen: status.unseen ?? 0,
-            checked_at: new Date().toISOString(),
-          });
+          await client.connect();
+          const lock = await client.getMailboxLock('INBOX');
+          try {
+            const status = await client.status('INBOX', { messages: true, unseen: true });
+            results.imap = { ok: true, host: imapHost, messages: status.messages ?? 0, unseen: status.unseen ?? 0 };
+          } finally {
+            lock.release();
+          }
         } finally {
-          lock.release();
+          try { await client.logout(); } catch {}
         }
-      } finally {
-        try { await client.logout(); } catch {}
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        results.imap = { ok: false, host: imapHost, error: message.slice(0, 240) };
       }
     }
 
     if (smtpHost) {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: Number(preferences.mail_smtp_port || 465),
-        secure: useSsl,
-        auth: { user: mailAddress, pass: mailPassword },
-      });
-      const ok = await transporter.verify().catch((error) => {
-        throw new Error(String(error));
-      });
-      return NextResponse.json({ ok: Boolean(ok), source: 'smtp', checked_at: new Date().toISOString() });
+      try {
+        const config = resolveCustomerSmtpConfig(preferences);
+        const transporter = createCustomerSmtpTransport(config);
+        await transporter.verify();
+        results.smtp = { ok: true, host: config.host, port: config.port, secure: config.secure };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        results.smtp = { ok: false, host: smtpHost, error: message.slice(0, 240) };
+      }
     }
+
+    const ok = Boolean((results.imap as any)?.ok || (results.smtp as any)?.ok);
+    if (!ok) {
+      return NextResponse.json({ ok: false, error: 'Mailbox Test fehlgeschlagen.', ...results }, { status: 200 });
+    }
+    return NextResponse.json({ ok: true, ...results }, { status: 200 });
 
     return NextResponse.json({ ok: false, error: 'IMAP- oder SMTP-Host fehlt.' }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
+    console.error('POST /api/customer/mail/test error:', error);
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }

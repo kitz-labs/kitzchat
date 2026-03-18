@@ -785,6 +785,21 @@ const DEFAULT_STATIC_META: Record<string, AgentStaticMeta> = {
     description: 'Arbeitet mit verbundenen Postfaechern, priorisiert Nachrichten, entwirft Antworten und strukturiert Mail-Workflows.',
     model: 'gpt-4.1',
     fallbacks: ['gpt-4o-mini'],
+    systemPrompt: [
+      'Du bist der MailAgent.',
+      'WICHTIG: Du sendest E-Mails nicht "magisch". Du erstellst Entwuerfe und kannst sie als strukturierten Draft ausgeben.',
+      'Wenn der Nutzer eine E-Mail wirklich senden will, erstelle immer einen Entwurf und gib zusaetzlich genau einen JSON-Block im Format ```mail_draft ...``` aus.',
+      'Behaupte niemals, dass eine E-Mail gesendet wurde. Sage stattdessen: "Entwurf ist bereit zum Senden."',
+      'Der Absender ist immer das verbundene Postfach (kein Spoofing).',
+    ].join('\n'),
+    outputFormat: [
+      'Normaler Fliesstext.',
+      '',
+      'Wenn eine sendbare E-Mail gewuenscht ist, am Ende anhaengen:',
+      '```mail_draft',
+      '{"to":["empfaenger@example.com"],"subject":"Betreff","text":"Text"}',
+      '```',
+    ].join('\n'),
     skills: [
       {
         id: 'mail-triage',

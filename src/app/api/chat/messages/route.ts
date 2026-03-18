@@ -13,6 +13,7 @@ import { normalizeConversationTitle } from '@/lib/chat-conversations';
 import { inspectPolicyContent, reportPolicyIncident } from '@/lib/policy-enforcement';
 import { creditsToCents, hasPostgresConfig } from '@/config/env';
 import { runAgentChat } from '@/modules/agents/agents.service';
+import { extractMailDraft } from '@/lib/mail-draft';
 
 export const dynamic = 'force-dynamic';
 
@@ -264,29 +265,30 @@ async function forwardToAgent(
       })
     : null;
   const responseRaw = agentResult?.answer ?? (await sendAgentMessage(agentId, prompt)).response;
-  const response = typeof responseRaw === 'string' ? responseRaw : String(responseRaw ?? '');
+  const responseText = typeof responseRaw === 'string' ? responseRaw : String(responseRaw ?? '');
+  const mailDraftExtraction = agentId === 'mail-agent' ? extractMailDraft(responseText) : { cleanText: responseText, draft: null };
+  const response = mailDraftExtraction.cleanText;
 
   const promptTokens = Math.max(1, Math.ceil(content.length / 4));
   const completionTokens = Math.max(1, Math.ceil(response.length / 4));
   const totalTokens = promptTokens + completionTokens;
 
   if (response) {
-    const responseMetadata = agentResult
-      ? JSON.stringify({
-          credits_charged: agentResult.creditsCharged,
-          remaining_balance: agentResult.remainingBalance,
-          display_mode: agentResult.displayMode,
-          request_id: agentResult.requestId,
-        })
-      : null;
+    const metadataObj: Record<string, unknown> = {};
+    if (agentResult) {
+      metadataObj.credits_charged = agentResult.creditsCharged;
+      metadataObj.remaining_balance = agentResult.remainingBalance;
+      metadataObj.display_mode = agentResult.displayMode;
+      metadataObj.request_id = agentResult.requestId;
+    }
+    if (mailDraftExtraction.draft) {
+      metadataObj.mail_draft = mailDraftExtraction.draft;
+    }
+    const responseMetadata = Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null;
     db.prepare(`
       INSERT INTO messages (conversation_id, from_agent, to_agent, content, message_type, metadata, owner_user_id, owner_username, created_at)
-      VALUES (?, ?, ?, ?, 'text', NULL, ?, ?, ?)
-    `).run(conversationId, agentId, from, response, userId, username, Math.floor(Date.now() / 1000));
-
-    if (responseMetadata) {
-      db.prepare('UPDATE messages SET metadata = ? WHERE rowid = last_insert_rowid()').run(responseMetadata);
-    }
+      VALUES (?, ?, ?, ?, 'text', ?, ?, ?, ?)
+    `).run(conversationId, agentId, from, response, responseMetadata, userId, username, Math.floor(Date.now() / 1000));
 
     await appendCustomerMemory(userId, username, conversationId, agentId, response, []).catch((error) => {
       console.error('Failed to persist agent memory:', error);

@@ -92,6 +92,10 @@ export function CustomerSettings() {
   const [mailTesting, setMailTesting] = useState(false);
   const [mailTestResult, setMailTestResult] = useState<string | null>(null);
   const [mailTestError, setMailTestError] = useState<string | null>(null);
+  const [mailSendTo, setMailSendTo] = useState('');
+  const [mailSending, setMailSending] = useState(false);
+  const [mailSendResult, setMailSendResult] = useState<string | null>(null);
+  const [mailSendError, setMailSendError] = useState<string | null>(null);
   const [integrationTesting, setIntegrationTesting] = useState<string | null>(null);
   const [integrationTestResult, setIntegrationTestResult] = useState<string | null>(null);
   const [integrationTestError, setIntegrationTestError] = useState<string | null>(null);
@@ -365,16 +369,42 @@ export function CustomerSettings() {
     try {
       const response = await fetch('/api/customer/mail/test', { method: 'POST' });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(String(payload?.error || 'MailAgent Test fehlgeschlagen'));
-      }
-      setMailTestResult(payload?.source === 'imap'
-        ? `IMAP OK · ${payload?.messages ?? 0} Messages`
-        : 'SMTP OK');
+      if (!response.ok || payload?.ok === false) throw new Error(String(payload?.error || 'MailAgent Test fehlgeschlagen'));
+      const imapOk = payload?.imap?.ok === true;
+      const smtpOk = payload?.smtp?.ok === true;
+      const imapInfo = imapOk ? `IMAP OK (${payload?.imap?.messages ?? 0} msgs)` : (payload?.imap?.error ? `IMAP Fehler: ${payload.imap.error}` : 'IMAP n/a');
+      const smtpInfo = smtpOk ? `SMTP OK (${payload?.smtp?.host ?? ''})` : (payload?.smtp?.error ? `SMTP Fehler: ${payload.smtp.error}` : 'SMTP n/a');
+      setMailTestResult([imapInfo, smtpInfo].filter(Boolean).join(' · '));
     } catch (error) {
       setMailTestError(error instanceof Error ? error.message : 'MailAgent Test fehlgeschlagen');
     } finally {
       setMailTesting(false);
+    }
+  }
+
+  async function sendTestMail() {
+    setMailSending(true);
+    setMailSendError(null);
+    setMailSendResult(null);
+    try {
+      const to = mailSendTo.trim();
+      if (!to) throw new Error('Empfaengeradresse fehlt');
+      const response = await fetch('/api/customer/mail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject: 'KitzChat Testmail',
+          text: `Testmail gesendet am ${new Date().toISOString()}`,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(String(payload?.error || 'Senden fehlgeschlagen'));
+      setMailSendResult(`Gesendet. Message-ID: ${payload?.message_id || 'ok'}`);
+    } catch (error) {
+      setMailSendError(error instanceof Error ? error.message : 'Senden fehlgeschlagen');
+    } finally {
+      setMailSending(false);
     }
   }
 
@@ -674,6 +704,16 @@ export function CustomerSettings() {
               {mailTestError}
             </div>
           ) : null}
+          {mailSendResult ? (
+            <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">
+              {mailSendResult}
+            </div>
+          ) : null}
+          {mailSendError ? (
+            <div className="rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm text-warning">
+              {mailSendError}
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Provider</div>
@@ -706,6 +746,21 @@ export function CustomerSettings() {
               Gmail setzt die Standard-Hosts jetzt automatisch. Fuer Outlook oder eigene Server bitte die Host-Felder manuell pruefen.
             </div>
           ) : null}
+          <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 space-y-3">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Testmail senden</div>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] items-end">
+              <label className="space-y-1.5 text-sm">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Empfaenger</div>
+                <input value={mailSendTo} onChange={(event) => setMailSendTo(event.target.value)} placeholder="z.B. ceo@aikitz.at" className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+              </label>
+              <button type="button" onClick={sendTestMail} disabled={mailSending} className="btn btn-primary text-sm">
+                {mailSending ? 'Sende...' : 'Testmail senden'}
+              </button>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Hinweis: Der Absender ist immer dein verbundenes Postfach. Wenn du als office@... senden willst, muss dieses Postfach auch als SMTP-Login verbunden sein.
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'MailAgent speichern'}
