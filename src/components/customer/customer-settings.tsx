@@ -428,7 +428,7 @@ export function CustomerSettings() {
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Speichermodus</div>
               <select value={preferences.memory_storage_mode} onChange={(event) => setPreferences((current) => ({ ...current, memory_storage_mode: event.target.value as 'state' | 'custom' }))} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm">
-                <option value="state">Im Nexora-State speichern</option>
+                <option value="state">Nexora State (automatisch)</option>
                 <option value="custom">Eigenen Speicherort verwenden</option>
               </select>
             </label>
@@ -436,7 +436,7 @@ export function CustomerSettings() {
             <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 text-sm text-muted-foreground">
               {preferences.memory_storage_mode === 'custom'
                 ? 'Neue Chat- und Agentenbeitraege werden in den angegebenen Kundenpfad gespiegelt.'
-                : 'Neue Chat- und Agentenbeitraege werden im lokalen Nexora-State unter customer-memory abgelegt.'}
+                : 'Neue Chat- und Agentenbeitraege werden automatisch im Nexora-State unter customer-memory abgelegt.'}
             </div>
             <button type="button" onClick={savePreferences} disabled={preferencesSaving} className="btn btn-primary text-sm inline-flex items-center gap-2">
               <Save size={14} /> {preferencesSaving ? 'Wird gespeichert...' : 'Memory-Speicher speichern'}

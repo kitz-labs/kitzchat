@@ -162,7 +162,7 @@ export function CustomerWebchat() {
   }, [agents, preferences.enabled_agent_ids]);
 
   const visibleAgents = Array.isArray(agents)
-    ? agents.filter((agent) => enabledAgentIds.has(agent.id) && (agent.id !== 'insta-agent' || preferences.instagram_connected))
+    ? agents.filter((agent) => enabledAgentIds.has(agent.id))
     : [];
 
   const allConversations = conversationPayload?.conversations || [];
