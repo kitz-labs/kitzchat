@@ -127,7 +127,8 @@ export default function AgentEditor({
               <input
                 value={agent.name}
                 onChange={(e) => onChange({ name: e.target.value })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. ResearchAgent"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -135,7 +136,8 @@ export default function AgentEditor({
               <input
                 value={agent.emoji}
                 onChange={(e) => onChange({ emoji: e.target.value })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. 🧭"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -143,7 +145,8 @@ export default function AgentEditor({
               <input
                 value={agent.role}
                 onChange={(e) => onChange({ role: e.target.value })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. Research & Insights"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -193,7 +196,8 @@ export default function AgentEditor({
               <input
                 value={(agent.fallbacks ?? []).join(', ')}
                 onChange={(e) => onChange({ fallbacks: splitCsv(e.target.value) })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. gpt-4.1, gpt-4o-mini"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -201,7 +205,8 @@ export default function AgentEditor({
               <input
                 value={(agent.tools ?? []).join(', ')}
                 onChange={(e) => onChange({ tools: splitCsv(e.target.value) })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. webdav, mailer, crm"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -209,7 +214,8 @@ export default function AgentEditor({
               <input
                 value={(agent.apiProviders ?? []).join(', ')}
                 onChange={(e) => onChange({ apiProviders: splitCsv(e.target.value) })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. Nominatim, APIs.guru, IPinfo"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {(agent.apiProviders ?? []).length > 0 ? (
@@ -270,7 +276,8 @@ export default function AgentEditor({
               <input
                 value={agent.inspiredBy || ''}
                 onChange={(e) => onChange({ inspiredBy: e.target.value })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. browser-use"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
             </label>
             <label className="space-y-1 text-sm md:col-span-2">
@@ -278,7 +285,8 @@ export default function AgentEditor({
               <input
                 value={agent.sourceRepo || ''}
                 onChange={(e) => onChange({ sourceRepo: e.target.value })}
-                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm"
+                placeholder="z.B. browser-use/browser-use"
+                className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
               />
             </label>
           </div>

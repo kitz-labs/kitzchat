@@ -137,6 +137,7 @@ function LoginForm() {
           id="username"
           type="text"
           value={username}
+          placeholder="z.B. markus oder name@firma.at"
           onChange={(e) => setUsername(e.target.value)}
           className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
           autoFocus
@@ -152,6 +153,7 @@ function LoginForm() {
           id="password"
           type="password"
           value={password}
+          placeholder="••••••••"
           onChange={(e) => setPassword(e.target.value)}
           className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
           required

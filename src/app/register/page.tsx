@@ -167,6 +167,7 @@ function RegisterCard() {
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+              placeholder="z.B. markus"
               required
             />
           </div>
@@ -178,6 +179,7 @@ function RegisterCard() {
                 value={firstName}
                 onChange={(event) => setFirstName(event.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                placeholder="z.B. Markus"
                 required
               />
             </div>
@@ -188,6 +190,7 @@ function RegisterCard() {
                 value={lastName}
                 onChange={(event) => setLastName(event.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+                placeholder="z.B. Gemeinwieser"
                 required
               />
             </div>
@@ -210,6 +213,7 @@ function RegisterCard() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+              placeholder="name@firma.at"
               required
             />
           </div>
@@ -221,6 +225,7 @@ function RegisterCard() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-transparent bg-white/5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+              placeholder="mind. 10 Zeichen"
               required
             />
             <p className="mt-1 text-[11px] text-white/50">Mindestens 10 Zeichen empfohlen und jetzt standardmaessig erforderlich.</p>
