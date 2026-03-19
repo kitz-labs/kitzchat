@@ -24,6 +24,7 @@
     "postbuild": "pnpm run prepare:standalone"
   },
   "dependencies": {
+    "@openai/chatkit-react": "1.5.0",
     "@simplewebauthn/browser": "^10.0.0",
     "@simplewebauthn/server": "^10.0.1",
     "better-sqlite3": "^12.6.2",

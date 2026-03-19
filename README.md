@@ -1,10 +1,10 @@
 <div align="center">
 
-# Hermes Dashboard
+# KitzChat
 
-**The open-source marketing operations control center for AI agent teams.**
+**Multi-tenant AI SaaS OS für Admins, Operatoren und Kunden.**
 
-Run CRM, outreach, content, analytics, and automation workflows from one dashboard, powered by OpenClaw + SQLite.
+KitzChat bündelt Admin Console, Workspace und Customer Portal in einer kompatiblen Next.js-Plattform für CRM, Agenten, Billing, Support und operative AI-Workflows.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
@@ -18,17 +18,17 @@ Run CRM, outreach, content, analytics, and automation workflows from one dashboa
 
 ---
 
-> **Alpha Software** — Hermes Dashboard is under active development. APIs, data models, and configuration behavior can change between releases.
+> **Live-ready Refactor** — Die Plattform wurde auf `admin / workspace / portal` umgestellt, ohne produktive ENV-, Auth-, Billing- oder Customer-Datenflüsse destruktiv zu verändern.
 
-## Why Hermes Dashboard?
+## Why KitzChat?
 
-Hermes is built for operator-led AI marketing systems where you need execution visibility and control, not disconnected tools.
+KitzChat ist für einen sauberen Multi-Tenant-Betrieb aufgebaut: interne Plattformsteuerung, operative Teamarbeit und externe Customer Experience laufen in klar getrennten Produktflächen.
 
-- **Marketing system in one place** — CRM, outreach, content ops, analytics, experiments, and automations
-- **OpenClaw-native operations** — Dynamic agent/squad discovery, cron templates, workspace and comms surfaces
-- **Local-first stack** — Next.js + SQLite, no required external infra to run locally
-- **Secure-by-default template posture** — Session auth, API key support, host lock, and writeback controls disabled by default
-- **Production workflow support** — Deploy status, auditability, role-based access, and e2e-covered auth/API flows
+- **Admin Console** — Tenants, billing, usage, compliance, logs, integrations, global settings
+- **Workspace** — CRM, sales, marketing, support, docs, analytics, automations, agent operations
+- **Customer Portal** — Chat, requests, documents, billing view, help, settings, agent access
+- **Backward compatible rollout** — Legacy-Routen bleiben zunächst als Wrapper erhalten
+- **Produktionssichere Leitplanken** — Bestehende ENV-Namen, Auth, Wallet, Stripe, OpenAI und DB-Strukturen bleiben ungebrochen
 
 ## Screenshots
 
@@ -53,7 +53,7 @@ pnpm dev
 ```
 
 Production runs on `https://dashboard.aikitz.at` (primary) with `https://nexora.aikitz.at` as the secondary UI domain.
-See `docs/production.md` for the VPS configuration details.
+See `docs/production.md` for VPS details and `docs/product-surfaces.md` for the new route structure.
 
 Initial admin access is seeded from `AUTH_USER` / `AUTH_PASS` on first run when the users table is empty.
 
@@ -68,6 +68,13 @@ Default remains **Operator Mode** (BrowserAgent produces step-by-step web workfl
 
 ## Project Status
 
+### Product Surfaces
+
+- `/admin/*` — Plattform-Admins und internes Ops-Team
+- `/workspace/*` — Tenant-Owner, Operatoren und Teams
+- `/portal/*` — Externe Kunden und Endnutzer
+- Legacy-Routen wie `/customers`, `/crm`, `/usage-token`, `/settings`, `/agents`, `/hilfe` bleiben als kompatible Entrypoints aktiv
+
 ### What Works
 
 - CRM leads, pipeline funnel, source tracking, and engagement APIs
@@ -78,6 +85,7 @@ Default remains **Operator Mode** (BrowserAgent produces step-by-step web workfl
 - Cron jobs/templates with OpenClaw-compatible schedule variants (`cron`, `every`, `at`)
 - Deploy status endpoint with OpenClaw config validation preflight
 - Session auth + API key auth with role-based access controls
+- Multi-surface routing with audience-aware redirects for admin, workspace, and portal
 
 ### Known Limitations
 
@@ -103,6 +111,41 @@ Default remains **Operator Mode** (BrowserAgent produces step-by-step web workfl
 | Data | SQLite (local state in `./state`) |
 | Agent Runtime | OpenClaw CLI + filesystem integration |
 | Auth | Session cookie + API key + optional Google OAuth |
+
+## Additive ChatKit Surfaces (OpenAI)
+
+This repo includes an **additive** OpenAI ChatKit integration that does not replace or refactor existing agents.
+
+### Routes
+
+- Internal staff/admin chat: `/internal/chat`
+- Customer-facing chat: `/chat`
+
+### Server endpoints
+
+- `POST /api/chatkit/internal/session` (admin-only)
+- `POST /api/chatkit/customer/session` (customer-only)
+
+### Environment variables
+
+Append these to your `.env` (see `.env.example`):
+
+- `OPENAI_API_KEY` (or `OPENAI_ADMIN_KEY` as a fallback)
+- `OPENAI_CHATKIT_INTERNAL_WORKFLOW_ID`
+- `OPENAI_CHATKIT_CUSTOMER_WORKFLOW_ID`
+
+### Local run
+
+1. Set the env vars above.
+2. `pnpm dev`
+3. Visit `/internal/chat` or `/chat` after logging in.
+
+## Route Overview
+
+- `admin`: Plattform-Betrieb, Governance, globale Billing-/Usage-Sicht
+- `workspace`: operative Arbeit für CRM, Marketing, Support und Agenten
+- `portal`: kundensichtbare Experience für Chat, Requests, Dokumente und Billing
+- Details: `docs/product-surfaces.md`
 
 ## Configuration
 
