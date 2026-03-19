@@ -8,6 +8,7 @@ import { useCustomerBillingSync } from '@/hooks/use-customer-billing-sync';
 import { INTEGRATION_CATALOG, sanitizeIntegrationProfile, type CustomerIntegrationProfile } from '@/lib/integration-catalog';
 import type { CustomerPreferences } from '@/lib/customer-preferences';
 import { PasskeyManager } from '@/components/auth/passkey-manager';
+import { getExamplePlaceholder } from '@/lib/input-placeholders';
 
 type MeUser = {
   id: number;
@@ -475,18 +476,35 @@ export function CustomerSettings() {
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1.5 text-sm">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">E-Mail-Adresse</div>
-                <input value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+                <input
+                  value={emailDraft}
+                  placeholder={getExamplePlaceholder({ label: 'E-Mail-Adresse', type: 'text' })}
+                  onChange={(event) => setEmailDraft(event.target.value)}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
+                />
               </label>
               <AccountField label="Agentenzugang" value={me?.has_agent_access ? (isActivated ? 'Aktiviert' : 'Freier Einstieg aktiv') : 'Gesperrt'} readOnly />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1.5 text-sm">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Aktuelles Passwort</div>
-                <input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+                <input
+                  type="password"
+                  value={currentPassword}
+                  placeholder={getExamplePlaceholder({ label: 'Aktuelles Passwort', type: 'password' })}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
+                />
               </label>
               <label className="space-y-1.5 text-sm">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Neues Passwort</div>
-                <input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+                <input
+                  type="password"
+                  value={newPassword}
+                  placeholder="mind. 10 Zeichen"
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
+                />
               </label>
             </div>
             {accountSuccess ? <div className="rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm text-success">{accountSuccess}</div> : null}
@@ -1105,21 +1123,70 @@ function AccountField({ label, value, readOnly = false }: { label: string; value
 }
 
 function PrefInput(
-  { label, value, onChange, type = 'text', inputRef }: { label: string; value: string; onChange: (value: string) => void; type?: string; inputRef?: React.RefObject<HTMLInputElement | null> },
+  {
+    label,
+    value,
+    onChange,
+    type = 'text',
+    inputRef,
+    placeholder,
+    exampleKey,
+    provider,
+  }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    type?: string;
+    inputRef?: React.RefObject<HTMLInputElement | null>;
+    placeholder?: string;
+    exampleKey?: string;
+    provider?: string;
+  },
 ) {
+  const hint = placeholder ?? getExamplePlaceholder({ label, fieldKey: exampleKey, provider, type });
   return (
     <label className="space-y-1.5 text-sm">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <input ref={inputRef} value={value} type={type} onChange={(event) => onChange(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+      <input
+        ref={inputRef}
+        value={value}
+        type={type}
+        placeholder={hint}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
+      />
     </label>
   );
 }
 
-function PrefNumberInput({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function PrefNumberInput(
+  {
+    label,
+    value,
+    onChange,
+    placeholder,
+    exampleKey,
+    provider,
+  }: {
+    label: string;
+    value: number;
+    onChange: (value: number) => void;
+    placeholder?: string;
+    exampleKey?: string;
+    provider?: string;
+  },
+) {
+  const hint = placeholder ?? getExamplePlaceholder({ label, fieldKey: exampleKey, provider, type: 'number' });
   return (
     <label className="space-y-1.5 text-sm">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <input value={value} type="number" onChange={(event) => onChange(Number(event.target.value) || 0)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+      <input
+        value={value}
+        type="number"
+        placeholder={hint}
+        onChange={(event) => onChange(Number(event.target.value) || 0)}
+        className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50"
+      />
     </label>
   );
 }

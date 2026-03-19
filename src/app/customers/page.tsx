@@ -186,15 +186,15 @@ export default function CustomersPage() {
           <div className="grid gap-3 md:grid-cols-4">
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Benutzername</div>
-              <input value={username} onChange={(event) => setUsername(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+              <input value={username} placeholder="z.B. firma-admin" onChange={(event) => setUsername(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50" />
             </label>
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">E-Mail</div>
-              <input value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+              <input value={email} placeholder="name@firma.at" onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50" />
             </label>
             <label className="space-y-1.5 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Passwort</div>
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+              <input type="password" value={password} placeholder="mind. 10 Zeichen" onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50" />
             </label>
             <div className="flex items-end">
               <button type="button" onClick={createCustomer} disabled={creating} className="btn btn-primary w-full text-sm">

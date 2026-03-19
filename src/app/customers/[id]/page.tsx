@@ -315,11 +315,11 @@ export default function CustomerDetailPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1.5 text-sm">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Benutzername</div>
-                  <input value={username} onChange={(event) => setUsername(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+                  <input value={username} placeholder="z.B. firma-admin" onChange={(event) => setUsername(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50" />
                 </label>
                 <label className="space-y-1.5 text-sm">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">E-Mail</div>
-                  <input value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm" />
+                  <input value={email} placeholder="name@firma.at" onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50" />
                 </label>
               </div>
               <div className="grid gap-2 sm:flex sm:flex-wrap">

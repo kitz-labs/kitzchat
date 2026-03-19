@@ -11,6 +11,9 @@ import { getAgent, type AgentDefinition } from '@/lib/agent-config';
 import { getRecentCustomerMemorySnippet } from '@/lib/customer-memory';
 import { buildCustomerAgentProfileSnippet } from '@/lib/customer-agent-profiles';
 
+type CachedSnippet = { value: string; expiresAt: number };
+const memorySnippetCache = new Map<number, CachedSnippet>();
+
 function buildAgentRuntimePrompt(
   agent: AgentDefinition | undefined,
   userPrompt: string,
@@ -39,6 +42,10 @@ function buildAgentRuntimePrompt(
         '',
       ];
 
+  const trimmedTools = tools.split('\n').slice(0, 8).join('\n');
+  const trimmedPolicies = policies.split('\n').slice(0, 8).join('\n');
+  const trimmedLimits = limits.split('\n').slice(0, 8).join('\n');
+
   return [
     `# SYSTEM`,
     agent.systemPrompt?.trim() || `Du bist ${agent.name}.`,
@@ -58,13 +65,13 @@ function buildAgentRuntimePrompt(
     ...(opts.memorySnippet ? [opts.memorySnippet.trim(), ''] : []),
     ...ioSection,
     `# TOOLS (allowed)`,
-    tools || '- (none)',
+    (plainConversation ? trimmedTools : tools) || '- (none)',
     '',
     `# POLICIES`,
-    policies || '- (none)',
+    (plainConversation ? trimmedPolicies : policies) || '- (none)',
     '',
     `# LIMITS`,
-    limits || '- (none)',
+    (plainConversation ? trimmedLimits : limits) || '- (none)',
     '',
     `# USER`,
     userPrompt,
@@ -124,7 +131,14 @@ export async function runAgentChat(params: {
   const preferredModel = wallet.balanceRatio <= 0.15 ? route.preferredModel : agentConfig?.model || route.preferredModel;
   const fallbackModel = agentConfig?.fallbacks?.[0] || route.fallbackModel;
   const runtimeUsage = agentConfig?.modelUsage;
-  const memorySnippet = await getRecentCustomerMemorySnippet(params.userId, params.name).catch(() => '');
+  const cached = memorySnippetCache.get(params.userId);
+  const now = Date.now();
+  const memorySnippet = cached && cached.expiresAt > now
+    ? cached.value
+    : await getRecentCustomerMemorySnippet(params.userId, params.name, 2600).catch(() => '');
+  if (!cached || cached.expiresAt <= now) {
+    memorySnippetCache.set(params.userId, { value: memorySnippet, expiresAt: now + 25_000 });
+  }
   const customerProfileSnippet = appUser?.account_type === 'customer'
     ? buildCustomerAgentProfileSnippet(params.userId, params.agentCode)
     : '';
