@@ -1,0 +1,6 @@
+[submodule "vendor/browser-use-desktop"]
+	path = vendor/browser-use-desktop
+	url = https://github.com/browser-use/desktop.git
+[submodule "vendor/browser-use"]
+	path = vendor/browser-use
+	url = https://github.com/browser-use/browser-use.git

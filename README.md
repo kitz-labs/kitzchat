@@ -57,6 +57,15 @@ See `docs/production.md` for the VPS configuration details.
 
 Initial admin access is seeded from `AUTH_USER` / `AUTH_PASS` on first run when the users table is empty.
 
+## BrowserAgent (browser-use)
+
+This repo vendors upstream projects as Git submodules:
+
+- `vendor/browser-use` (browser-use/browser-use)
+- `vendor/browser-use-desktop` (browser-use/desktop)
+
+Default remains **Operator Mode** (BrowserAgent produces step-by-step web workflows). Optional automation can be added later as a sidecar service without changing existing ENV/keys.
+
 ## Project Status
 
 ### What Works
